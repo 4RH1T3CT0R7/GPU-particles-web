@@ -150,25 +150,6 @@
   `;
 
   const shapesGLSL = `
-  // Isometric projection helper
-  vec2 iso(vec3 p){
-    // Isometric projection matrix
-    float angleX = 0.615; // ~35.264 degrees
-    float angleY = 0.785; // 45 degrees
-    mat3 rotY = mat3(
-      cos(angleY), 0.0, sin(angleY),
-      0.0, 1.0, 0.0,
-      -sin(angleY), 0.0, cos(angleY)
-    );
-    mat3 rotX = mat3(
-      1.0, 0.0, 0.0,
-      0.0, cos(angleX), -sin(angleX),
-      0.0, sin(angleX), cos(angleX)
-    );
-    vec3 rotated = rotX * rotY * p;
-    return rotated.xy;
-  }
-
   // 3D shape generators
   vec3 shape_cube(float t, float s){
     // Map to cube surface
@@ -275,59 +256,74 @@
   }
   vec2 shape_rose(float t, float k){ float r = cos(k*t); return r*vec2(cos(t), sin(t)); }
   vec2 shape_polygon(float t, float n){ float a = 6.28318530718/n; float k = floor(t/a); float ang = (k + 0.5)*a; return vec2(cos(ang), sin(ang)); }
+  // helper rotation to keep shapes alive in 3D
+  vec3 applyRotations(vec3 p, float time){
+    float ax = time * 0.21;
+    float ay = time * 0.17;
+    float az = time * 0.13;
+    mat3 rotX = mat3(
+      1.0, 0.0, 0.0,
+      0.0, cos(ax), -sin(ax),
+      0.0, sin(ax), cos(ax)
+    );
+    mat3 rotY = mat3(
+      cos(ay), 0.0, sin(ay),
+      0.0, 1.0, 0.0,
+      -sin(ay), 0.0, cos(ay)
+    );
+    mat3 rotZ = mat3(
+      cos(az), -sin(az), 0.0,
+      sin(az), cos(az), 0.0,
+      0.0, 0.0, 1.0
+    );
+    return rotZ * rotY * rotX * p;
+  }
 
   // Map id uv->[0,1]^2 into target on chosen shape, with radial fill using s
-  vec2 targetFor(int sid, vec2 id, float time){
+  vec3 targetFor(int sid, vec2 id, float time){
     float s = fract(id.x + id.y*1.618 + noise(id*17.0)); // [0,1]
     float angle = (id.x + noise(id*3.1))*6.28318530718;
-    vec2 p;
-    
+    vec3 p;
+
     if (sid==0){ // rotating cube
       vec3 p3 = shape_cube(angle / 6.28318530718, s);
-      mat3 rotZ = mat3(cos(time*0.3), -sin(time*0.3), 0.0, sin(time*0.3), cos(time*0.3), 0.0, 0.0, 0.0, 1.0);
-      p = iso(rotZ * p3);
+      p = applyRotations(p3, time);
     } else if (sid==1){ // sphere
       vec3 p3 = shape_sphere(angle / 6.28318530718, s);
-      mat3 rotY = mat3(cos(time*0.2), 0.0, sin(time*0.2), 0.0, 1.0, 0.0, -sin(time*0.2), 0.0, cos(time*0.2));
-      p = iso(rotY * p3);
+      p = applyRotations(p3, time*0.8);
     } else if (sid==2){ // torus
       vec3 p3 = shape_torus(angle / 6.28318530718, s);
-      mat3 rotX = mat3(1.0, 0.0, 0.0, 0.0, cos(time*0.25), -sin(time*0.25), 0.0, sin(time*0.25), cos(time*0.25));
-      p = iso(rotX * p3);
+      p = applyRotations(p3, time*1.1);
     } else if (sid==3){ // helix
       vec3 p3 = shape_helix(angle / 6.28318530718, s);
-      mat3 rotY = mat3(cos(time*0.15), 0.0, sin(time*0.15), 0.0, 1.0, 0.0, -sin(time*0.15), 0.0, cos(time*0.15));
-      p = iso(rotY * p3);
+      p = applyRotations(p3, time*0.6);
     } else if (sid==4){ // octahedron
       vec3 p3 = shape_octahedron(angle / 6.28318530718, s);
-      mat3 rotZ = mat3(cos(time*0.28), -sin(time*0.28), 0.0, sin(time*0.28), cos(time*0.28), 0.0, 0.0, 0.0, 1.0);
-      mat3 rotY = mat3(cos(time*0.2), 0.0, sin(time*0.2), 0.0, 1.0, 0.0, -sin(time*0.2), 0.0, cos(time*0.2));
-      p = iso(rotY * rotZ * p3);
-    } else if (sid==5){ // superformula (2D)
+      p = applyRotations(p3, time*0.9);
+    } else if (sid==5){ // superformula (2D -> 3D sheet)
       float m = 6.0 + 2.0*sin(time*0.2);
       float n1 = 0.3 + 0.2*sin(time*0.13);
       float n2 = 1.7 + 0.7*sin(time*0.17);
       float n3 = 1.7 + 0.7*cos(time*0.11);
-      p = shape_superformula(angle, m, n1, n2, n3)*(0.3 + 0.7*sqrt(s));
+      vec2 p2 = shape_superformula(angle, m, n1, n2, n3)*(0.3 + 0.7*sqrt(s));
+      p = applyRotations(vec3(p2, (noise(id*9.0)-0.5)*0.6), time*0.7);
     } else if (sid==6){ // rose
       float k = 5.0 + floor(mod(time*0.15, 3.0));
-      p = shape_rose(angle, k)*(0.3 + 0.7*sqrt(s));
+      vec2 p2 = shape_rose(angle, k)*(0.3 + 0.7*sqrt(s));
+      p = applyRotations(vec3(p2, (noise(id*7.3)-0.5)*0.8), time*0.5);
     } else if (sid==7){ // wave
       vec3 p3 = shape_wave(s, angle / 6.28318530718);
-      mat3 rotZ = mat3(cos(time*0.2), -sin(time*0.2), 0.0, sin(time*0.2), cos(time*0.2), 0.0, 0.0, 0.0, 1.0);
-      p = iso(rotZ * p3);
+      p = applyRotations(p3, time*0.9);
     } else if (sid==8){ // ribbon
       vec3 p3 = shape_ribbon(angle / 6.28318530718, s);
-      mat3 rotX = mat3(1.0, 0.0, 0.0, 0.0, cos(time*0.22), -sin(time*0.22), 0.0, sin(time*0.22), cos(time*0.22));
-      p = iso(rotX * p3);
+      p = applyRotations(p3, time*1.0);
     } else if (sid==9){ // icosahedron
       vec3 p3 = shape_icosahedron(angle / 6.28318530718, s);
-      mat3 rotZ = mat3(cos(time*0.24), -sin(time*0.24), 0.0, sin(time*0.24), cos(time*0.24), 0.0, 0.0, 0.0, 1.0);
-      mat3 rotY = mat3(cos(time*0.18), 0.0, sin(time*0.18), 0.0, 1.0, 0.0, -sin(time*0.18), 0.0, cos(time*0.18));
-      p = iso(rotY * rotZ * p3);
+      p = applyRotations(p3, time*0.75);
     } else { // polygon/star
       float n = 5.0 + floor(mod(time*0.2, 4.0));
-      p = shape_polygon(angle, n)*(0.5 + 0.5*sqrt(s));
+      vec2 p2 = shape_polygon(angle, n)*(0.5 + 0.5*sqrt(s));
+      p = applyRotations(vec3(p2, (noise(id*4.7)-0.5)*0.4), time*0.4);
     }
     return p;
   }
@@ -342,364 +338,79 @@
   uniform int u_shapeA;
   uniform int u_shapeB;
   uniform float u_morph; // 0..1
+  uniform float u_shapeStrength;
   uniform vec2 u_simSize;
   layout(location=0) out vec4 o_pos;
   layout(location=1) out vec4 o_vel;
   in vec2 v_uv;
   ${commonNoise}
   ${shapesGLSL}
-  
-  // Профессиональные easing функции
-  float easeInOutQuint(float t){
-    return t < 0.5 ? 16.0*t*t*t*t*t : 1.0 - pow(-2.0*t + 2.0, 5.0) / 2.0;
+
+  float easeInOutCubic(float t){
+    return t < 0.5 ? 4.0*t*t*t : 1.0 - pow(-2.0*t + 2.0, 3.0) / 2.0;
   }
-  
-  float easeOutExpo(float t){
-    return t == 1.0 ? 1.0 : 1.0 - pow(2.0, -10.0 * t);
-  }
-  
-  float easeInOutBack(float t){
-    float c1 = 1.70158;
-    float c2 = c1 * 1.525;
-    return t < 0.5
-      ? (pow(2.0 * t, 2.0) * ((c2 + 1.0) * 2.0 * t - c2)) / 2.0
-      : (pow(2.0 * t - 2.0, 2.0) * ((c2 + 1.0) * (t * 2.0 - 2.0) + c2) + 2.0) / 2.0;
-  }
-  
+
   void main(){
     vec2 uv = v_uv;
     vec2 id = uv; // id on [0,1]^2
     vec4 posData = texture(u_pos, uv);
     vec3 pos = posData.xyz; // 3D позиция
-    vec3 vel = texture(u_vel, uv).xyz; // ВАЖНО: читаем 3D скорость!
+    vec3 vel = texture(u_vel, uv).xyz; // 3D скорость
 
-    // Волновое плавное перетекание
     float idHash = hash12(id);
-    float wave = sin(u_morph * 3.14159 + idHash * 6.28318);
-    float morphEased = easeInOutQuint(u_morph);
-    
-    // Добавляем волновой эффект для органичности
-    float waveMorph = mix(morphEased, wave * 0.5 + 0.5, 0.15);
-    waveMorph = clamp(waveMorph, 0.0, 1.0);
-    
-    // Target attraction (morphing between two shapes)
-    vec2 tA = targetFor(u_shapeA, id, u_time);
-    vec2 tB = targetFor(u_shapeB, id, u_time*0.93 + 12.3);
-    vec2 target2D = mix(tA, tB, waveMorph);
-    
-    // Плавное спиральное движение во время перехода
-    float transitionIntensity = sin(u_morph * 3.14159); // 0->1->0
-    float morphSpiralAngle = u_morph * 6.28318 + idHash * 3.14159;
-    vec2 spiral = vec2(cos(morphSpiralAngle), sin(morphSpiralAngle)) * transitionIntensity * 0.08;
-    target2D += spiral;
-    
-    // ==== ФИГУРА ВНУТРИ ПОТОКА ЧАСТИЦ ====
-    float layerHash = fract(idHash * 7.13);
-    float personHash = fract(idHash * 13.37);
-    float depthHash = fract(idHash * 17.13);
-    
-    // ОЧЕНЬ РАЗМЫТОЕ облако вокруг фигуры + случайное распределение везде
-    // 50% частиц летают ВЕЗДЕ, 50% группируются вокруг фигуры (но размыто)
-    float isCloudParticle = step(0.3, personHash); // 30% летают везде, 70% формируют фигуру
-    
-    // Целевая позиция фигуры - ОЧЕНЬ слабое влияние
-    vec2 targetPos = target2D * (0.05 + 0.05 * sin(u_time * 0.1)); // пульсирует между 0.05 и 0.1
-    
-    // Облако размытости вокруг фигуры (очень большое)
-    float cloudSpread = 1.5 + 0.5 * sin(u_time * 0.08 + personHash); // 1.5-2.0 радиус облака
-    vec2 cloudNoise = vec2(
-        sin(personHash * 100.0 + u_time * 0.2) * cloudSpread,
-        cos(personHash * 73.0 + u_time * 0.15) * cloudSpread
-    );
-    
-    // Целевые позиции - ОЧЕНЬ различные для каждого типа
-    vec3 coreTarget = vec3(targetPos, 0.0); // ядро фигуры
-    vec3 cloudTarget = vec3(cloudNoise, (depthHash - 0.5) * 4.0); // облако вокруг с БОЛЬШИМ Z-разбросом
-    vec3 randomTarget = vec3(
-        (personHash - 0.5) * 4.0,
-        (layerHash - 0.5) * 4.0,
-        (depthHash - 0.5) * 4.0
-    ); // совсем случайное распределение везде
-    
-    // Микс целей в зависимости от категории частицы
-    vec3 shapeTarget = mix(coreTarget, mix(cloudTarget, randomTarget, step(0.7, personHash)), isCloudParticle);
-    vec3 toShape = shapeTarget - pos;
-    float distToShape = length(toShape);
-    
-    // ОЧЕНЬ слабое притяжение - почти нет (частицы летают свободно)
-    float attractionStrength = (1.0 - isCloudParticle) * 0.08 * exp(-distToShape * 0.3); // было 0.01, усилил до 0.08
-    vec3 shapeForce = normalize(toShape + vec3(0.001)) * attractionStrength;
-    
-    // ===== УСИЛЕННЫЕ ЗАВИХРЕНИЯ КАК В РЕАЛЬНОМ ПЕСКЕ =====
-    // Множественные вихри - более мощные и быстрые
-    vec2 vortex1Center = vec2(sin(u_time * 0.12 + 0.3) * 0.8, cos(u_time * 0.10 + 0.7) * 0.8);
-    vec2 vortex2Center = vec2(cos(u_time * 0.14 + 1.2) * 0.9, sin(u_time * 0.11 + 1.8) * 0.9);
-    vec2 vortex3Center = vec2(sin(u_time * 0.08 + 2.1) * 0.7, cos(u_time * 0.13 + 2.9) * 0.7);
-    
-    vec2 toVortex1 = pos.xy - vortex1Center;
-    vec2 toVortex2 = pos.xy - vortex2Center;
-    vec2 toVortex3 = pos.xy - vortex3Center;
-    
-    float dist1 = length(toVortex1) + 0.15;
-    float dist2 = length(toVortex2) + 0.15;
-    float dist3 = length(toVortex3) + 0.15;
-    
-    // МОЩНЫЕ вихревые силы (тангенциальные)
-    vec2 vortexForce1 = vec2(-toVortex1.y, toVortex1.x) / (dist1 * dist1) * 1.2;
-    vec2 vortexForce2 = vec2(-toVortex2.y, toVortex2.x) / (dist2 * dist2) * 1.0;
-    vec2 vortexForce3 = vec2(-toVortex3.y, toVortex3.x) / (dist3 * dist3) * 0.9;
-    
-    vec2 totalVortex = (vortexForce1 + vortexForce2 + vortexForce3) * 0.8;
-    
-    // СПИРАЛЬНЫЕ ПОТОКИ - более выраженные (как в песочных часах)
-    float spiralFlowAngle = atan(pos.y, pos.x) + u_time * 0.4;
-    float spiralRadius = length(pos.xy);
-    float spiralForce = sin(spiralRadius * 2.0 - u_time) * 0.3;
-    vec2 spiralFlow = vec2(
-        -sin(spiralFlowAngle) * (spiralRadius + 0.2) * 0.5,
-        cos(spiralFlowAngle) * (spiralRadius + 0.2) * 0.5
-    ) + vec2(cos(spiralFlowAngle), sin(spiralFlowAngle)) * spiralForce;
-    
-    // ТУРБУЛЕНТНЫЕ ВИХРИ на 4 разных масштабах
-    vec2 turbulence1 = curl(pos.xy * 0.3 + u_time * 0.08) * 1.5;
-    vec2 turbulence2 = curl(pos.xy * 0.8 + u_time * 0.12) * 1.0;
-    vec2 turbulence3 = curl(pos.xy * 2.0 + u_time * 0.06) * 0.6;
-    vec2 turbulence4 = curl(pos.xy * 5.0 + u_time * 0.15) * 0.3;
-    vec2 totalTurbulence = (turbulence1 + turbulence2 + turbulence3 + turbulence4) * 0.7;
-    
-    // 3D турбулентность для Z-оси
-    float zTurbulence = sin(u_time * 0.2 + pos.x * 2.0 + pos.y * 3.0 + personHash * 10.0) * 0.4;
-    
-    // Радиальные волны от центра (более сильные)
-    vec2 radialDir = normalize(pos.xy + vec2(0.001));
-    float radialWave = sin(length(pos.xy) * 2.0 - u_time * 1.5) * 0.6;
-    vec2 radialForce = radialDir * radialWave;
-    
-    // Случайное направление для каждой частицы (более выраженное)
-    float randomAngle = personHash * 6.28318 + u_time * 0.15 + layerHash * 3.14159;
-    vec2 randomDir = vec2(cos(randomAngle), sin(randomAngle)) * 0.5;
-    
-    // ===== УЛУЧШЕННАЯ ФИЗИКА ПЕСКА =====
-    // Гравитация - песок падает!
-    float gravity = 0.1 * (0.5 + sin(u_time * 0.1 + personHash) * 0.5); // пульсирует
-    vec3 gravityForce = vec3(0.0, -gravity, -gravity * 0.5); // вниз И назад
-    
-    // Сопротивление воздуха
-    float dragCoeff = 0.15 * length(vel);
-    vec3 dragForce = -vec3(vel.x, vel.y, 0.0) * dragCoeff * 0.2;
-    
-    // Трение частиц друг о друга (коллективное поведение)
-    vec2 collectiveFlow = normalize(curl(id * 50.0 + u_time * 0.05)) * 0.2;
-    vec3 flockingForce = vec3(collectiveFlow, 0.0) * 0.1;
-    
-    // ===== КОМБИНИРУЕМ ВСЕ СИЛЫ =====
-    vec3 acc = vec3(
-        totalVortex.x + spiralFlow.x + totalTurbulence.x + radialForce.x + randomDir.x,
-        totalVortex.y + spiralFlow.y + totalTurbulence.y + radialForce.y + randomDir.y,
-        0.0
-    ) + shapeForce + gravityForce + dragForce + flockingForce;
-    
-    // ВОЛНООБРАЗНЫЕ КОЛЕБАНИЯ во ВСЕХ направлениях (более выраженные)
-    acc.x += sin(u_time * 0.22 + personHash * 10.0) * 0.4;
-    acc.y += cos(u_time * 0.18 + personHash * 12.0) * 0.4;
-    acc.z += sin(u_time * 0.15 + personHash * 8.0 + depthHash * 5.0) * 0.4;
-    acc.z += zTurbulence * 0.3; // добавляем 3D турбулентность в Z
-    
-    // Integrate - 3D интеграция!
-    vel += acc * u_dt; // используем ПОЛНОЕ ускорение (XYZ)!
-    
-    // Очень слабый damping - полная свобода
-    vel *= 0.88;
-    
-    // Ограничение скорости (только для безопасности, но ОЧЕНЬ высокий лимит)
+    float layerHash = hash12(id*23.7);
+
+    // ==== БАЗОВАЯ ШТОРМОВАЯ ФИЗИКА ====
+    vec2 curlLarge = curl(pos.xy * 0.6 + u_time * 0.12);
+    vec2 curlMid   = curl(pos.xy * 1.5 - u_time * 0.18);
+    vec2 curlFine  = curl(pos.xy * 4.5 + u_time * 0.35 + idHash*6.0);
+    vec2 swirl = (curlLarge * 1.4 + curlMid * 0.8 + curlFine * 0.5);
+
+    vec2 vortexCenter = vec2(sin(u_time*0.17), cos(u_time*0.21))*0.8;
+    vec2 rel = pos.xy - vortexCenter;
+    float r2 = max(0.08, dot(rel, rel));
+    vec2 vortex = vec2(-rel.y, rel.x) / r2 * 0.9;
+
+    vec2 gust = curl(pos.xy * 3.5 + idHash*10.0 + u_time*0.6) * 1.4;
+    vec2 wind = normalize(vec2(1.0, 0.3)) * (0.2 + 0.4*sin(u_time*0.6 + idHash*5.0));
+
+    vec3 flow = vec3(swirl + vortex + gust + wind, 0.0);
+    flow.z = sin(u_time*0.4 + pos.x*2.0 + pos.y*1.3) * 0.6 + sin(u_time*0.7 + layerHash*6.28)*0.3;
+
+    vec3 acc = flow * 1.2;
+    acc.y -= 0.35; // лёгкая гравитация
+    acc *= 1.0 + 0.3*sin(u_time*0.25 + idHash*6.0);
+
+    // ==== ПРИТЯЖЕНИЕ К ФИГУРАМ ====
+    vec3 targetA = targetFor(u_shapeA, id, u_time*0.6);
+    vec3 targetB = targetFor(u_shapeB, id, u_time*0.63 + 2.7);
+    vec3 desired = mix(targetA, targetB, easeInOutCubic(u_morph));
+
+    float affinity = smoothstep(0.15, 0.95, idHash);
+    float shapeWeight = u_shapeStrength * affinity;
+    vec3 toShape = desired - pos;
+    float dist = length(toShape);
+    vec3 shapeForce = toShape * (0.8 * shapeWeight) / (1.0 + dist*dist*0.5);
+    acc += shapeForce;
+
+    // ==== СОХРАНЯЕМ ОБЛАКО ====
+    float roamRadius = 4.5;
+    float distCenter = length(pos);
+    if (distCenter > roamRadius){
+      acc -= pos / distCenter * (distCenter - roamRadius) * 0.6;
+    }
+
+    // Интеграция
+    vel += acc * u_dt;
+    vel *= 0.92;
     float speed = length(vel);
-    if (speed > 20.0) { // был 6.0, теперь 20.0 - намного выше
-        vel = (vel / speed) * 20.0;
-    }
-    
-    // Обновляем позицию по всем трём осям!
-    pos += vel * u_dt; // 3D обновление вместо только xy
-    
-    // БЕЗ НИКАКИХ ОГРАНИЧЕНИЙ И CLAMP!
-    // Частицы летают свободно во всём пространстве
+    if (speed > 18.0) vel = vel / speed * 18.0;
 
+    pos += vel * u_dt;
     o_pos = vec4(pos, 1.0);
-    o_vel = vec4(vel, 0.0); // 3D скорость (vel.xyz)
+    o_vel = vec4(vel, 1.0);
   }
   `;
-
-  const initFS = `#version 300 es
-  precision highp float;
-  uniform float u_seed;
-  layout(location=0) out vec4 o_pos;
-  layout(location=1) out vec4 o_vel;
-  in vec2 v_uv;
-  ${commonNoise}
-  void main(){
-    vec2 id = v_uv;
-    // РАВНОМЕРНОЕ распределение по ВСЕМУ экрану (большой радиус)
-    float r = sqrt(fract(noise(id*91.13 + u_seed))) * 2.5;
-    float a = 6.2831853*fract(noise(id*13.7 + u_seed*1.7));
-    float depth = (fract(noise(id*33.7 + u_seed*2.3)) - 0.5) * 4.0; // было 1.0, теперь 4.0 - В 4 раза больше!
-    vec3 pos = vec3(r*vec2(cos(a), sin(a)), depth);
-    vec3 vel = vec3(0.0); // 3D скорость!
-    o_pos = vec4(pos, 1.0);
-    o_vel = vec4(vel, 0.0); // 3D скорость
-  }
-  `;
-
-  const particleVS = `#version 300 es
-  precision highp float;
-  layout(location=0) in float a_idx; // index 0..N-1
-  uniform sampler2D u_pos;
-  uniform vec2 u_texSize;
-  uniform mat4 u_proj;
-  uniform mat4 u_view;
-  uniform float u_time;
-  out float v_vmag;
-  out vec2 v_id;
-  out float v_hash;
-  out float v_depth;
-  vec2 idxToUV(float idx){
-    float x = mod(idx, u_texSize.x);
-    float y = floor(idx / u_texSize.x);
-    return (vec2(x + 0.5, y + 0.5)) / u_texSize;
-  }
-  float hash11(float p){ p = fract(p*0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
-  void main(){
-    vec2 uv = idxToUV(a_idx);
-    vec4 posData = texture(u_pos, uv);
-    vec3 pos = posData.xyz;
-    
-    // Применяем view и projection матрицы
-    vec4 viewPos = u_view * vec4(pos, 1.0);
-    gl_Position = u_proj * viewPos;
-    
-    // Size variation by hash and depth
-    v_hash = hash11(a_idx+1.0);
-    v_depth = posData.w;
-    v_vmag = 0.0;
-    v_id = uv;
-    
-    // Размер зависит от глубины (перспектива)
-    float depthScale = 1.0 + posData.z * 0.3;
-    float baseSize = (5.0 + v_hash * 3.0) * depthScale * max(0.3, 1.0 - length(viewPos.xy) * 0.2);
-    gl_PointSize = max(2.0, baseSize);
-  }
-  `;
-
-  const particleFS = `#version 300 es
-  precision highp float;
-  uniform vec3 u_colorA;
-  uniform vec3 u_colorB;
-  uniform float u_time;
-  uniform vec3 u_lightPos;
-  in float v_vmag;
-  in vec2 v_id;
-  in float v_hash;
-  in float v_depth;
-  out vec4 o_col;
-  
-  // Улучшенная процедурная текстура
-  float perlinNoise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    float a = fract(sin(dot(i, vec2(12.9898, 78.233))) * 43758.5453);
-    float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(12.9898, 78.233))) * 43758.5453);
-    float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(12.9898, 78.233))) * 43758.5453);
-    float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(12.9898, 78.233))) * 43758.5453);
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-  }
-  
-  // Fractional Brownian Motion для сложных текстур
-  float fbm(vec2 p) {
-    float v = 0.0;
-    float a = 0.5;
-    for (int i = 0; i < 4; i++) {
-      v += a * perlinNoise(p);
-      p *= 2.0;
-      a *= 0.5;
-    }
-    return v;
-  }
-  
-  void main(){
-    vec2 p = gl_PointCoord * 2.0 - 1.0;
-    float r = length(p);
-    if (r > 1.0) discard;
-    
-    // ===== УЛУЧШЕННАЯ ФОРМА ЧАСТИЦЫ =====
-    float shape = sqrt(1.0 - r * r * 0.9);
-    vec3 normal = normalize(vec3(p.x, p.y, shape * 0.8));
-    
-    // Микротекстура через FBM
-    float microDetail = fbm(p * 12.0 + v_hash * 100.0) * 0.4;
-    normal += normal * microDetail * 0.15;
-    normal = normalize(normal);
-    
-    // ===== СЛОЖНАЯ ТЕКСТУРА И ЦВЕТ =====
-    float hueMix = fract(v_hash + v_id.x * 0.37 + u_time * 0.01);
-    vec3 baseColor = mix(u_colorA, u_colorB, hueMix);
-    
-    // Многослойная текстура
-    float texture1 = perlinNoise(p * 6.0 + vec2(v_hash)) * 0.3 + 0.7;
-    float texture2 = fbm(p * 3.0 + u_time * 0.05 + vec2(v_hash * 17.0)) * 0.2 + 0.8;
-    float colorVar = texture1 * texture2;
-    baseColor *= colorVar;
-    
-    // Цветовая вариация по глубине
-    baseColor += vec3(0.1, 0.2, 0.3) * v_depth;
-    
-    // ===== ПРОДВИНУТОЕ ОСВЕЩЕНИЕ С RAY TRACING =====
-    vec3 lightDir = normalize(u_lightPos);
-    
-    // Основное освещение
-    float diffuse = max(0.0, dot(normal, lightDir)) * 0.6 + 0.4;
-    
-    // Острые зеркальные блики (ray tracing effect)
-    vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
-    vec3 halfDir = normalize(lightDir + viewDir);
-    float spec = pow(max(0.0, dot(normal, halfDir)), 24.0); // очень острый
-    vec3 specColor = mix(vec3(1.0), baseColor, 0.3) * spec * 0.7;
-    
-    // Fresnel отражение (стеклоподобный эффект)
-    float fresnel = pow(1.0 - dot(normal, viewDir), 3.0) * 0.6;
-    
-    // Ambient occlusion в трещинах текстуры
-    float ao = mix(0.4, 1.0, shape) * (0.8 + microDetail * 0.2);
-    
-    // Rim lighting для контура
-    float rim = pow(1.0 - dot(normal, viewDir), 2.5) * 0.4;
-    
-    // ===== ИТОГОВЫЙ ЦВЕТ =====
-    vec3 finalColor = baseColor * diffuse * ao;
-    finalColor += specColor;
-    finalColor += baseColor * rim * 0.5;
-    finalColor += fresnel * vec3(0.5, 0.8, 1.0);
-    
-    // Динамичное мерцание
-    float twinkle = 0.8 + 0.2 * sin(u_time * 1.8 + v_hash * 100.0 + perlinNoise(vec2(v_hash) * 10.0) * 5.0);
-    finalColor *= twinkle;
-    
-    // ===== ГАЛО И BLOOM ЭФФЕКТ =====
-    float haloInner = exp(-r * r * 4.0) * 0.5;
-    float haloOuter = exp(-r * r * 1.2) * 0.2;
-    finalColor += mix(baseColor, vec3(0.3, 0.7, 1.0), 0.5) * (haloInner + haloOuter);
-    
-    // Дополнительный bloom для ярких частиц
-    if (dot(finalColor, vec3(0.299, 0.587, 0.114)) > 0.6) {
-      finalColor += vec3(0.1, 0.3, 0.6) * 0.5;
-    }
-    
-    // ===== ФИНАЛЬНАЯ АЛЬФА =====
-    float alpha = smoothstep(1.0, 0.0, r);
-    alpha = pow(alpha, 0.3); // очень мягко
-    
-    o_col = vec4(finalColor * alpha, alpha * 0.85);
-  }
-  `;
-
   const blitFS = `#version 300 es
   precision highp float;
   uniform sampler2D u_tex;
@@ -949,11 +660,13 @@
   let shapeA = 0, shapeB = 1;
   let morph = 0.0;
   let nextSwitch = 5.0; // Start first transition after 5s
-  let autoTransition = true;
   let transitionSpeed = 12.0;
-  let controlMode = 'auto'; // 'auto' or 'manual'
-  let manualMorphTarget = 0.0;
+  let customTransition = 12.0;
+  let controlMode = 'preset'; // 'preset' or 'custom'
   let isMorphing = false;
+  let shapeMode = 'shapes';
+  let targetShapeStrength = 1.0;
+  let shapeStrength = 1.0;
 
 
   const SHAPE_NAMES = [
@@ -963,45 +676,46 @@
 
   // МНОЖЕСТВЕННЫЕ ЦВЕТОВЫЕ ПАЛИТРЫ
   const colorPalettes = [
-    { a: [0.2, 0.5, 1.0], b: [0.6, 0.3, 1.0] },     // Синий-Фиолетовый
-    { a: [0.1, 0.8, 0.4], b: [1.0, 0.2, 0.8] },     // Зелёный-Малиновый
-    { a: [1.0, 0.3, 0.0], b: [0.0, 0.8, 1.0] },     // Оранжевый-Голубой
-    { a: [0.9, 0.1, 0.3], b: [0.2, 0.9, 0.8] },     // Розовый-Голубой
-    { a: [0.3, 0.9, 0.1], b: [0.8, 0.1, 0.9] },     // Лайм-Фиолетовый
-    { a: [1.0, 0.8, 0.0], b: [0.2, 0.3, 1.0] },     // Жёлтый-Синий
-    { a: [0.0, 1.0, 0.8], b: [1.0, 0.0, 0.5] },     // Аквамарин-Пурпур
-    { a: [0.8, 0.4, 0.1], b: [0.1, 0.8, 0.9] },     // Коричневый-Светло-голубой
+    { a: [0.22, 0.52, 1.0], b: [0.64, 0.35, 1.0] },     // Синий-Фиолетовый
+    { a: [0.08, 0.9, 0.6], b: [1.0, 0.35, 0.7] },       // Лазурный-Пурпур
+    { a: [1.0, 0.38, 0.08], b: [0.15, 0.8, 1.0] },      // Оранжево-Голубой
+    { a: [0.95, 0.15, 0.45], b: [0.2, 0.9, 0.95] },     // Розовый-Циан
+    { a: [0.35, 0.95, 0.15], b: [0.8, 0.18, 0.95] },    // Лайм-Фиолетовый
+    { a: [1.0, 0.86, 0.12], b: [0.26, 0.4, 1.0] },      // Золотисто-Синий
+    { a: [0.0, 1.0, 0.86], b: [1.0, 0.15, 0.6] },       // Аквамарин-Пурпур
+    { a: [0.75, 0.45, 0.15], b: [0.1, 0.82, 0.95] },    // Медно-Небесный
   ];
   let currentPaletteIndex = 0;
 
-  function scheduleShapes(t) {
-      if (controlMode === 'auto') {
-        if (t > nextSwitch) {
-          shapeA = shapeB;
-          shapeB = (shapeB + 1) % SHAPE_NAMES.length;
-          morph = 0.0;
-          isMorphing = true;
-          nextSwitch = t + transitionSpeed + 2.0;
-          currentPaletteIndex = (currentPaletteIndex + 1) % colorPalettes.length;
-          console.log(`Auto-morph: ${SHAPE_NAMES[shapeA]} -> ${SHAPE_NAMES[shapeB]}`);
-          updateShapeButtons();
-        }
-        if (isMorphing) {
-          morph += 0.002;
-          if (morph >= 1.0) {
-            morph = 1.0;
-            isMorphing = false;
-          }
-        }
-      } else { // manual
-        const diff = manualMorphTarget - morph;
-        if (Math.abs(diff) > 0.001) {
-          morph += diff * 0.1; // Smooth easing
-        } else {
-          morph = manualMorphTarget;
-        }
+  function scheduleShapes(dt, t) {
+    if (shapeMode === 'free') {
+      morph = 0.0;
+      isMorphing = false;
+      return;
+    }
+
+    const duration = controlMode === 'custom' ? customTransition : transitionSpeed;
+
+    if (t > nextSwitch) {
+      shapeA = shapeB;
+      shapeB = (shapeB + 1) % SHAPE_NAMES.length;
+      morph = 0.0;
+      isMorphing = true;
+      nextSwitch = t + duration + 2.0;
+      currentPaletteIndex = (currentPaletteIndex + 1) % colorPalettes.length;
+      console.log(`Auto-morph: ${SHAPE_NAMES[shapeA]} -> ${SHAPE_NAMES[shapeB]}`);
+      updateShapeButtons();
+    }
+
+    if (isMorphing) {
+      morph += dt / duration;
+      if (morph >= 1.0) {
+        morph = 1.0;
+        isMorphing = false;
+        nextSwitch = t + duration;
       }
     }
+  }
 
   // Colors - космические оттенки
   // Colors - будут динамичными
@@ -1016,7 +730,8 @@
     const t = now * 0.001;
     let dt = Math.min(0.033, (now - last) * 0.001);
     last = now;
-    scheduleShapes(t);
+    scheduleShapes(dt, t);
+    shapeStrength += (targetShapeStrength - shapeStrength) * 0.08;
 
     // ПЛАВНЫЙ ZOOM - интерполяция к целевому расстоянию
     camera.distance += (camera.targetDistance - camera.distance) * 0.1; // плавно
@@ -1047,6 +762,7 @@
     gl.uniform1i(gl.getUniformLocation(progSim, 'u_shapeA'), shapeA);
     gl.uniform1i(gl.getUniformLocation(progSim, 'u_shapeB'), shapeB);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_morph'), morph);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_shapeStrength'), shapeStrength);
     gl.uniform2f(gl.getUniformLocation(progSim, 'u_simSize'), texSize, texSize);
     drawQuad();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -1055,7 +771,7 @@
     // RENDER PASS
     gl.bindFramebuffer(gl.FRAMEBUFFER, renderFBO);
     gl.viewport(0, 0, renderW, renderH);
-    gl.clearColor(0.02, 0.02, 0.04, 1.0);
+    gl.clearColor(0.01, 0.02, 0.06, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.useProgram(progParticles);
@@ -1100,32 +816,33 @@
   const shapeButtonsContainer = document.getElementById('shapeButtons');
   const speedControl = document.getElementById('speedControl');
 
-  // Функция для выбора фигуры вручную (ДОЛЖНА БЫТЬ ДО forEach!)
+  // Ручной выбор фигуры включает режим фигур
   function selectShape(idx) {
-    if (shapeA === idx && controlMode === 'manual') return;
-
-    controlMode = 'manual';
-    document.getElementById('speedControl').value = 'manual';
-    document.getElementById('manualSpeedGroup').style.display = 'block';
-
+    shapeMode = 'shapes';
+    targetShapeStrength = 1.0;
     shapeA = idx;
     shapeB = (idx + 1) % SHAPE_NAMES.length;
     morph = 0.0;
-    manualMorphTarget = 0.0;
+    isMorphing = true;
+    nextSwitch = performance.now() * 0.001 + transitionSpeed;
 
-    const manualSpeedInput = document.getElementById('manualSpeed');
-    const manualMorphValue = document.getElementById('speedValue');
-    manualSpeedInput.value = 0.0;
-    manualMorphValue.textContent = '0.00';
-
-    console.log(`✓✓✓ Manual shape selection: ${SHAPE_NAMES[idx]}`);
+    console.log(`✓ Manual shape selection: ${SHAPE_NAMES[idx]}`);
     updateShapeButtons();
+    updateModeButtons();
   }
 
   function updateShapeButtons() {
     document.querySelectorAll('#shapeButtons button').forEach((btn, i) => {
       btn.classList.toggle('active', i === shapeA);
     });
+  }
+
+  const modeShapesBtn = document.getElementById('mode-shapes');
+  const modeFreeBtn = document.getElementById('mode-free');
+
+  function updateModeButtons() {
+    modeShapesBtn.classList.toggle('active', shapeMode === 'shapes');
+    modeFreeBtn.classList.toggle('active', shapeMode === 'free');
   }
 
   SHAPE_NAMES.forEach((name, index) => {
@@ -1142,35 +859,50 @@
 
   const manualSpeedInput = document.getElementById('manualSpeed');
   const manualMorphValue = document.getElementById('speedValue');
+  manualMorphValue.textContent = `${manualSpeedInput.value}s`;
 
   speedControl.addEventListener('change', (e) => {
-    controlMode = e.target.value;
     const manualGroup = document.getElementById('manualSpeedGroup');
-    if (controlMode === 'manual') {
+    if (e.target.value === 'manual') {
+      controlMode = 'custom';
       manualGroup.style.display = 'block';
-      autoTransition = false;
-      // Set slider to current morph value
-      manualMorphTarget = morph;
-      manualSpeedInput.value = morph;
-      manualMorphValue.textContent = morph.toFixed(2);
+      transitionSpeed = customTransition = parseFloat(manualSpeedInput.value);
     } else {
+      controlMode = 'preset';
       manualGroup.style.display = 'none';
-      autoTransition = true;
-      isMorphing = true; // Start auto-morphing
-      nextSwitch = performance.now() * 0.001 + 2.0; // Schedule next transition
+      if (e.target.value === 'slow') transitionSpeed = 20.0;
+      else if (e.target.value === 'fast') transitionSpeed = 6.0;
+      else transitionSpeed = 12.0;
     }
+    nextSwitch = performance.now() * 0.001 + transitionSpeed;
   });
 
   manualSpeedInput.addEventListener('input', (e) => {
-    if (controlMode === 'manual') {
-        manualMorphTarget = parseFloat(e.target.value);
-        manualMorphValue.textContent = manualMorphTarget.toFixed(2);
+    customTransition = parseFloat(e.target.value);
+    manualMorphValue.textContent = `${customTransition.toFixed(1)}s`;
+    if (controlMode === 'custom') {
+      transitionSpeed = customTransition;
+      nextSwitch = performance.now() * 0.001 + transitionSpeed;
     }
+  });
+
+  modeShapesBtn.addEventListener('click', () => {
+    shapeMode = 'shapes';
+    targetShapeStrength = 1.0;
+    if (!isMorphing) nextSwitch = performance.now() * 0.001 + transitionSpeed;
+    updateModeButtons();
+  });
+
+  modeFreeBtn.addEventListener('click', () => {
+    shapeMode = 'free';
+    targetShapeStrength = 0.0;
+    updateModeButtons();
   });
 
   // Скрываем регулятор при загрузке
   document.getElementById('manualSpeedGroup').style.display = 'none';
 
   updateShapeButtons();
+  updateModeButtons();
   console.log('✓ UI инициализирован успешно!');
 })();
