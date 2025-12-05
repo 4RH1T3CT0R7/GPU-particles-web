@@ -5,18 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>GPU Particle Shapes</title>
   <style>
+    :root {
+      color-scheme: dark;
+    }
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
       overflow: hidden;
       background:
-        radial-gradient(circle at 18% 22%, rgba(120, 186, 255, 0.14), transparent 30%),
-        radial-gradient(circle at 78% 38%, rgba(255, 188, 120, 0.12), transparent 34%),
-        radial-gradient(circle at 48% 70%, rgba(82, 122, 255, 0.12), transparent 32%),
-        #03050a;
-      color: #d8f7ff;
+        radial-gradient(circle at 16% 20%, rgba(255, 255, 255, 0.08), transparent 36%),
+        radial-gradient(circle at 76% 38%, rgba(255, 255, 255, 0.05), transparent 38%),
+        linear-gradient(180deg, #06080f 0%, #05060c 40%, #05050a 100%);
+      color: #e9f6ff;
       font-family: "Inter", "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      letter-spacing: 0.01em;
+      -webkit-font-smoothing: antialiased;
     }
     canvas#gl {
       position: fixed;
@@ -32,21 +36,24 @@
       max-width: 320px;
       max-height: calc(100vh - 40px);
       overflow-y: auto;
-      background: radial-gradient(circle at 20% 20%, rgba(126, 224, 255, 0.12), transparent 45%), rgba(5, 8, 15, 0.88);
-      border: 1px solid rgba(126, 224, 255, 0.35);
-      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 18px;
       padding: 18px 18px 16px;
       font-size: 12px;
-      backdrop-filter: blur(16px) saturate(140%);
-      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(22px) saturate(180%);
+      box-shadow:
+        0 30px 60px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
       z-index: 10;
     }
     #controls h3 {
       margin: 0 0 12px 0;
       font-size: 14px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #9ee7ff;
+      letter-spacing: 0.04em;
+      text-transform: none;
+      color: #f4fbff;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -56,17 +63,17 @@
       width: 8px;
       height: 8px;
       border-radius: 999px;
-      background: linear-gradient(120deg, #76d9ff, #c8a1ff);
-      box-shadow: 0 0 12px rgba(118, 217, 255, 0.8);
+      background: linear-gradient(140deg, #b9e4ff, #f6dfff);
+      box-shadow: 0 0 16px rgba(185, 228, 255, 0.8);
     }
     .subtitle {
       margin: -8px 0 14px;
-      color: #8cb6c7;
+      color: rgba(233, 246, 255, 0.8);
       font-size: 11px;
       letter-spacing: 0.02em;
     }
     .section {
-      border-top: 1px solid rgba(126, 224, 255, 0.2);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
       padding-top: 12px;
       margin-top: 12px;
     }
@@ -78,16 +85,16 @@
     .section-title {
       font-size: 12px;
       font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #b8ecff;
+      letter-spacing: 0.04em;
+      text-transform: none;
+      color: #f1fbff;
       margin: 0 0 8px;
     }
     .hint {
       display: flex;
       align-items: center;
       gap: 8px;
-      color: #8cb6c7;
+      color: rgba(233, 246, 255, 0.65);
       font-size: 11px;
       margin: 6px 0 10px;
     }
@@ -96,8 +103,8 @@
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: linear-gradient(120deg, #70d5ff, #a07bff);
-      box-shadow: 0 0 10px rgba(126, 224, 255, 0.6);
+      background: linear-gradient(120deg, #b6deff, #f3d5ff);
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
     }
     .control-group {
       margin-bottom: 14px;
@@ -107,10 +114,10 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 6px;
-      color: #a6e8ff;
+      color: rgba(233, 246, 255, 0.88);
       font-size: 11px;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      text-transform: none;
     }
     .shape-buttons {
       display: grid;
@@ -119,37 +126,38 @@
       margin-bottom: 8px;
     }
     button {
-      padding: 9px 12px;
-      background: rgba(79, 209, 255, 0.07);
-      border: 1px solid rgba(126, 224, 255, 0.45);
-      color: #c9f5ff;
-      border-radius: 8px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #f4fbff;
+      border-radius: 10px;
       cursor: pointer;
       font-size: 11px;
-      text-transform: uppercase;
+      text-transform: none;
       transition: all 0.2s ease;
       font-weight: 600;
-      letter-spacing: 0.03em;
-      backdrop-filter: blur(4px);
+      letter-spacing: 0.02em;
+      backdrop-filter: blur(6px);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
     button:hover {
-      background: rgba(126, 224, 255, 0.18);
-      box-shadow: 0 0 14px rgba(126, 224, 255, 0.35);
+      background: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
       transform: translateY(-1px);
     }
     button.active {
-      background: linear-gradient(135deg, #70d5ff, #a07bff);
+      background: linear-gradient(140deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.18));
       color: #041220;
-      border-color: rgba(160, 123, 255, 0.8);
-      box-shadow: 0 8px 28px rgba(126, 224, 255, 0.45);
+      border-color: rgba(255, 255, 255, 0.55);
+      box-shadow: 0 10px 34px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.4);
     }
     select {
       width: 100%;
       padding: 8px 10px;
-      background: rgba(79, 209, 255, 0.07);
-      border: 1px solid rgba(126, 224, 255, 0.45);
-      color: #c9f5ff;
-      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #f4fbff;
+      border-radius: 10px;
       font-size: 11px;
       outline: none;
     }
@@ -157,27 +165,55 @@
       width: 100%;
       margin: 6px 0 4px;
       cursor: pointer;
-      accent-color: #80e1ff;
+      accent-color: #cfe9ff;
     }
     .value-pill {
-      background: rgba(126, 224, 255, 0.12);
-      border: 1px solid rgba(126, 224, 255, 0.4);
-      color: #e0f8ff;
-      padding: 6px 10px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #f6fbff;
+      padding: 7px 12px;
       border-radius: 999px;
       font-weight: 600;
       font-size: 11px;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.01em;
       display: inline-flex;
       gap: 6px;
       align-items: center;
     }
-    .value-pill strong { color: #7de1ff; }
+    .value-pill strong { color: #d9edff; }
     .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
     #manualSpeedGroup {
-      border-top: 1px solid rgba(126, 224, 255, 0.35);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
       padding-top: 10px;
       margin-top: 10px;
+    }
+    .palette-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .palette-preview {
+      flex: 1;
+      height: 36px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.05));
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+    .palette-preview::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--preview-gradient, linear-gradient(90deg, #7dd8ff, #c9a5ff));
+      opacity: 0.92;
+    }
+    .palette-label {
+      font-size: 11px;
+      color: rgba(233, 246, 255, 0.85);
+      letter-spacing: 0.01em;
+      min-width: 86px;
     }
     noscript {
       position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
@@ -217,7 +253,11 @@
         <span id="colorCountValue">3 цвета</span>
       </div>
       <div class="control-group">
-        <button id="shufflePalette">Сменить палитру</button>
+        <div class="palette-row">
+          <div class="palette-preview" id="palettePreview"></div>
+          <div class="palette-label" id="paletteLabel">Palette 1</div>
+          <button id="shufflePalette">Сменить палитру</button>
+        </div>
       </div>
     </div>
 

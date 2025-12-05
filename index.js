@@ -527,17 +527,23 @@
         acc += swirl * base * (1.4 + burst * 1.8);
         vel = mix(vel, vel - dirP * base * 0.9 + swirl * base * 0.6, 0.45 * pulse);
       } else if (u_pointerMode == 6) {
-        // Квазар: двойные струи и мягкое ядро
-        vec3 axis = vec3(0.0, 1.0, 0.0);
-        float axial = clamp(dot(dirP, axis), -1.0, 1.0);
-        vec3 equator = normalize(vec3(dirP.x, 0.0, dirP.z) + 0.0001);
-        vec3 swirlDir = vec3(-equator.z, 0.2 * axial, equator.x);
-        float jet = smoothstep(0.25, 1.0, abs(axial));
-        float disk = 1.0 - jet;
-        acc += dirP * base * (0.9 + 0.7 * disk);
-        acc += swirlDir * base * (2.3 * disk + 1.1 * jet);
-        acc += axis * base * (1.7 * jet * sign(dirP.y));
-        vel = mix(vel, vel + swirlDir * 0.6 + axis * jet * 0.8, 0.32 * falloff);
+        // Квазар: аккреционный диск + двусторонние струи
+        vec3 axis = normalize(u_viewDir * 0.45 + vec3(0.0, 1.0, 0.35));
+        vec3 r = pos - u_pointerPos;
+        float rLen = max(0.06, length(r));
+        vec3 radial = r / rLen;
+        float axial = clamp(dot(radial, axis), -1.0, 1.0);
+        vec3 diskDir = normalize(radial - axis * axial + 0.0001);
+        vec3 swirlDir = normalize(cross(axis, diskDir));
+        float diskWeight = exp(-pow(abs(axial), 0.7));
+        float jetWeight = smoothstep(0.35, 0.95, abs(axial));
+        float funnel = 1.4 / (1.0 + pow(rLen / radius, 1.4));
+
+        acc -= radial * base * (0.8 * diskWeight);
+        acc += axis * base * (1.9 * jetWeight * sign(axial));
+        acc += swirlDir * base * (2.6 * diskWeight + 0.8 * jetWeight);
+        acc += diskDir * base * (1.1 * diskWeight * funnel);
+        vel = mix(vel, vel + swirlDir * 0.85 + axis * jetWeight * 1.1, 0.35 * falloff);
       } else {
         // Магнитные дуги с лёгким свирлом
         vec3 axis = normalize(u_viewDir * 0.6 + vec3(0.0, 1.0, 0.4));
@@ -985,7 +991,10 @@
     if(!e.touches[0]) return;
     updateMouse(e.touches[0]);
   });
+  const isUIEvent = (e) => e.target && e.target.closest && e.target.closest('#controls');
+
   window.addEventListener('mousedown', (e)=> {
+    if (isUIEvent(e)) return;
     if (e.button === 0) {
       mouse.leftDown = true;
     }
@@ -1006,6 +1015,7 @@
     mouse.rightDown = false;
   });
   window.addEventListener('touchstart', (e)=> {
+    if (isUIEvent(e)) return;
     mouse.leftDown = true;
     if(!e.touches[0]) return;
     const rect = canvas.getBoundingClientRect();
@@ -1149,14 +1159,14 @@
 
   // МНОЖЕСТВЕННЫЕ ЦВЕТОВЫЕ ПАЛИТРЫ
   const colorPalettes = [
-    { a: [0.35, 0.78, 1.2], b: [1.15, 0.42, 1.1] },     // Сияющий Синий-Фиолетовый
-    { a: [0.12, 1.15, 0.82], b: [1.05, 0.42, 0.8] },    // Лазурный-Пурпур
-    { a: [1.15, 0.48, 0.08], b: [0.25, 0.95, 1.15] },   // Оранжево-Голубой неон
-    { a: [1.05, 0.25, 0.6], b: [0.25, 1.05, 1.1] },     // Розовый-Циан глянцевый
-    { a: [0.4, 1.05, 0.2], b: [0.95, 0.25, 1.1] },      // Лайм-Фиолетовый
-    { a: [1.05, 0.92, 0.25], b: [0.32, 0.55, 1.2] },    // Золотисто-Синий
-    { a: [0.0, 1.15, 0.95], b: [1.15, 0.2, 0.8] },      // Аквамарин-Пурпур
-    { a: [0.85, 0.55, 0.2], b: [0.15, 0.95, 1.15] },    // Медно-Небесный
+    { name: 'Polar Aurora', a: [0.35, 0.78, 1.2], b: [1.15, 0.42, 1.1] },
+    { name: 'Neon Reef', a: [0.12, 1.15, 0.82], b: [1.05, 0.42, 0.8] },
+    { name: 'Amber Ice', a: [1.15, 0.48, 0.08], b: [0.25, 0.95, 1.15] },
+    { name: 'Candy Glass', a: [1.05, 0.25, 0.6], b: [0.25, 1.05, 1.1] },
+    { name: 'Lime Orchid', a: [0.4, 1.05, 0.2], b: [0.95, 0.25, 1.1] },
+    { name: 'Golden Hour', a: [1.05, 0.92, 0.25], b: [0.32, 0.55, 1.2] },
+    { name: 'Aqua Pulse', a: [0.0, 1.15, 0.95], b: [1.15, 0.2, 0.8] },
+    { name: 'Copper Sky', a: [0.85, 0.55, 0.2], b: [0.15, 0.95, 1.15] },
   ];
   let currentPaletteIndex = 0;
 
@@ -1176,7 +1186,22 @@
     seedA: randomFractalSeed(),
     seedB: randomFractalSeed(),
     morph: 0,
-    duration: 11.0,
+    timer: 0,
+    duration: 18.0,
+  };
+
+  const palettePreview = document.getElementById('palettePreview');
+  const paletteLabel = document.getElementById('paletteLabel');
+
+  const paletteToGradient = (palette) => {
+    const steps = Array.from({ length: 5 }).map((_, i) => {
+      const t = i / 4;
+      const r = palette.a[0] * (1 - t) + palette.b[0] * t;
+      const g = palette.a[1] * (1 - t) + palette.b[1] * t;
+      const b = palette.a[2] * (1 - t) + palette.b[2] * t;
+      return `rgb(${(r * 110).toFixed(0)}, ${(g * 110).toFixed(0)}, ${(b * 110).toFixed(0)}) ${Math.round(t * 100)}%`;
+    });
+    return `linear-gradient(90deg, ${steps.join(', ')})`;
   };
 
   const rebuildColorStops = () => {
@@ -1189,6 +1214,8 @@
       colorStopsBase[i * 3 + 1] = (palette.a[1] * (1 - t) + palette.b[1] * t) * vibrato;
       colorStopsBase[i * 3 + 2] = (palette.a[2] * (1 - t) + palette.b[2] * t) * vibrato;
     }
+    palettePreview.style.setProperty('--preview-gradient', paletteToGradient(palette));
+    paletteLabel.textContent = palette.name;
   };
   rebuildColorStops();
 
@@ -1202,13 +1229,23 @@
     if (shapeMode === 'fractal') {
       shapeA = FRACTAL_SHAPE_ID;
       shapeB = FRACTAL_SHAPE_ID;
-      morph = fractalState.morph;
-      fractalState.morph += dt / fractalState.duration;
-      if (fractalState.morph >= 1.0) {
+      const hold = 0.18;
+      const phase = fractalState.timer / fractalState.duration;
+      const clampedPhase = Math.min(1.0, phase);
+      const eased = (() => {
+        if (clampedPhase < hold) return 0.0;
+        if (clampedPhase > 1.0 - hold) return 1.0;
+        const u = (clampedPhase - hold) / (1.0 - 2.0 * hold);
+        return 0.5 - 0.5 * Math.cos(Math.PI * u);
+      })();
+      morph = eased;
+      fractalState.timer += dt;
+      if (fractalState.timer >= fractalState.duration) {
+        fractalState.timer = 0.0;
         fractalState.morph = 0.0;
         fractalState.seedA = fractalState.seedB;
         fractalState.seedB = randomFractalSeed();
-        fractalState.duration = 10.0 + Math.random() * 3.0;
+        fractalState.duration = 18.0 + Math.random() * 6.0;
         currentPaletteIndex = (currentPaletteIndex + 1) % colorPalettes.length;
         rebuildColorStops();
       }
@@ -1638,7 +1675,11 @@
   });
 
   paletteShuffleBtn.addEventListener('click', () => {
-    currentPaletteIndex = (currentPaletteIndex + 1) % colorPalettes.length;
+    let next = Math.floor(Math.random() * colorPalettes.length);
+    if (next === currentPaletteIndex) next = (next + 1) % colorPalettes.length;
+    currentPaletteIndex = next;
+    fractalState.timer = 0.0;
+    fractalState.seedB = randomFractalSeed();
     rebuildColorStops();
     updateColorLabels();
   });
@@ -1670,11 +1711,12 @@
 
   modeFractalBtn.addEventListener('click', () => {
     shapeMode = 'fractal';
-    targetShapeStrength = Math.max(0.9, manualShapeStrength);
+    targetShapeStrength = Math.max(1.05, manualShapeStrength);
     fractalState.seedA = randomFractalSeed();
     fractalState.seedB = randomFractalSeed();
     fractalState.morph = 0.0;
-    fractalState.duration = 10.0 + Math.random() * 3.0;
+    fractalState.timer = 0.0;
+    fractalState.duration = 18.0 + Math.random() * 6.0;
     morph = 0.0;
     isMorphing = false;
     rebuildColorStops();
