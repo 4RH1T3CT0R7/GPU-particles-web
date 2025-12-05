@@ -848,15 +848,15 @@
     camera.pos[2] = cy * cx * camera.distance;
   };
 
-  // Mouse handling - вращение камеры при зажатой кнопке
-  let mouse = { x: 0, y: 0, down: 0, lastX: 0, lastY: 0 };
+  // Mouse handling - левый клик для курсора, правый для вращения
+  let mouse = { x: 0, y: 0, leftDown: false, rightDown: false, lastX: 0, lastY: 0 };
 
   const updateMouse = (e) => {
     const rect = canvas.getBoundingClientRect();
     const x = ( (e.clientX - rect.left) / rect.width );
     const y = ( (e.clientY - rect.top) / rect.height );
 
-    if (mouse.down) {
+    if (mouse.rightDown) {
       // Вращение камеры при зажатой кнопке
       const dx = (x - mouse.lastX) * Math.PI * 1.5;
       const dy = (y - mouse.lastY) * Math.PI * 1.5;
@@ -879,23 +879,40 @@
     updateMouse(e.touches[0]);
   });
   window.addEventListener('mousedown', (e)=> {
-    mouse.down = 1;
-    const rect = canvas.getBoundingClientRect();
-    mouse.lastX = (e.clientX - rect.left) / rect.width;
-    mouse.lastY = (e.clientY - rect.top) / rect.height;
+    if (e.button === 0) {
+      mouse.leftDown = true;
+    }
+    if (e.button === 2) {
+      mouse.rightDown = true;
+      const rect = canvas.getBoundingClientRect();
+      mouse.lastX = (e.clientX - rect.left) / rect.width;
+      mouse.lastY = (e.clientY - rect.top) / rect.height;
+    }
   });
-  window.addEventListener('mouseup', ()=> mouse.down = 0);
+  window.addEventListener('contextmenu', (e) => e.preventDefault());
+  window.addEventListener('mouseup', (e)=> {
+    if (e.button === 0) mouse.leftDown = false;
+    if (e.button === 2) mouse.rightDown = false;
+  });
+  window.addEventListener('mouseleave', () => {
+    mouse.leftDown = false;
+    mouse.rightDown = false;
+  });
   window.addEventListener('touchstart', (e)=> {
-    mouse.down = 1;
+    mouse.leftDown = true;
     if(!e.touches[0]) return;
     const rect = canvas.getBoundingClientRect();
     mouse.lastX = (e.touches[0].clientX - rect.left) / rect.width;
     mouse.lastY = (e.touches[0].clientY - rect.top) / rect.height;
   }, {passive:true});
-  window.addEventListener('touchend', ()=> mouse.down = 0);
+  window.addEventListener('touchend', ()=> {
+    mouse.leftDown = false;
+    mouse.rightDown = false;
+  });
 
   // Zoom при прокрутке колеса мыши - ПЛАВНЫЙ
   window.addEventListener('wheel', (e) => {
+    if (e.target.closest('#controls')) return;
     e.preventDefault();
     const zoomSpeed = 0.15;
     const direction = e.deltaY > 0 ? 1 : -1;
@@ -1115,12 +1132,13 @@
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_morph'), morph);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_shapeStrength'), shapeStrength);
     gl.uniform2f(gl.getUniformLocation(progSim, 'u_simSize'), texSize, texSize);
+    const pointerActive = pointerState.active && mouse.leftDown;
     gl.uniform3f(gl.getUniformLocation(progSim, 'u_pointerPos'), pointerWorld[0], pointerWorld[1], pointerWorld[2]);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerStrength'), pointerState.strength);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerRadius'), pointerState.radius);
     gl.uniform1i(gl.getUniformLocation(progSim, 'u_pointerMode'), POINTER_MODES.indexOf(pointerState.mode));
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerActive'), pointerState.active ? 1.0 : 0.0);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerPress'), mouse.down ? 1.0 : 0.0);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerActive'), pointerActive ? 1.0 : 0.0);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerPress'), pointerActive ? 1.0 : 0.0);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerPulse'), pointerState.pulse ? 1.0 : 0.0);
     drawQuad();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
