@@ -447,15 +447,15 @@
     float dist = max(0.08, length(toShape));
     vec3 surfaceNormal = normalize(toShape + vec3(0.001, 0.002, 0.003));
     vec3 tangential = normalize(cross(surfaceNormal, vec3(0.0, 1.0, 0.0)) + 0.4 * cross(surfaceNormal, vec3(1.0, 0.0, 0.0)));
-    vec3 swirlAroundShape = tangential * (0.5 + 0.4 * liftNoise) * shapeWeight * (0.7 + 0.6 * calmFactor);
+    vec3 swirlAroundShape = tangential * (0.45 + 0.35 * liftNoise) * shapeWeight * (0.65 + 0.5 * calmFactor);
 
-    vec3 shapeForce = toShape * (1.45 + 1.1 * calmFactor) * shapeWeight / (1.0 + dist*dist*0.35);
+    vec3 shapeForce = toShape * (1.08 + 0.9 * calmFactor) * shapeWeight / (1.0 + dist*dist*0.42);
     shapeForce += swirlAroundShape;
 
     float cohesion = smoothstep(0.0, 0.9, shapeWeight);
-    acc = mix(acc, acc * 0.48 + shapeForce * 1.65, cohesion);
-    acc += shapeForce * 0.45;
-    vel *= mix(0.93, 0.86, cohesion * calmFactor);
+    acc = mix(acc, acc * 0.6 + shapeForce * 1.35, cohesion * 0.95);
+    acc += shapeForce * 0.32;
+    vel *= mix(0.96, 0.9, cohesion * calmFactor);
 
     // ==== АКТИВНЫЙ КУРСОР ====
     if (u_pointerActive > 0.5) {
@@ -470,13 +470,13 @@
 
       if (u_pointerMode == 0) {
         // Притяжение/захват
-        acc += dirP * base * 2.2;
-        vel += dirP * base * 0.7;
+        acc += dirP * base * 1.45;
+        vel += dirP * base * 0.5;
       } else if (u_pointerMode == 1) {
         // Отталкивание и разгон
-        acc -= dirP * base * 2.0;
-        acc += vec3(dirP.y, -dirP.x, 0.15) * base * 1.6;
-        vel *= 0.97;
+        acc -= dirP * base * 2.15;
+        acc += vec3(dirP.y, -dirP.x, 0.2) * base * 1.75;
+        vel *= 0.975;
       } else if (u_pointerMode == 2 || u_pointerMode == 3) {
         // Вихревой закрут в обе стороны
         float spin = (u_pointerMode == 2 ? -1.0 : 1.0);
@@ -490,9 +490,9 @@
         float burst = smoothstep(0.1, 0.95, sin(pulsePhase * 0.6 + 1.2));
         float pulse = 1.0 + (u_pointerPulse > 0.5 ? carrier + burst * 1.4 : 0.0);
         vec3 swirl = normalize(vec3(-dirP.y, dirP.x, dirP.z * 0.4));
-        acc += dirP * base * 2.4 * pulse;
-        acc += swirl * base * (1.1 + burst * 1.6);
-        vel = mix(vel, vel + dirP * base * 0.8, 0.4 * pulse);
+        acc -= dirP * base * (1.8 + burst * 1.3);
+        acc += swirl * base * (1.4 + burst * 1.8);
+        vel = mix(vel, vel - dirP * base * 0.9 + swirl * base * 0.6, 0.45 * pulse);
       } else {
         // Магнитные дуги с лёгким свирлом
         vec3 axis = normalize(u_viewDir * 0.6 + vec3(0.0, 1.0, 0.4));
@@ -504,9 +504,11 @@
         dipole = clamp(dipole, -vec3(8.0), vec3(8.0));
         vec3 swirlDir = normalize(cross(dipole, axis) + 0.35 * cross(dirP, axis));
         float fluxFalloff = 1.0 / (1.0 + pow(rLen / (radius * 1.2), 2.0));
-        acc += dipole * base * (1.8 * fluxFalloff);
-        acc += swirlDir * base * (2.1 * fluxFalloff);
-        vel = mix(vel, dirP * base * 0.7 + dipole * 0.35, 0.4 * falloff);
+        float repel = 0.6 + 0.7 * (1.0 - fluxFalloff);
+        acc += dipole * base * (1.4 * fluxFalloff);
+        acc += swirlDir * base * (2.35 * fluxFalloff);
+        acc -= dirP * base * repel;
+        vel = mix(vel, vel - dirP * base * 0.55 + dipole * 0.4, 0.42 * falloff);
       }
     }
 
@@ -531,6 +533,7 @@
   const initFS = `#version 300 es
   precision highp float;
   uniform float u_seed;
+  uniform float u_pattern;
   layout(location=0) out vec4 o_pos;
   layout(location=1) out vec4 o_vel;
   in vec2 v_uv;
@@ -540,14 +543,34 @@
     float h = hash12(v_uv * 311.0 + u_seed);
     float angle = h * 6.28318530718;
     float radius = pow(hash11(h * 97.0), 1.4) * 0.8 + noise(v_uv * 15.0) * 0.12;
-    vec3 pos = vec3(
-      cos(angle) * radius,
-      (hash11(h * 41.0) - 0.5) * 0.6,
-      sin(angle) * radius
-    );
 
-    vec2 swirl = curl(v_uv * 6.0 + u_seed * 0.37) * 0.8;
-    vec3 vel = vec3(swirl, (hash11(h * 13.0) - 0.5) * 0.35);
+    vec3 pos;
+    vec3 vel;
+
+    if (u_pattern > 0.5) {
+      // Разбросанный фрактальный узор: кольца + вихри
+      float swirlBand = 0.35 + 0.65 * noise(v_uv * 9.0 + u_seed);
+      float arms = floor(hash11(h * 43.0) * 5.0) + 2.0;
+      float armAngle = angle * arms;
+      float r = mix(0.25, 0.95, pow(hash11(h * 17.0), 0.6)) * swirlBand;
+      pos = vec3(
+        cos(armAngle) * r,
+        sin(armAngle * 0.35) * (0.35 + noise(v_uv * 5.0 + u_seed) * 0.3),
+        sin(armAngle) * r
+      );
+      vec2 swirl = curl(v_uv * 7.5 + u_seed * 0.21) * 1.4;
+      pos.xy += swirl * 0.6;
+      vel = vec3(-swirl.y, swirl.x, curl(v_uv * 5.0 + u_seed * 0.13).x * 0.55);
+    } else {
+      pos = vec3(
+        cos(angle) * radius,
+        (hash11(h * 41.0) - 0.5) * 0.6,
+        sin(angle) * radius
+      );
+
+      vec2 swirl = curl(v_uv * 6.0 + u_seed * 0.37) * 0.8;
+      vel = vec3(swirl, (hash11(h * 13.0) - 0.5) * 0.35);
+    }
 
     o_pos = vec4(pos, 1.0);
     o_vel = vec4(vel, 1.0);
@@ -785,10 +808,26 @@
     gl.bindVertexArray(quadVAO);
     gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
     gl.uniform1f(gl.getUniformLocation(progInit, 'u_seed'), Math.random()*1000);
+    gl.uniform1f(gl.getUniformLocation(progInit, 'u_pattern'), 0.0);
     drawQuad();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     // After init, read from the textures we just wrote into
     simRead = 1;
+  };
+
+  const reinitializeParticles = (pattern = 0.0) => {
+    gl.viewport(0, 0, texSize, texSize);
+    gl.useProgram(progInit);
+    gl.bindVertexArray(quadVAO);
+    for (let i = 0; i < 2; i++) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, simFBO[i]);
+      gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+      gl.uniform1f(gl.getUniformLocation(progInit, 'u_seed'), Math.random() * 1000);
+      gl.uniform1f(gl.getUniformLocation(progInit, 'u_pattern'), pattern);
+      drawQuad();
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    simRead = 0;
   };
 
   initSimulation(simSize);
@@ -935,8 +974,8 @@
   const pointerState = {
     active: true,
     mode: 'attract',
-    strength: 1.25,
-    radius: 1.1,
+    strength: 1.1,
+    radius: 1.0,
     pulse: true,
   };
 
@@ -1040,8 +1079,8 @@
   let controlMode = 'preset'; // 'preset' or 'custom'
   let isMorphing = false;
   let shapeMode = 'shapes';
-  let targetShapeStrength = 1.1;
-  let shapeStrength = 1.1;
+  let targetShapeStrength = 0.95;
+  let shapeStrength = 0.95;
   let autoMorph = true;
 
 
@@ -1152,7 +1191,7 @@
     const pointerActive = pointerState.active && mouse.leftDown;
     const zoomReach = Math.pow(camera.distance * 0.55, 0.85);
     const pointerRadius = pointerState.radius * (0.8 + zoomReach * 0.9);
-    const pointerStrength = pointerState.strength * (0.85 + zoomReach * 0.65);
+    const pointerStrength = pointerState.strength * (0.75 + zoomReach * 0.5);
     gl.uniform3f(gl.getUniformLocation(progSim, 'u_pointerPos'), pointerWorld[0], pointerWorld[1], pointerWorld[2]);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerStrength'), pointerStrength);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerRadius'), pointerRadius);
@@ -1219,6 +1258,8 @@
   const particleCountValue = document.getElementById('particleCountValue');
   const particleTextureLabel = document.getElementById('particleTextureLabel');
   const particleCountLabel = document.getElementById('particleCountLabel');
+  const resetFlowBtn = document.getElementById('resetFlow');
+  const scatterFlowBtn = document.getElementById('scatterFlow');
   const cursorToggle = document.getElementById('cursorActive');
   const cursorModeSelect = document.getElementById('cursorMode');
   const cursorStrengthInput = document.getElementById('cursorStrength');
@@ -1228,6 +1269,17 @@
   const cursorModeLabel = document.getElementById('cursorModeLabel');
   const cursorRadiusLabel = document.getElementById('cursorRadiusLabel');
   const cursorPulseToggle = document.getElementById('cursorPulse');
+  const manualGroup = document.getElementById('manualSpeedGroup');
+
+  const DEFAULTS = {
+    shapeStrength: 0.95,
+    transition: 15.0,
+    customTransition: 15.0,
+    pointerStrength: 1.1,
+    pointerRadius: 1.0,
+    pointerMode: 'attract',
+    particleTexSize: 256,
+  };
 
   let manualShapeStrength = parseFloat(shapeAttractionInput.value);
 
@@ -1278,6 +1330,68 @@
     shapeForceValue.textContent = `${shapeStrength.toFixed(2)}x`;
   }
 
+  function resetSystem() {
+    autoMorph = true;
+    autoToggle.checked = true;
+    controlMode = 'preset';
+    speedControl.value = 'normal';
+    transitionSpeed = DEFAULTS.transition;
+    customTransition = DEFAULTS.customTransition;
+    manualSpeedInput.value = DEFAULTS.customTransition;
+    manualMorphValue.textContent = `${customTransition.toFixed(1)}s`;
+    manualGroup.style.display = 'none';
+
+    shapeMode = 'shapes';
+    shapeA = 0;
+    shapeB = 1;
+    morph = 0.0;
+    isMorphing = false;
+    manualShapeStrength = DEFAULTS.shapeStrength;
+    shapeStrength = DEFAULTS.shapeStrength;
+    targetShapeStrength = DEFAULTS.shapeStrength;
+    shapeAttractionInput.value = DEFAULTS.shapeStrength.toFixed(2);
+
+    camera.angle.x = 0.5;
+    camera.angle.y = 0.5;
+    camera.targetDistance = 3.5;
+    camera.distance = 3.5;
+    updateCameraMatrix();
+
+    currentPaletteIndex = 0;
+
+    pointerState.active = true;
+    pointerState.mode = DEFAULTS.pointerMode;
+    pointerState.strength = DEFAULTS.pointerStrength;
+    pointerState.radius = DEFAULTS.pointerRadius;
+    pointerState.pulse = true;
+    cursorToggle.checked = true;
+    cursorModeSelect.value = DEFAULTS.pointerMode;
+    cursorStrengthInput.value = DEFAULTS.pointerStrength.toFixed(2);
+    cursorRadiusInput.value = DEFAULTS.pointerRadius.toFixed(2);
+    cursorPulseToggle.checked = true;
+    updateCursorLabels();
+
+    if (texSize !== DEFAULTS.particleTexSize) {
+      particleCountSlider.value = DEFAULTS.particleTexSize;
+      initSimulation(DEFAULTS.particleTexSize);
+      updateParticleLabels();
+    } else {
+      reinitializeParticles(0.0);
+    }
+
+    nextSwitch = performance.now() * 0.001 + transitionSpeed;
+    updateShapeButtons();
+    updateModeButtons();
+    updateShapeForceLabel();
+  }
+
+  function scatterParticles() {
+    reinitializeParticles(1.0);
+    morph = 0.0;
+    isMorphing = false;
+    nextSwitch = performance.now() * 0.001 + transitionSpeed * 0.5;
+  }
+
   SHAPE_NAMES.forEach((name, index) => {
     const btn = document.createElement('button');
     btn.textContent = name;
@@ -1295,7 +1409,6 @@
   manualMorphValue.textContent = `${manualSpeedInput.value}s`;
 
   speedControl.addEventListener('change', (e) => {
-    const manualGroup = document.getElementById('manualSpeedGroup');
     if (e.target.value === 'manual') {
       controlMode = 'custom';
       manualGroup.style.display = 'block';
@@ -1375,6 +1488,16 @@
     pointerState.pulse = e.target.checked;
   });
 
+  resetFlowBtn.addEventListener('click', () => {
+    resetSystem();
+    console.log('↩️  Сброс к исходному состоянию');
+  });
+
+  scatterFlowBtn.addEventListener('click', () => {
+    scatterParticles();
+    console.log('🌌 Разброс частиц с фрактальным узором');
+  });
+
   modeShapesBtn.addEventListener('click', () => {
     shapeMode = 'shapes';
     targetShapeStrength = manualShapeStrength;
@@ -1389,7 +1512,7 @@
   });
 
   // Скрываем регулятор при загрузке
-  document.getElementById('manualSpeedGroup').style.display = 'none';
+  manualGroup.style.display = 'none';
 
   updateShapeButtons();
   updateModeButtons();
