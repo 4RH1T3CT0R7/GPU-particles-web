@@ -204,7 +204,20 @@
         <div class="shape-buttons">
           <button id="mode-shapes" class="active">Shapes</button>
           <button id="mode-free">Free Flight</button>
+          <button id="mode-fractal">Fractals</button>
         </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Цвета</div>
+      <div class="control-group">
+        <label>Количество цветов</label>
+        <input type="range" id="colorCount" min="2" max="6" step="1" value="3">
+        <span id="colorCountValue">3 цвета</span>
+      </div>
+      <div class="control-group">
+        <button id="shufflePalette">Сменить палитру</button>
       </div>
     </div>
 
@@ -264,6 +277,7 @@
           <option value="vortex-left">Вихрь (левый закрут)</option>
           <option value="vortex-right">Вихрь (правый закрут)</option>
           <option value="pulse">Пульсирующий импульс</option>
+          <option value="quasar">Квазар</option>
           <option value="magnet">Магнитный поток</option>
         </select>
       </div>
