@@ -350,6 +350,17 @@
     return t < 0.5 ? 4.0*t*t*t : 1.0 - pow(-2.0*t + 2.0, 3.0) / 2.0;
   }
 
+  float fbm(vec2 p){
+    float amp = 0.5;
+    float f = 0.0;
+    for(int i=0;i<4;i++){
+      f += amp * noise(p);
+      p *= 2.7;
+      amp *= 0.55;
+    }
+    return f;
+  }
+
   void main(){
     vec2 uv = v_uv;
     vec2 id = uv; // id on [0,1]^2
@@ -364,7 +375,15 @@
     vec2 curlLarge = curl(pos.xy * 0.6 + u_time * 0.12);
     vec2 curlMid   = curl(pos.xy * 1.5 - u_time * 0.18);
     vec2 curlFine  = curl(pos.xy * 4.5 + u_time * 0.35 + idHash*6.0);
-    vec2 swirl = (curlLarge * 1.4 + curlMid * 0.8 + curlFine * 0.5);
+    vec2 curlCascade = vec2(0.0);
+    float amp = 1.2;
+    float freq = 0.9;
+    for(int i=0;i<4;i++){
+      curlCascade += curl(pos.xy * freq + u_time * (0.14 + float(i)*0.07) + layerHash*3.1) * amp;
+      freq *= 1.8;
+      amp *= 0.6;
+    }
+    vec2 swirl = (curlLarge * 1.4 + curlMid * 0.8 + curlFine * 0.5 + curlCascade * 0.5);
 
     vec2 vortexCenter = vec2(sin(u_time*0.17), cos(u_time*0.21))*0.8;
     vec2 rel = pos.xy - vortexCenter;
@@ -373,13 +392,16 @@
 
     vec2 gust = curl(pos.xy * 3.5 + idHash*10.0 + u_time*0.6) * 1.4;
     vec2 wind = normalize(vec2(1.0, 0.3)) * (0.2 + 0.4*sin(u_time*0.6 + idHash*5.0));
+    vec2 shimmer = normalize(curl(pos.xy * 6.0 + u_time*0.9 + layerHash*2.4));
 
-    vec3 flow = vec3(swirl + vortex + gust + wind, 0.0);
-    flow.z = sin(u_time*0.4 + pos.x*2.0 + pos.y*1.3) * 0.6 + sin(u_time*0.7 + layerHash*6.28)*0.3;
+    vec3 flow = vec3(swirl + vortex + gust + wind + shimmer*0.4, 0.0);
+    float liftNoise = fbm(pos.xy * 0.8 + u_time * 0.2 + layerHash*1.7);
+    flow.z = sin(u_time*0.4 + pos.x*2.0 + pos.y*1.3) * 0.6 + sin(u_time*0.7 + layerHash*6.28)*0.3 + liftNoise*0.8;
 
-    vec3 acc = flow * 1.2;
+    vec3 acc = flow * 1.35;
     acc.y -= 0.35; // лёгкая гравитация
     acc *= 1.0 + 0.3*sin(u_time*0.25 + idHash*6.0);
+    acc += normalize(vec3(swirl, 0.15)) * 0.15; // легкая закрутка в 3D
 
     // Дополнительная буря: песчаные слои, сдвиг по высоте и трение
     float altitude = clamp(pos.y * 0.35 + 0.5, 0.0, 1.0);
@@ -389,6 +411,8 @@
       cos(pos.x * 1.7 - u_time * 0.28 + idHash * 4.1)
     ) * 0.45;
     acc.xy += shear * 0.08 + duneFlow * 0.2;
+    acc += vec3(curlCascade * 0.35, 0.0);
+    acc += vec3(0.0, 0.25 * fbm(pos.yx * 1.3 + u_time * 0.35), 0.0);
 
     // Зернистое трение: частицы замедляются ближе к земле и при больших скоростях
     float ground = -1.35;
@@ -419,7 +443,7 @@
 
     // Интеграция
     vel += acc * u_dt;
-    vel *= 0.92;
+    vel *= 0.915;
     float speed = length(vel);
     if (speed > 18.0) vel = vel / speed * 18.0;
 
@@ -509,15 +533,25 @@
     if (r > 1.0) discard;
 
     float alpha = smoothstep(1.0, 0.0, r);
-    float sparkle = smoothstep(0.4, 0.0, r) * (0.5 + 0.5 * sin(u_time * 5.0 + v_hash * 50.0));
-    vec3 base = mix(u_colorA, u_colorB, fract(v_hash + u_time * 0.05));
-    vec3 dust = mix(base, vec3(0.95, 0.72, 0.48), 0.35);
+    float fresnel = pow(1.0 - clamp(dot(normalize(vec3(p, 0.35)), vec3(0,0,1)), 0.0, 1.0), 2.0);
+    float sparkle = smoothstep(0.35, 0.0, r) * (0.55 + 0.45 * sin(u_time * 7.0 + v_hash * 60.0));
+    float pulse = 0.35 + 0.65 * sin(u_time * 1.7 + v_energy * 3.5 + v_hash * 11.0);
+    vec3 base = mix(u_colorA, u_colorB, fract(v_hash + u_time * 0.08));
+    vec3 iridescent = mix(base, vec3(1.2, 0.95, 0.75), 0.45 * pulse);
+    vec3 rim = mix(vec3(0.2, 0.35, 0.9), vec3(0.9, 0.2, 0.8), v_energy) * fresnel;
     vec3 lightDir = normalize(u_lightPos - v_world);
-    float light = clamp(0.35 + 0.65 * (0.4 + 0.6 * lightDir.y), 0.25, 1.1);
-    float depthFade = clamp(1.5 / (1.0 + 0.04 * v_depth * v_depth), 0.1, 1.0);
-    float energyGlow = 0.4 + 0.6 * v_energy;
+    float light = clamp(0.4 + 0.6 * (0.35 + 0.65 * lightDir.y), 0.35, 1.3);
+    float depthFade = clamp(1.9 / (1.0 + 0.03 * v_depth * v_depth), 0.1, 1.0);
+    float energyGlow = 0.45 + 0.75 * v_energy;
+    float core = exp(-r * 3.5);
+    float halo = exp(-r * 1.25);
 
-    o_col = vec4(dust * light * (energyGlow * alpha + sparkle * 0.1) * depthFade, alpha * 0.7);
+    vec3 color = iridescent * light;
+    color += rim * 0.6;
+    color *= (energyGlow * alpha + sparkle * 0.18 + core * 0.5);
+    color += iridescent * halo * 0.15;
+
+    o_col = vec4(color * depthFade, alpha * 0.9);
   }
   `;
   const blitFS = `#version 300 es
@@ -530,16 +564,42 @@
 
   void main(){
     vec2 uv = v_uv;
-    vec3 col = texture(u_tex, uv).rgb;
+    vec2 texel = 1.0 / u_resolution;
+    vec3 base = texture(u_tex, uv).rgb;
+
+    // Bloom через однопроходный gather blur
+    vec3 bloom = vec3(0.0);
+    float weight = 0.0;
+    for(int x=-3; x<=3; x++){
+      for(int y=-3; y<=3; y++){
+        vec2 off = vec2(float(x), float(y)) * texel * 1.6;
+        float w = exp(-0.4 * float(x*x + y*y));
+        bloom += texture(u_tex, uv + off).rgb * w;
+        weight += w;
+      }
+    }
+    bloom /= max(0.0001, weight);
+
+    // Хроматические завихрения вокруг ярких зон
+    vec2 swirl = (uv - 0.5) * mat2(cos(u_time*0.07), -sin(u_time*0.07), sin(u_time*0.07), cos(u_time*0.07));
+    vec3 ray = vec3(
+      texture(u_tex, uv + swirl * 0.006).r,
+      texture(u_tex, uv - swirl * 0.004).g,
+      texture(u_tex, uv + swirl * 0.003).b
+    );
+
+    vec3 col = mix(base, bloom, 0.55);
+    col += ray * 0.35;
 
     // Subtle vignette для плавного края сцены
     vec2 p = uv*2.0-1.0;
     p.x *= u_resolution.x/u_resolution.y;
-    float vig = smoothstep(1.2, 0.2, length(p));
+    float vig = smoothstep(1.15, 0.25, length(p));
     col *= vig;
 
     // Лёгкая пульсация яркости, чтобы подчеркнуть пыль
-    col *= 0.95 + 0.05 * sin(u_time * 0.7 + uv.x * 2.5);
+    col *= 0.94 + 0.06 * sin(u_time * 0.7 + uv.x * 2.5 + uv.y * 1.5);
+    col = pow(col, vec3(0.95));
 
     o_col = vec4(col, 1.0);
   }
@@ -780,6 +840,7 @@
   let shapeMode = 'shapes';
   let targetShapeStrength = 1.0;
   let shapeStrength = 1.0;
+  let autoMorph = true;
 
 
   const SHAPE_NAMES = [
@@ -789,20 +850,27 @@
 
   // МНОЖЕСТВЕННЫЕ ЦВЕТОВЫЕ ПАЛИТРЫ
   const colorPalettes = [
-    { a: [0.22, 0.52, 1.0], b: [0.64, 0.35, 1.0] },     // Синий-Фиолетовый
-    { a: [0.08, 0.9, 0.6], b: [1.0, 0.35, 0.7] },       // Лазурный-Пурпур
-    { a: [1.0, 0.38, 0.08], b: [0.15, 0.8, 1.0] },      // Оранжево-Голубой
-    { a: [0.95, 0.15, 0.45], b: [0.2, 0.9, 0.95] },     // Розовый-Циан
-    { a: [0.35, 0.95, 0.15], b: [0.8, 0.18, 0.95] },    // Лайм-Фиолетовый
-    { a: [1.0, 0.86, 0.12], b: [0.26, 0.4, 1.0] },      // Золотисто-Синий
-    { a: [0.0, 1.0, 0.86], b: [1.0, 0.15, 0.6] },       // Аквамарин-Пурпур
-    { a: [0.75, 0.45, 0.15], b: [0.1, 0.82, 0.95] },    // Медно-Небесный
+    { a: [0.35, 0.78, 1.2], b: [1.15, 0.42, 1.1] },     // Сияющий Синий-Фиолетовый
+    { a: [0.12, 1.15, 0.82], b: [1.05, 0.42, 0.8] },    // Лазурный-Пурпур
+    { a: [1.15, 0.48, 0.08], b: [0.25, 0.95, 1.15] },   // Оранжево-Голубой неон
+    { a: [1.05, 0.25, 0.6], b: [0.25, 1.05, 1.1] },     // Розовый-Циан глянцевый
+    { a: [0.4, 1.05, 0.2], b: [0.95, 0.25, 1.1] },      // Лайм-Фиолетовый
+    { a: [1.05, 0.92, 0.25], b: [0.32, 0.55, 1.2] },    // Золотисто-Синий
+    { a: [0.0, 1.15, 0.95], b: [1.15, 0.2, 0.8] },      // Аквамарин-Пурпур
+    { a: [0.85, 0.55, 0.2], b: [0.15, 0.95, 1.15] },    // Медно-Небесный
   ];
   let currentPaletteIndex = 0;
 
   function scheduleShapes(dt, t) {
     if (shapeMode === 'free') {
       morph = 0.0;
+      isMorphing = false;
+      return;
+    }
+
+    if (!autoMorph) {
+      morph = 0.0;
+      shapeB = shapeA;
       isMorphing = false;
       return;
     }
@@ -928,15 +996,16 @@
   console.log('✓ Инициализация UI...');
   const shapeButtonsContainer = document.getElementById('shapeButtons');
   const speedControl = document.getElementById('speedControl');
+  const autoToggle = document.getElementById('autoToggle');
 
   // Ручной выбор фигуры включает режим фигур
   function selectShape(idx) {
     shapeMode = 'shapes';
     targetShapeStrength = 1.0;
     shapeA = idx;
-    shapeB = (idx + 1) % SHAPE_NAMES.length;
+    shapeB = autoMorph ? (idx + 1) % SHAPE_NAMES.length : idx;
     morph = 0.0;
-    isMorphing = true;
+    isMorphing = autoMorph;
     nextSwitch = performance.now() * 0.001 + transitionSpeed;
 
     console.log(`✓ Manual shape selection: ${SHAPE_NAMES[idx]}`);
@@ -996,6 +1065,19 @@
     if (controlMode === 'custom') {
       transitionSpeed = customTransition;
       nextSwitch = performance.now() * 0.001 + transitionSpeed;
+    }
+  });
+
+  autoToggle.addEventListener('change', (e) => {
+    autoMorph = e.target.checked;
+    if (!autoMorph) {
+      shapeB = shapeA;
+      morph = 0.0;
+      isMorphing = false;
+    } else {
+      shapeB = (shapeA + 1) % SHAPE_NAMES.length;
+      nextSwitch = performance.now() * 0.001 + transitionSpeed;
+      isMorphing = true;
     }
   });
 
