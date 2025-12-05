@@ -8,15 +8,15 @@
     html, body {
       margin: 0;
       padding: 0;
-      background:
-        radial-gradient(circle at 18% 22%, rgba(120, 186, 255, 0.18), transparent 30%),
-        radial-gradient(circle at 78% 38%, rgba(255, 188, 120, 0.14), transparent 34%),
-        radial-gradient(circle at 48% 70%, rgba(82, 122, 255, 0.14), transparent 32%),
-        #03050a;
-      color: #d0f5ff;
       height: 100%;
       overflow: hidden;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+      background:
+        radial-gradient(circle at 18% 22%, rgba(120, 186, 255, 0.14), transparent 30%),
+        radial-gradient(circle at 78% 38%, rgba(255, 188, 120, 0.12), transparent 34%),
+        radial-gradient(circle at 48% 70%, rgba(82, 122, 255, 0.12), transparent 32%),
+        #03050a;
+      color: #d8f7ff;
+      font-family: "Inter", "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
     canvas#gl {
       position: fixed;
@@ -29,86 +29,123 @@
       position: fixed;
       top: 20px;
       left: 20px;
-      background: rgba(5, 8, 15, 0.9);
-      border: 1px solid #4fd1ff;
-      border-radius: 8px;
-      padding: 20px;
+      max-width: 320px;
+      background: radial-gradient(circle at 20% 20%, rgba(126, 224, 255, 0.12), transparent 45%), rgba(5, 8, 15, 0.88);
+      border: 1px solid rgba(126, 224, 255, 0.35);
+      border-radius: 14px;
+      padding: 18px 18px 16px;
       font-size: 12px;
-      max-width: 280px;
-      backdrop-filter: blur(10px);
+      backdrop-filter: blur(16px) saturate(140%);
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
       z-index: 10;
     }
     #controls h3 {
-      margin: 0 0 15px 0;
+      margin: 0 0 12px 0;
       font-size: 14px;
-      color: #7ee0ff;
-      text-transform: uppercase;
       letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9ee7ff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #controls h3::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(120deg, #76d9ff, #c8a1ff);
+      box-shadow: 0 0 12px rgba(118, 217, 255, 0.8);
+    }
+    .subtitle {
+      margin: -8px 0 14px;
+      color: #8cb6c7;
+      font-size: 11px;
+      letter-spacing: 0.02em;
     }
     .control-group {
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
     .control-group label {
-      display: block;
-      margin-bottom: 5px;
-      color: #7ee0ff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      color: #a6e8ff;
       font-size: 11px;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
     }
     .shape-buttons {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 6px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     button {
-      padding: 8px 12px;
-      background: rgba(79, 209, 255, 0.08);
-      border: 1px solid rgba(126, 224, 255, 0.8);
-      color: #b3f0ff;
-      border-radius: 4px;
+      padding: 9px 12px;
+      background: rgba(79, 209, 255, 0.07);
+      border: 1px solid rgba(126, 224, 255, 0.45);
+      color: #c9f5ff;
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 10px;
+      font-size: 11px;
       text-transform: uppercase;
-      transition: all 0.2s;
-      font-weight: 500;
+      transition: all 0.2s ease;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      backdrop-filter: blur(4px);
     }
     button:hover {
       background: rgba(126, 224, 255, 0.18);
-      box-shadow: 0 0 12px rgba(126, 224, 255, 0.35);
+      box-shadow: 0 0 14px rgba(126, 224, 255, 0.35);
+      transform: translateY(-1px);
     }
     button.active {
-      background: linear-gradient(120deg, #6ac7ff, #b18bff);
-      color: #04070f;
-      box-shadow: 0 0 18px rgba(126, 224, 255, 0.7);
+      background: linear-gradient(135deg, #70d5ff, #a07bff);
+      color: #041220;
+      border-color: rgba(160, 123, 255, 0.8);
+      box-shadow: 0 8px 28px rgba(126, 224, 255, 0.45);
     }
     select {
       width: 100%;
-      padding: 6px;
-      background: rgba(79, 209, 255, 0.08);
-      border: 1px solid rgba(126, 224, 255, 0.8);
-      color: #b3f0ff;
-      border-radius: 4px;
+      padding: 8px 10px;
+      background: rgba(79, 209, 255, 0.07);
+      border: 1px solid rgba(126, 224, 255, 0.45);
+      color: #c9f5ff;
+      border-radius: 8px;
       font-size: 11px;
+      outline: none;
     }
     input[type="range"] {
       width: 100%;
-      margin: 8px 0;
+      margin: 6px 0 4px;
       cursor: pointer;
+      accent-color: #80e1ff;
     }
-    #speedValue {
-      color: #7ee0ff;
-      font-weight: bold;
-      margin-left: 5px;
+    .value-pill {
+      background: rgba(126, 224, 255, 0.12);
+      border: 1px solid rgba(126, 224, 255, 0.4);
+      color: #e0f8ff;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.02em;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
     }
+    .value-pill strong { color: #7de1ff; }
+    .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
     #manualSpeedGroup {
-      border-top: 1px solid #4fd1ff;
+      border-top: 1px solid rgba(126, 224, 255, 0.35);
       padding-top: 10px;
       margin-top: 10px;
     }
     noscript {
       position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-      opacity: 0.7; font-size: 14px; letter-spacing: 0.08em;
+      opacity: 0.72; font-size: 14px; letter-spacing: 0.08em;
     }
   </style>
   <meta name="description" content="Fluid GPU particle cloud morphing between mathematical shapes with trails and glow." />
@@ -117,11 +154,16 @@
   <canvas id="gl"></canvas>
 
   <div id="controls">
-    <h3>Shapes</h3>
-    <div class="shape-buttons" id="shapeButtons"></div>
+    <h3>GPU Shapes</h3>
+    <div class="subtitle">Морфирующий поток частиц с мягким свечением и шумовыми вихрями.</div>
 
     <div class="control-group">
-      <label>Modes</label>
+      <label>Фигуры</label>
+      <div class="shape-buttons" id="shapeButtons"></div>
+    </div>
+
+    <div class="control-group">
+      <label>Режимы</label>
       <div class="shape-buttons">
         <button id="mode-shapes" class="active">Shapes</button>
         <button id="mode-free">Free Flight</button>
@@ -129,10 +171,14 @@
     </div>
 
     <div class="control-group">
-      <label style="display:flex; align-items:center; gap:8px; text-transform:none;">
-        <input type="checkbox" id="autoToggle" checked style="width:14px; height:14px; accent-color:#7ee0ff;">
+      <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
+        <input type="checkbox" id="autoToggle" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
         Автоматически переключать фигуры
       </label>
+      <div class="pill-row">
+        <span class="value-pill">Сила формы: <strong id="shapeForceValue">1.10x</strong></span>
+        <span class="value-pill">Частиц: <strong id="particleCountLabel">65 536</strong></span>
+      </div>
     </div>
 
     <div class="control-group">
@@ -149,6 +195,20 @@
       <label>Custom transition (seconds)</label>
       <input type="range" id="manualSpeed" min="4" max="30" step="0.5" value="12">
       <span id="speedValue">12s</span>
+    </div>
+
+    <div class="control-group">
+      <label>Shape attraction</label>
+      <input type="range" id="shapeAttraction" min="0.25" max="1.4" step="0.05" value="1.1">
+    </div>
+
+    <div class="control-group">
+      <label>Particle count</label>
+      <input type="range" id="particleCount" min="128" max="384" step="64" value="256">
+      <div class="pill-row">
+        <span class="value-pill">Texture: <strong id="particleTextureLabel">256 × 256</strong></span>
+        <span class="value-pill">~<strong id="particleCountValue">65 536</strong> частиц</span>
+      </div>
     </div>
   </div>
 
