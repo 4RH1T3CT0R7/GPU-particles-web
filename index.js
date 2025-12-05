@@ -381,6 +381,23 @@
     acc.y -= 0.35; // лёгкая гравитация
     acc *= 1.0 + 0.3*sin(u_time*0.25 + idHash*6.0);
 
+    // Дополнительная буря: песчаные слои, сдвиг по высоте и трение
+    float altitude = clamp(pos.y * 0.35 + 0.5, 0.0, 1.0);
+    vec2 shear = vec2(1.2, 0.0) * mix(1.6, 0.5, altitude); // нижние слои быстрее
+    vec2 duneFlow = vec2(
+      sin(pos.y * 2.1 + u_time * 0.35 + layerHash * 3.7),
+      cos(pos.x * 1.7 - u_time * 0.28 + idHash * 4.1)
+    ) * 0.45;
+    acc.xy += shear * 0.08 + duneFlow * 0.2;
+
+    // Зернистое трение: частицы замедляются ближе к земле и при больших скоростях
+    float ground = -1.35;
+    float groundProximity = smoothstep(0.0, 1.2, pos.y - ground);
+    float drag = mix(0.85, 0.92, groundProximity);
+    vel.xy *= drag;
+    vel.z *= mix(0.9, 0.97, groundProximity);
+    acc.y += smoothstep(0.0, 0.8, -(pos.y - ground)) * 0.35; // подъёмный поток над «поверхностью»
+
     // ==== ПРИТЯЖЕНИЕ К ФИГУРАМ ====
     vec3 targetA = targetFor(u_shapeA, id, u_time*0.6);
     vec3 targetB = targetFor(u_shapeB, id, u_time*0.63 + 2.7);
@@ -411,23 +428,119 @@
     o_vel = vec4(vel, 1.0);
   }
   `;
+  const initFS = `#version 300 es
+  precision highp float;
+  uniform float u_seed;
+  layout(location=0) out vec4 o_pos;
+  layout(location=1) out vec4 o_vel;
+  in vec2 v_uv;
+  ${commonNoise}
+
+  void main(){
+    float h = hash12(v_uv * 311.0 + u_seed);
+    float angle = h * 6.28318530718;
+    float radius = pow(hash11(h * 97.0), 1.4) * 0.8 + noise(v_uv * 15.0) * 0.12;
+    vec3 pos = vec3(
+      cos(angle) * radius,
+      (hash11(h * 41.0) - 0.5) * 0.6,
+      sin(angle) * radius
+    );
+
+    vec2 swirl = curl(v_uv * 6.0 + u_seed * 0.37) * 0.8;
+    vec3 vel = vec3(swirl, (hash11(h * 13.0) - 0.5) * 0.35);
+
+    o_pos = vec4(pos, 1.0);
+    o_vel = vec4(vel, 1.0);
+  }
+  `;
+
+  const particleVS = `#version 300 es
+  precision highp float;
+  layout(location=0) in float a_idx;
+  uniform sampler2D u_pos;
+  uniform vec2 u_texSize;
+  uniform mat4 u_proj;
+  uniform mat4 u_view;
+  uniform float u_time;
+  out float v_depth;
+  out float v_hash;
+  out float v_energy;
+  out vec3 v_world;
+  ${commonNoise}
+
+  vec2 idxToUV(float idx){
+    float x = mod(idx, u_texSize.x);
+    float y = floor(idx / u_texSize.x);
+    return (vec2(x, y) + 0.5) / u_texSize;
+  }
+
+  void main(){
+    vec2 uv = idxToUV(a_idx);
+    vec3 pos = texture(u_pos, uv).xyz;
+    v_world = pos;
+    v_hash = hash12(uv * 173.0);
+    v_energy = clamp(length(pos) * 0.04 + hash11(v_hash * 97.0) * 0.6, 0.0, 1.2);
+
+    vec4 viewPos = u_view * vec4(pos, 1.0);
+    v_depth = -viewPos.z;
+    gl_Position = u_proj * viewPos;
+
+    float size = mix(1.3, 3.8, v_energy);
+    size *= 120.0 / (80.0 + v_depth * 45.0);
+    gl_PointSize = size;
+  }
+  `;
+
+  const particleFS = `#version 300 es
+  precision highp float;
+  in float v_depth;
+  in float v_hash;
+  in float v_energy;
+  in vec3 v_world;
+  uniform vec3 u_colorA;
+  uniform vec3 u_colorB;
+  uniform vec3 u_lightPos;
+  uniform float u_time;
+  out vec4 o_col;
+
+  void main(){
+    vec2 p = gl_PointCoord * 2.0 - 1.0;
+    float r = dot(p, p);
+    if (r > 1.0) discard;
+
+    float alpha = smoothstep(1.0, 0.0, r);
+    float sparkle = smoothstep(0.4, 0.0, r) * (0.5 + 0.5 * sin(u_time * 5.0 + v_hash * 50.0));
+    vec3 base = mix(u_colorA, u_colorB, fract(v_hash + u_time * 0.05));
+    vec3 dust = mix(base, vec3(0.95, 0.72, 0.48), 0.35);
+    vec3 lightDir = normalize(u_lightPos - v_world);
+    float light = clamp(0.35 + 0.65 * (0.4 + 0.6 * lightDir.y), 0.25, 1.1);
+    float depthFade = clamp(1.5 / (1.0 + 0.04 * v_depth * v_depth), 0.1, 1.0);
+    float energyGlow = 0.4 + 0.6 * v_energy;
+
+    o_col = vec4(dust * light * (energyGlow * alpha + sparkle * 0.1) * depthFade, alpha * 0.7);
+  }
+  `;
   const blitFS = `#version 300 es
   precision highp float;
   uniform sampler2D u_tex;
   uniform vec2 u_resolution;
+  uniform float u_time;
   in vec2 v_uv;
   out vec4 o_col;
-  
+
   void main(){
     vec2 uv = v_uv;
     vec3 col = texture(u_tex, uv).rgb;
-    
+
     // Subtle vignette для плавного края сцены
     vec2 p = uv*2.0-1.0;
     p.x *= u_resolution.x/u_resolution.y;
     float vig = smoothstep(1.2, 0.2, length(p));
     col *= vig;
-    
+
+    // Лёгкая пульсация яркости, чтобы подчеркнуть пыль
+    col *= 0.95 + 0.05 * sin(u_time * 0.7 + uv.x * 2.5);
+
     o_col = vec4(col, 1.0);
   }
   `;
