@@ -6,7 +6,7 @@
 
 (function () {
   const DPR = Math.min(2, window.devicePixelRatio || 1);
-  const SIM_SIZE = 256; // 256x256 = 65,536 частиц - НАМНОГО БОЛЬШЕ!
+  let simSize = 256; // 256x256 = 65,536 частиц по умолчанию
 
   // Canvas & GL setup
   const canvas = document.getElementById('gl');
@@ -372,7 +372,8 @@
     float layerHash = hash12(id*23.7);
 
     // ==== БАЗОВАЯ ШТОРМОВАЯ ФИЗИКА ====
-    float structure = smoothstep(0.2, 0.95, u_shapeStrength);
+    float structure = smoothstep(0.1, 0.95, u_shapeStrength);
+    float calmFactor = smoothstep(0.55, 1.05, u_shapeStrength);
     vec2 curlLarge = curl(pos.xy * 0.6 + u_time * 0.12);
     vec2 curlMid   = curl(pos.xy * 1.5 - u_time * 0.18);
     vec2 curlFine  = curl(pos.xy * 4.5 + u_time * 0.35 + idHash*6.0);
@@ -395,17 +396,18 @@
     vec2 wind = normalize(vec2(1.0, 0.3)) * (0.2 + 0.4*sin(u_time*0.6 + idHash*5.0));
     vec2 shimmer = normalize(curl(pos.xy * 6.0 + u_time*0.9 + layerHash*2.4));
 
-    vec2 dampedFlow = mix(swirl + gust * 0.7, swirl * 0.5, structure);
-    vec2 stormFlow = mix(dampedFlow + vortex + wind + shimmer*0.35, swirl + vortex + gust + wind + shimmer*0.4, 1.0 - structure);
+    vec2 baseFlow = swirl + gust * mix(0.4, 0.7, 1.0 - calmFactor);
+    vec2 dampedFlow = mix(baseFlow, swirl * 0.35, calmFactor);
+    vec2 stormFlow = mix(dampedFlow + vortex * 0.8 + wind + shimmer*0.35, baseFlow + vortex + gust*0.6 + wind + shimmer*0.4, 1.0 - structure);
 
     vec3 flow = vec3(stormFlow, 0.0);
     float liftNoise = fbm(pos.xy * 0.8 + u_time * 0.2 + layerHash*1.7);
     flow.z = sin(u_time*0.4 + pos.x*2.0 + pos.y*1.3) * 0.6 + sin(u_time*0.7 + layerHash*6.28)*0.3 + liftNoise*0.8;
 
-    vec3 acc = flow * mix(1.1, 1.45, 1.0 - structure);
-    acc.y -= 0.35; // лёгкая гравитация
-    acc *= 1.0 + 0.3*sin(u_time*0.25 + idHash*6.0);
-    acc += normalize(vec3(swirl, 0.15)) * 0.15; // легкая закрутка в 3D
+    vec3 acc = flow * mix(1.05, 1.42, 1.0 - structure);
+    acc.y -= 0.32; // лёгкая гравитация
+    acc *= 1.0 + 0.28*sin(u_time*0.25 + idHash*6.0);
+    acc += normalize(vec3(swirl, 0.15)) * mix(0.12, 0.2, calmFactor); // легкая закрутка в 3D
 
     // Дополнительная буря: песчаные слои, сдвиг по высоте и трение
     float altitude = clamp(pos.y * 0.35 + 0.5, 0.0, 1.0);
@@ -437,14 +439,15 @@
     float dist = max(0.08, length(toShape));
     vec3 surfaceNormal = normalize(toShape + vec3(0.001, 0.002, 0.003));
     vec3 tangential = normalize(cross(surfaceNormal, vec3(0.0, 1.0, 0.0)) + 0.4 * cross(surfaceNormal, vec3(1.0, 0.0, 0.0)));
-    vec3 swirlAroundShape = tangential * (0.45 + 0.35 * liftNoise) * shapeWeight;
+    vec3 swirlAroundShape = tangential * (0.5 + 0.4 * liftNoise) * shapeWeight * (0.7 + 0.6 * calmFactor);
 
-    vec3 shapeForce = toShape * (1.25 * shapeWeight) / (1.0 + dist*dist*0.45);
+    vec3 shapeForce = toShape * (1.45 + 1.1 * calmFactor) * shapeWeight / (1.0 + dist*dist*0.35);
     shapeForce += swirlAroundShape;
 
     float cohesion = smoothstep(0.0, 0.9, shapeWeight);
-    acc = mix(acc, acc * 0.65 + shapeForce * 1.15, cohesion);
-    acc += shapeForce * 0.35;
+    acc = mix(acc, acc * 0.48 + shapeForce * 1.65, cohesion);
+    acc += shapeForce * 0.45;
+    vel *= mix(0.93, 0.86, cohesion * calmFactor);
 
     // ==== СОХРАНЯЕМ ОБЛАКО ====
     float roamRadius = 4.5;
@@ -523,6 +526,7 @@
 
     float size = mix(1.6, 4.6, v_energy);
     size *= 140.0 / (80.0 + v_depth * 36.0);
+    size *= clamp(256.0 / u_texSize.x, 0.6, 1.6);
     gl_PointSize = size;
   }
   `;
@@ -651,12 +655,14 @@
   const progPresent = link(simVS, blitFS);
 
   // Simulation textures & FBOs
-  const texSize = SIM_SIZE;
-  const makeSimTex = () => createTex(texSize, texSize, { internalFormat: gl.RGBA32F, srcFormat: gl.RGBA, type: gl.FLOAT });
-  const posTex = [makeSimTex(), makeSimTex()];
-  const velTex = [makeSimTex(), makeSimTex()];
-  const simFBO = [createFBO([posTex[1], velTex[1]], texSize, texSize), createFBO([posTex[0], velTex[0]], texSize, texSize)];
+  let texSize = simSize;
+  let posTex = [];
+  let velTex = [];
+  let simFBO = [];
   let simRead = 0; // read from index
+  let idxVAO = null;
+  let idxVBO = null;
+  let N = 0;
 
   // Trail buffers -> простой render target
   let renderTex = null;
@@ -673,30 +679,58 @@
     });
   };
 
-  // Particles index buffer (0..N-1)
-  const N = texSize * texSize;
-  const idxData = new Float32Array(N);
-  for (let i = 0; i < N; i++) idxData[i] = i;
-  const idxVAO = gl.createVertexArray();
-  gl.bindVertexArray(idxVAO);
-  const idxVBO = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, idxVBO);
-  gl.bufferData(gl.ARRAY_BUFFER, idxData, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(0);
-  gl.vertexAttribPointer(0, 1, gl.FLOAT, false, 0, 0);
-  gl.bindVertexArray(null);
+  const destroySimResources = () => {
+    posTex.forEach((t) => gl.deleteTexture(t));
+    velTex.forEach((t) => gl.deleteTexture(t));
+    simFBO.forEach((f) => gl.deleteFramebuffer(f));
+    if (idxVBO) gl.deleteBuffer(idxVBO);
+    if (idxVAO) gl.deleteVertexArray(idxVAO);
+    posTex = [];
+    velTex = [];
+    simFBO = [];
+    idxVAO = null;
+    idxVBO = null;
+  };
 
-  // Init sim textures via init pass
-  gl.viewport(0, 0, texSize, texSize);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, simFBO[simRead]);
-  gl.useProgram(progInit);
-  gl.bindVertexArray(quadVAO);
-  gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
-  gl.uniform1f(gl.getUniformLocation(progInit, 'u_seed'), Math.random()*1000);
-  drawQuad();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  // After init, read from the textures we just wrote into
-  simRead = 1;
+  const makeSimTex = () => createTex(texSize, texSize, { internalFormat: gl.RGBA32F, srcFormat: gl.RGBA, type: gl.FLOAT });
+
+  const initSimulation = (size) => {
+    destroySimResources();
+    simSize = size;
+    texSize = size;
+    N = texSize * texSize;
+
+    posTex = [makeSimTex(), makeSimTex()];
+    velTex = [makeSimTex(), makeSimTex()];
+    simFBO = [createFBO([posTex[1], velTex[1]], texSize, texSize), createFBO([posTex[0], velTex[0]], texSize, texSize)];
+    simRead = 0;
+
+    // Particles index buffer (0..N-1)
+    const idxData = new Float32Array(N);
+    for (let i = 0; i < N; i++) idxData[i] = i;
+    idxVAO = gl.createVertexArray();
+    gl.bindVertexArray(idxVAO);
+    idxVBO = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, idxVBO);
+    gl.bufferData(gl.ARRAY_BUFFER, idxData, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 1, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+
+    // Init sim textures via init pass
+    gl.viewport(0, 0, texSize, texSize);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, simFBO[simRead]);
+    gl.useProgram(progInit);
+    gl.bindVertexArray(quadVAO);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+    gl.uniform1f(gl.getUniformLocation(progInit, 'u_seed'), Math.random()*1000);
+    drawQuad();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // After init, read from the textures we just wrote into
+    simRead = 1;
+  };
+
+  initSimulation(simSize);
 
   // 3D камера и матрицы
   let camera = {
@@ -877,8 +911,8 @@
   let controlMode = 'preset'; // 'preset' or 'custom'
   let isMorphing = false;
   let shapeMode = 'shapes';
-  let targetShapeStrength = 1.0;
-  let shapeStrength = 1.0;
+  let targetShapeStrength = 1.1;
+  let shapeStrength = 1.1;
   let autoMorph = true;
 
 
@@ -952,6 +986,7 @@
     last = now;
     scheduleShapes(dt, t);
     shapeStrength += (targetShapeStrength - shapeStrength) * 0.08;
+    updateShapeForceLabel();
 
     // ПЛАВНЫЙ ZOOM - интерполяция к целевому расстоянию
     camera.distance += (camera.targetDistance - camera.distance) * 0.1; // плавно
@@ -1036,11 +1071,19 @@
   const shapeButtonsContainer = document.getElementById('shapeButtons');
   const speedControl = document.getElementById('speedControl');
   const autoToggle = document.getElementById('autoToggle');
+  const shapeAttractionInput = document.getElementById('shapeAttraction');
+  const shapeForceValue = document.getElementById('shapeForceValue');
+  const particleCountSlider = document.getElementById('particleCount');
+  const particleCountValue = document.getElementById('particleCountValue');
+  const particleTextureLabel = document.getElementById('particleTextureLabel');
+  const particleCountLabel = document.getElementById('particleCountLabel');
+
+  let manualShapeStrength = parseFloat(shapeAttractionInput.value);
 
   // Ручной выбор фигуры включает режим фигур
   function selectShape(idx) {
     shapeMode = 'shapes';
-    targetShapeStrength = 1.0;
+    targetShapeStrength = manualShapeStrength;
     shapeA = idx;
     shapeB = autoMorph ? (idx + 1) % SHAPE_NAMES.length : idx;
     morph = 0.0;
@@ -1064,6 +1107,17 @@
   function updateModeButtons() {
     modeShapesBtn.classList.toggle('active', shapeMode === 'shapes');
     modeFreeBtn.classList.toggle('active', shapeMode === 'free');
+  }
+
+  const formatNumber = (val) => val.toLocaleString('ru-RU');
+  function updateParticleLabels() {
+    particleCountValue.textContent = formatNumber(texSize * texSize);
+    particleTextureLabel.textContent = `${texSize} × ${texSize}`;
+    particleCountLabel.textContent = formatNumber(texSize * texSize);
+  }
+
+  function updateShapeForceLabel() {
+    shapeForceValue.textContent = `${shapeStrength.toFixed(2)}x`;
   }
 
   SHAPE_NAMES.forEach((name, index) => {
@@ -1120,9 +1174,29 @@
     }
   });
 
+  shapeAttractionInput.addEventListener('input', (e) => {
+    manualShapeStrength = parseFloat(e.target.value);
+    if (shapeMode === 'shapes') {
+      targetShapeStrength = manualShapeStrength;
+    }
+    updateShapeForceLabel();
+  });
+
+  particleCountSlider.addEventListener('input', (e) => {
+    const size = parseInt(e.target.value, 10);
+    particleTextureLabel.textContent = `${size} × ${size}`;
+    particleCountValue.textContent = formatNumber(size * size);
+  });
+
+  particleCountSlider.addEventListener('change', (e) => {
+    const size = parseInt(e.target.value, 10);
+    initSimulation(size);
+    updateParticleLabels();
+  });
+
   modeShapesBtn.addEventListener('click', () => {
     shapeMode = 'shapes';
-    targetShapeStrength = 1.0;
+    targetShapeStrength = manualShapeStrength;
     if (!isMorphing) nextSwitch = performance.now() * 0.001 + transitionSpeed;
     updateModeButtons();
   });
@@ -1138,5 +1212,7 @@
 
   updateShapeButtons();
   updateModeButtons();
+  updateParticleLabels();
+  updateShapeForceLabel();
   console.log('✓ UI инициализирован успешно!');
 })();
