@@ -372,6 +372,7 @@
     float layerHash = hash12(id*23.7);
 
     // ==== БАЗОВАЯ ШТОРМОВАЯ ФИЗИКА ====
+    float structure = smoothstep(0.2, 0.95, u_shapeStrength);
     vec2 curlLarge = curl(pos.xy * 0.6 + u_time * 0.12);
     vec2 curlMid   = curl(pos.xy * 1.5 - u_time * 0.18);
     vec2 curlFine  = curl(pos.xy * 4.5 + u_time * 0.35 + idHash*6.0);
@@ -383,7 +384,7 @@
       freq *= 1.8;
       amp *= 0.6;
     }
-    vec2 swirl = (curlLarge * 1.4 + curlMid * 0.8 + curlFine * 0.5 + curlCascade * 0.5);
+    vec2 swirl = (curlLarge * 1.2 + curlMid * 0.75 + curlFine * 0.45 + curlCascade * 0.45);
 
     vec2 vortexCenter = vec2(sin(u_time*0.17), cos(u_time*0.21))*0.8;
     vec2 rel = pos.xy - vortexCenter;
@@ -394,11 +395,14 @@
     vec2 wind = normalize(vec2(1.0, 0.3)) * (0.2 + 0.4*sin(u_time*0.6 + idHash*5.0));
     vec2 shimmer = normalize(curl(pos.xy * 6.0 + u_time*0.9 + layerHash*2.4));
 
-    vec3 flow = vec3(swirl + vortex + gust + wind + shimmer*0.4, 0.0);
+    vec2 dampedFlow = mix(swirl + gust * 0.7, swirl * 0.5, structure);
+    vec2 stormFlow = mix(dampedFlow + vortex + wind + shimmer*0.35, swirl + vortex + gust + wind + shimmer*0.4, 1.0 - structure);
+
+    vec3 flow = vec3(stormFlow, 0.0);
     float liftNoise = fbm(pos.xy * 0.8 + u_time * 0.2 + layerHash*1.7);
     flow.z = sin(u_time*0.4 + pos.x*2.0 + pos.y*1.3) * 0.6 + sin(u_time*0.7 + layerHash*6.28)*0.3 + liftNoise*0.8;
 
-    vec3 acc = flow * 1.35;
+    vec3 acc = flow * mix(1.1, 1.45, 1.0 - structure);
     acc.y -= 0.35; // лёгкая гравитация
     acc *= 1.0 + 0.3*sin(u_time*0.25 + idHash*6.0);
     acc += normalize(vec3(swirl, 0.15)) * 0.15; // легкая закрутка в 3D
@@ -430,9 +434,17 @@
     float affinity = smoothstep(0.15, 0.95, idHash);
     float shapeWeight = u_shapeStrength * affinity;
     vec3 toShape = desired - pos;
-    float dist = length(toShape);
-    vec3 shapeForce = toShape * (0.8 * shapeWeight) / (1.0 + dist*dist*0.5);
-    acc += shapeForce;
+    float dist = max(0.08, length(toShape));
+    vec3 surfaceNormal = normalize(toShape + vec3(0.001, 0.002, 0.003));
+    vec3 tangential = normalize(cross(surfaceNormal, vec3(0.0, 1.0, 0.0)) + 0.4 * cross(surfaceNormal, vec3(1.0, 0.0, 0.0)));
+    vec3 swirlAroundShape = tangential * (0.45 + 0.35 * liftNoise) * shapeWeight;
+
+    vec3 shapeForce = toShape * (1.25 * shapeWeight) / (1.0 + dist*dist*0.45);
+    shapeForce += swirlAroundShape;
+
+    float cohesion = smoothstep(0.0, 0.9, shapeWeight);
+    acc = mix(acc, acc * 0.65 + shapeForce * 1.15, cohesion);
+    acc += shapeForce * 0.35;
 
     // ==== СОХРАНЯЕМ ОБЛАКО ====
     float roamRadius = 4.5;
@@ -509,8 +521,8 @@
     v_depth = -viewPos.z;
     gl_Position = u_proj * viewPos;
 
-    float size = mix(1.3, 3.8, v_energy);
-    size *= 120.0 / (80.0 + v_depth * 45.0);
+    float size = mix(1.6, 4.6, v_energy);
+    size *= 140.0 / (80.0 + v_depth * 36.0);
     gl_PointSize = size;
   }
   `;
@@ -550,8 +562,15 @@
     color += rim * 0.6;
     color *= (energyGlow * alpha + sparkle * 0.18 + core * 0.5);
     color += iridescent * halo * 0.15;
+    vec3 fogColor = vec3(0.035, 0.055, 0.095);
+    float fog = clamp(exp(-v_depth * 0.22), 0.05, 1.0);
+    float volumetric = exp(-r * 2.2) * 0.3;
+    color = mix(fogColor, color, fog);
+    color += fogColor * volumetric;
+    float tone = 1.0 / (1.0 + dot(color, vec3(0.6)));
+    color *= tone * 1.4;
 
-    o_col = vec4(color * depthFade, alpha * 0.9);
+    o_col = vec4(color * depthFade, alpha * 0.92);
   }
   `;
   const blitFS = `#version 300 es
@@ -562,10 +581,16 @@
   in vec2 v_uv;
   out vec4 o_col;
 
+  float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+
   void main(){
     vec2 uv = v_uv;
     vec2 texel = 1.0 / u_resolution;
     vec3 base = texture(u_tex, uv).rgb;
+
+    vec3 gradient = mix(vec3(0.025, 0.04, 0.08), vec3(0.08, 0.11, 0.16), smoothstep(-0.2, 1.0, uv.y));
+    float radial = smoothstep(0.0, 1.0, 1.0 - length(uv - 0.5) * 1.4);
+    gradient += radial * vec3(0.06, 0.04, 0.08);
 
     // Bloom через однопроходный gather blur
     vec3 bloom = vec3(0.0);
@@ -591,6 +616,18 @@
     vec3 col = mix(base, bloom, 0.55);
     col += ray * 0.35;
 
+    vec2 dir = normalize((uv - 0.5) + 0.001);
+    float streak = 0.0;
+    float streakWeight = 0.0;
+    for(int i=1; i<=4; i++){
+      float s = float(i) * 0.018;
+      float w = exp(-float(i) * 0.8);
+      streak += texture(u_tex, uv - dir * s).r * w;
+      streakWeight += w;
+    }
+    streak /= max(0.0001, streakWeight);
+    col += vec3(streak * 0.35);
+
     // Subtle vignette для плавного края сцены
     vec2 p = uv*2.0-1.0;
     p.x *= u_resolution.x/u_resolution.y;
@@ -600,6 +637,8 @@
     // Лёгкая пульсация яркости, чтобы подчеркнуть пыль
     col *= 0.94 + 0.06 * sin(u_time * 0.7 + uv.x * 2.5 + uv.y * 1.5);
     col = pow(col, vec3(0.95));
+    float grain = hash(uv * u_time) * 0.015 - 0.0075;
+    col += gradient * 0.75 + grain;
 
     o_col = vec4(col, 1.0);
   }
