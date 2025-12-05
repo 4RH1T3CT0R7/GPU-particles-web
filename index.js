@@ -280,7 +280,24 @@
   }
 
   // Map id uv->[0,1]^2 into target on chosen shape, with radial fill using s
-  vec3 targetFor(int sid, vec2 id, float time){
+  mat2 rot2(float a){ return mat2(cos(a), -sin(a), sin(a), cos(a)); }
+
+  vec3 fractalFlow(vec2 id, float time, vec4 seed){
+    vec2 p = id * 2.0 - 1.0;
+    float pulse = 0.82 + 0.2 * sin(time * 0.37 + seed.x * 1.7);
+    float twist = seed.w + time * (0.16 + 0.07 * sin(seed.y));
+    p = rot2(twist) * p * (0.7 + 0.45 * sin(seed.z + time * 0.21));
+    vec3 z = vec3(p, sin(dot(p, vec2(3.1, 2.3)) + seed.y) * 0.45);
+    for(int i=0;i<5;i++){
+      z = abs(z) / clamp(dot(z,z) + 0.65 + float(i) * 0.07, 0.42, 2.35) - vec3(seed.y*0.18, seed.z*0.12, 0.0);
+      z.xy = rot2(twist * (1.1 + float(i)*0.08)) * (z.xy + curl(id * (3.0 + seed.x) + seed.xy * 2.3));
+      z.z += sin(seed.w + float(i) * 1.7 + time * 0.33) * 0.17;
+    }
+    z *= pulse;
+    return normalize(z + vec3(0.0, 0.12 * sin(time*0.6 + seed.x), 0.0)) * 0.95;
+  }
+
+  vec3 targetFor(int sid, vec2 id, float time, int seedSlot){
     float s = fract(id.x + id.y*1.618 + noise(id*17.0)); // [0,1]
     float angle = (id.x + noise(id*3.1))*6.28318530718;
     vec3 p;
@@ -320,6 +337,13 @@
     } else if (sid==9){ // icosahedron
       vec3 p3 = shape_icosahedron(angle / 6.28318530718, s);
       p = applyRotations(p3, time*0.75);
+    } else if (sid==11){ // фрактальный режим
+      vec4 seed = u_fractalSeeds[seedSlot];
+      vec3 f = fractalFlow(id, time, seed);
+      float shells = 0.4 + 0.35 * sin(time * 0.43 + seed.w);
+      p = applyRotations(f * (0.9 + shells), time * 0.45 + seed.w);
+      p.xy += curl(id * 8.5 + seed.xy * 2.7 + time * 0.35) * 0.22;
+      p.z += sin(angle * 0.6 + seed.z + time * 0.35) * 0.25;
     } else { // polygon/star
       float n = 5.0 + floor(mod(time*0.2, 4.0));
       vec2 p2 = shape_polygon(angle, n)*(0.5 + 0.5*sqrt(s));
@@ -348,6 +372,7 @@
   uniform float u_pointerPress;
   uniform float u_pointerPulse;
   uniform vec3 u_viewDir;
+  uniform vec4 u_fractalSeeds[2];
   layout(location=0) out vec4 o_pos;
   layout(location=1) out vec4 o_vel;
   in vec2 v_uv;
@@ -427,6 +452,11 @@
     acc.xy += shear * 0.08 + duneFlow * 0.2;
     acc += vec3(curlCascade * 0.35, 0.0);
     acc += vec3(0.0, 0.25 * fbm(pos.yx * 1.3 + u_time * 0.35), 0.0);
+    vec3 microCurl = vec3(curl(pos.xy * 8.5 + u_time * 0.9 + layerHash * 4.3), 0.0);
+    acc += microCurl * 0.28;
+    float velMag = length(vel);
+    acc -= vel * velMag * 0.045;
+    acc += normalize(vec3(swirl, 0.15)) * (0.12 + 0.06 * sin(u_time * 1.1 + idHash * 19.0));
 
     // Зернистое трение: частицы замедляются ближе к земле и при больших скоростях
     float ground = -1.35;
@@ -437,8 +467,8 @@
     acc.y += smoothstep(0.0, 0.8, -(pos.y - ground)) * 0.35; // подъёмный поток над «поверхностью»
 
     // ==== ПРИТЯЖЕНИЕ К ФИГУРАМ ====
-    vec3 targetA = targetFor(u_shapeA, id, u_time*0.6);
-    vec3 targetB = targetFor(u_shapeB, id, u_time*0.63 + 2.7);
+    vec3 targetA = targetFor(u_shapeA, id, u_time*0.6, 0);
+    vec3 targetB = targetFor(u_shapeB, id, u_time*0.63 + 2.7, 1);
     vec3 desired = mix(targetA, targetB, easeInOutCubic(u_morph));
 
     float affinity = smoothstep(0.15, 0.95, idHash);
@@ -493,6 +523,18 @@
         acc -= dirP * base * (1.8 + burst * 1.3);
         acc += swirl * base * (1.4 + burst * 1.8);
         vel = mix(vel, vel - dirP * base * 0.9 + swirl * base * 0.6, 0.45 * pulse);
+      } else if (u_pointerMode == 6) {
+        // Квазар: двойные струи и мягкое ядро
+        vec3 axis = vec3(0.0, 1.0, 0.0);
+        float axial = clamp(dot(dirP, axis), -1.0, 1.0);
+        vec3 equator = normalize(vec3(dirP.x, 0.0, dirP.z) + 0.0001);
+        vec3 swirlDir = vec3(-equator.z, 0.2 * axial, equator.x);
+        float jet = smoothstep(0.25, 1.0, abs(axial));
+        float disk = 1.0 - jet;
+        acc += dirP * base * (0.9 + 0.7 * disk);
+        acc += swirlDir * base * (2.3 * disk + 1.1 * jet);
+        acc += axis * base * (1.7 * jet * sign(dirP.y));
+        vel = mix(vel, vel + swirlDir * 0.6 + axis * jet * 0.8, 0.32 * falloff);
       } else {
         // Магнитные дуги с лёгким свирлом
         vec3 axis = normalize(u_viewDir * 0.6 + vec3(0.0, 1.0, 0.4));
@@ -621,11 +663,22 @@
   in float v_hash;
   in float v_energy;
   in vec3 v_world;
-  uniform vec3 u_colorA;
-  uniform vec3 u_colorB;
+  uniform vec3 u_colors[6];
+  uniform int u_colorCount;
   uniform vec3 u_lightPos;
   uniform float u_time;
   out vec4 o_col;
+
+  vec3 paletteSample(float h){
+    float bands = float(max(1, u_colorCount));
+    float idx = floor(h * bands);
+    float t = fract(h * bands);
+    int i0 = int(clamp(idx, 0.0, bands-1.0));
+    int i1 = int(mod(idx + 1.0, bands));
+    vec3 c0 = u_colors[i0];
+    vec3 c1 = u_colors[i1];
+    return mix(c0, c1, smoothstep(0.0, 1.0, t));
+  }
 
   void main(){
     vec2 p = gl_PointCoord * 2.0 - 1.0;
@@ -636,7 +689,7 @@
     float fresnel = pow(1.0 - clamp(dot(normalize(vec3(p, 0.35)), vec3(0,0,1)), 0.0, 1.0), 2.0);
     float sparkle = smoothstep(0.35, 0.0, r) * (0.55 + 0.45 * sin(u_time * 7.0 + v_hash * 60.0));
     float pulse = 0.35 + 0.65 * sin(u_time * 1.7 + v_energy * 3.5 + v_hash * 11.0);
-    vec3 base = mix(u_colorA, u_colorB, fract(v_hash + u_time * 0.08));
+    vec3 base = paletteSample(fract(v_hash + u_time * 0.08));
     vec3 iridescent = mix(base, vec3(1.2, 0.95, 0.75), 0.45 * pulse);
     vec3 rim = mix(vec3(0.2, 0.35, 0.9), vec3(0.9, 0.2, 0.8), v_energy) * fresnel;
     vec3 lightDir = normalize(u_lightPos - v_world);
@@ -979,7 +1032,7 @@
     pulse: true,
   };
 
-  const POINTER_MODES = ['attract', 'repel', 'vortex-left', 'vortex-right', 'pulse', 'magnet'];
+  const POINTER_MODES = ['attract', 'repel', 'vortex-left', 'vortex-right', 'pulse', 'magnet', 'quasar'];
   const pointerWorld = [0, 0, 0];
   const viewDir = [0, 0, -1];
 
@@ -1089,6 +1142,8 @@
     'Superformula', 'Rose', 'Wave', 'Ribbon', 'Icosahedron', 'Polygon'
   ];
 
+  const FRACTAL_SHAPE_ID = 11;
+
   // МНОЖЕСТВЕННЫЕ ЦВЕТОВЫЕ ПАЛИТРЫ
   const colorPalettes = [
     { a: [0.35, 0.78, 1.2], b: [1.15, 0.42, 1.1] },     // Сияющий Синий-Фиолетовый
@@ -1102,10 +1157,58 @@
   ];
   let currentPaletteIndex = 0;
 
+  const MAX_COLOR_STOPS = 6;
+  let colorStopCount = 3;
+  const colorStops = new Float32Array(MAX_COLOR_STOPS * 3);
+  const colorStopsBase = new Float32Array(MAX_COLOR_STOPS * 3);
+
+  const randomFractalSeed = () => [
+    Math.random() * 2.6 + 0.4,
+    Math.random() * 2.2 + 0.3,
+    Math.random() * 1.6 + 0.2,
+    Math.random() * Math.PI * 2,
+  ];
+
+  const fractalState = {
+    seedA: randomFractalSeed(),
+    seedB: randomFractalSeed(),
+    morph: 0,
+    duration: 11.0,
+  };
+
+  const rebuildColorStops = () => {
+    const palette = colorPalettes[currentPaletteIndex];
+    const wobble = Math.random() * Math.PI * 2;
+    for (let i = 0; i < MAX_COLOR_STOPS; i++) {
+      const t = colorStopCount <= 1 ? 0 : Math.min(1, i / (colorStopCount - 1));
+      const vibrato = 0.9 + 0.12 * Math.sin(wobble + t * 4.1 + i * 0.3);
+      colorStopsBase[i * 3 + 0] = (palette.a[0] * (1 - t) + palette.b[0] * t) * vibrato;
+      colorStopsBase[i * 3 + 1] = (palette.a[1] * (1 - t) + palette.b[1] * t) * vibrato;
+      colorStopsBase[i * 3 + 2] = (palette.a[2] * (1 - t) + palette.b[2] * t) * vibrato;
+    }
+  };
+  rebuildColorStops();
+
   function scheduleShapes(dt, t) {
     if (shapeMode === 'free') {
       morph = 0.0;
       isMorphing = false;
+      return;
+    }
+
+    if (shapeMode === 'fractal') {
+      shapeA = FRACTAL_SHAPE_ID;
+      shapeB = FRACTAL_SHAPE_ID;
+      morph = fractalState.morph;
+      fractalState.morph += dt / fractalState.duration;
+      if (fractalState.morph >= 1.0) {
+        fractalState.morph = 0.0;
+        fractalState.seedA = fractalState.seedB;
+        fractalState.seedB = randomFractalSeed();
+        fractalState.duration = 10.0 + Math.random() * 3.0;
+        currentPaletteIndex = (currentPaletteIndex + 1) % colorPalettes.length;
+        rebuildColorStops();
+      }
       return;
     }
 
@@ -1125,6 +1228,7 @@
       isMorphing = true;
       nextSwitch = t + duration + 2.0;
       currentPaletteIndex = (currentPaletteIndex + 1) % colorPalettes.length;
+      rebuildColorStops();
       console.log(`Auto-morph: ${SHAPE_NAMES[shapeA]} -> ${SHAPE_NAMES[shapeB]}`);
       updateShapeButtons();
     }
@@ -1139,10 +1243,19 @@
     }
   }
 
-  // Colors - космические оттенки
-  // Colors - будут динамичными
-  let colorA = new Float32Array(3);
-  let colorB = new Float32Array(3);
+  const animateColorStops = (time) => {
+    for (let i = 0; i < MAX_COLOR_STOPS; i++) {
+      const swing = 0.92 + 0.12 * Math.sin(time * 0.4 + i * 0.9 + morph * 1.6);
+      colorStops[i * 3 + 0] = colorStopsBase[i * 3 + 0] * swing;
+      colorStops[i * 3 + 1] = colorStopsBase[i * 3 + 1] * swing;
+      colorStops[i * 3 + 2] = colorStopsBase[i * 3 + 2] * swing;
+    }
+    for (let i = colorStopCount; i < MAX_COLOR_STOPS; i++) {
+      colorStops[i * 3 + 0] = colorStops[(colorStopCount - 1) * 3 + 0];
+      colorStops[i * 3 + 1] = colorStops[(colorStopCount - 1) * 3 + 1];
+      colorStops[i * 3 + 2] = colorStops[(colorStopCount - 1) * 3 + 2];
+    }
+  };
 
   // Render loop
   let last = performance.now();
@@ -1161,16 +1274,7 @@
     updateCameraMatrix();
     computePointerWorld();
 
-    // Обновляем цвета из текущей палитры
-    const palette = colorPalettes[currentPaletteIndex];
-    // Переливание цветов в зависимости от морфа
-    const colorMix = 0.5 + 0.5 * Math.sin(t * 0.5 + morph * 3.14159); // плавное переливание
-    colorA[0] = palette.a[0] + (palette.b[0] - palette.a[0]) * colorMix * 0.3;
-    colorA[1] = palette.a[1] + (palette.b[1] - palette.a[1]) * colorMix * 0.3;
-    colorA[2] = palette.a[2] + (palette.b[2] - palette.a[2]) * colorMix * 0.3;
-    colorB[0] = palette.b[0] + (palette.a[0] - palette.b[0]) * colorMix * 0.2;
-    colorB[1] = palette.b[1] + (palette.a[1] - palette.b[1]) * colorMix * 0.2;
-    colorB[2] = palette.b[2] + (palette.a[2] - palette.b[2]) * colorMix * 0.2;
+    animateColorStops(t);
 
     // SIMULATION PASS
     gl.useProgram(progSim);
@@ -1200,6 +1304,8 @@
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerPress'), pointerActive ? 1.0 : 0.0);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerPulse'), pointerState.pulse ? 1.0 : 0.0);
     gl.uniform3f(gl.getUniformLocation(progSim, 'u_viewDir'), viewDir[0], viewDir[1], viewDir[2]);
+    gl.uniform4f(gl.getUniformLocation(progSim, 'u_fractalSeeds[0]'), fractalState.seedA[0], fractalState.seedA[1], fractalState.seedA[2], fractalState.seedA[3]);
+    gl.uniform4f(gl.getUniformLocation(progSim, 'u_fractalSeeds[1]'), fractalState.seedB[0], fractalState.seedB[1], fractalState.seedB[2], fractalState.seedB[3]);
     drawQuad();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     simRead = 1 - simRead;
@@ -1217,8 +1323,8 @@
     bindTex(progParticles, 'u_pos', posTex[simRead], 0);
     gl.uniform2f(gl.getUniformLocation(progParticles, 'u_texSize'), texSize, texSize);
     gl.uniform1f(gl.getUniformLocation(progParticles, 'u_time'), t);
-    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_colorA'), colorA);
-    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_colorB'), colorB);
+    gl.uniform1i(gl.getUniformLocation(progParticles, 'u_colorCount'), colorStopCount);
+    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_colors'), colorStops);
 
     const aspect = canvas.width / canvas.height;
     const proj = mat4perspective(Math.PI / 4, aspect, 0.1, 100);
@@ -1270,6 +1376,9 @@
   const cursorRadiusLabel = document.getElementById('cursorRadiusLabel');
   const cursorPulseToggle = document.getElementById('cursorPulse');
   const manualGroup = document.getElementById('manualSpeedGroup');
+  const colorCountInput = document.getElementById('colorCount');
+  const colorCountValue = document.getElementById('colorCountValue');
+  const paletteShuffleBtn = document.getElementById('shufflePalette');
 
   const DEFAULTS = {
     shapeStrength: 0.95,
@@ -1279,6 +1388,7 @@
     pointerRadius: 1.0,
     pointerMode: 'attract',
     particleTexSize: 256,
+    colorStops: 3,
   };
 
   let manualShapeStrength = parseFloat(shapeAttractionInput.value);
@@ -1306,10 +1416,12 @@
 
   const modeShapesBtn = document.getElementById('mode-shapes');
   const modeFreeBtn = document.getElementById('mode-free');
+  const modeFractalBtn = document.getElementById('mode-fractal');
 
   function updateModeButtons() {
     modeShapesBtn.classList.toggle('active', shapeMode === 'shapes');
     modeFreeBtn.classList.toggle('active', shapeMode === 'free');
+    modeFractalBtn.classList.toggle('active', shapeMode === 'fractal');
   }
 
   function updateCursorLabels() {
@@ -1317,6 +1429,11 @@
     cursorRadiusValue.textContent = pointerState.radius.toFixed(2);
     cursorRadiusLabel.textContent = pointerState.radius.toFixed(2);
     cursorModeLabel.textContent = cursorModeSelect.options[cursorModeSelect.selectedIndex].textContent;
+  }
+
+  function updateColorLabels() {
+    const plural = colorStopCount >= 2 && colorStopCount <= 4 ? 'цвета' : 'цветов';
+    colorCountValue.textContent = `${colorStopCount} ${plural}`;
   }
 
   const formatNumber = (val) => val.toLocaleString('ru-RU');
@@ -1358,6 +1475,9 @@
     updateCameraMatrix();
 
     currentPaletteIndex = 0;
+    colorStopCount = DEFAULTS.colorStops;
+    colorCountInput.value = colorStopCount;
+    rebuildColorStops();
 
     pointerState.active = true;
     pointerState.mode = DEFAULTS.pointerMode;
@@ -1369,6 +1489,11 @@
     cursorStrengthInput.value = DEFAULTS.pointerStrength.toFixed(2);
     cursorRadiusInput.value = DEFAULTS.pointerRadius.toFixed(2);
     cursorPulseToggle.checked = true;
+    updateColorLabels();
+    fractalState.seedA = randomFractalSeed();
+    fractalState.seedB = randomFractalSeed();
+    fractalState.morph = 0.0;
+    fractalState.duration = 11.0;
     updateCursorLabels();
 
     if (texSize !== DEFAULTS.particleTexSize) {
@@ -1488,6 +1613,18 @@
     pointerState.pulse = e.target.checked;
   });
 
+  colorCountInput.addEventListener('input', (e) => {
+    colorStopCount = parseInt(e.target.value, 10);
+    rebuildColorStops();
+    updateColorLabels();
+  });
+
+  paletteShuffleBtn.addEventListener('click', () => {
+    currentPaletteIndex = (currentPaletteIndex + 1) % colorPalettes.length;
+    rebuildColorStops();
+    updateColorLabels();
+  });
+
   resetFlowBtn.addEventListener('click', () => {
     resetSystem();
     console.log('↩️  Сброс к исходному состоянию');
@@ -1508,6 +1645,21 @@
   modeFreeBtn.addEventListener('click', () => {
     shapeMode = 'free';
     targetShapeStrength = 0.0;
+    isMorphing = false;
+    morph = 0.0;
+    updateModeButtons();
+  });
+
+  modeFractalBtn.addEventListener('click', () => {
+    shapeMode = 'fractal';
+    targetShapeStrength = Math.max(0.9, manualShapeStrength);
+    fractalState.seedA = randomFractalSeed();
+    fractalState.seedB = randomFractalSeed();
+    fractalState.morph = 0.0;
+    fractalState.duration = 10.0 + Math.random() * 3.0;
+    morph = 0.0;
+    isMorphing = false;
+    rebuildColorStops();
     updateModeButtons();
   });
 
@@ -1519,5 +1671,6 @@
   updateParticleLabels();
   updateShapeForceLabel();
   updateCursorLabels();
+  updateColorLabels();
   console.log('✓ UI инициализирован успешно!');
 })();
