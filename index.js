@@ -347,6 +347,7 @@
   uniform float u_pointerActive;
   uniform float u_pointerPress;
   uniform float u_pointerPulse;
+  uniform vec3 u_viewDir;
   layout(location=0) out vec4 o_pos;
   layout(location=1) out vec4 o_vel;
   in vec2 v_uv;
@@ -484,17 +485,28 @@
         acc += dirP * base * 0.6;
       } else if (u_pointerMode == 4) {
         // Импульсные всплески
-        float pulse = 1.0 + (u_pointerPulse > 0.5 ? sin(u_time * 6.0 + jitter * 18.0) * 0.55 : 0.0);
-        acc += dirP * base * 2.6 * pulse;
-        acc += normalize(vec3(-dirP.y, dirP.x, dirP.z * 0.35)) * base * 0.9;
-        vel *= 0.98 + 0.02 * pulse;
+        float pulsePhase = u_time * 5.0 + jitter * 13.0;
+        float carrier = 0.6 + 0.4 * sin(pulsePhase);
+        float burst = smoothstep(0.1, 0.95, sin(pulsePhase * 0.6 + 1.2));
+        float pulse = 1.0 + (u_pointerPulse > 0.5 ? carrier + burst * 1.4 : 0.0);
+        vec3 swirl = normalize(vec3(-dirP.y, dirP.x, dirP.z * 0.4));
+        acc += dirP * base * 2.4 * pulse;
+        acc += swirl * base * (1.1 + burst * 1.6);
+        vel = mix(vel, vel + dirP * base * 0.8, 0.4 * pulse);
       } else {
         // Магнитные дуги с лёгким свирлом
-        float orbit = 0.55 + 0.6 * sin(u_time * 1.2 + jitter * 12.0);
-        vec3 swirlDir = normalize(vec3(dirP.y, -dirP.x, 0.2));
-        acc += dirP * base * 1.8;
-        acc += swirlDir * base * (2.2 * orbit);
-        vel = mix(vel, dirP * base * 0.8, 0.35 * falloff);
+        vec3 axis = normalize(u_viewDir * 0.6 + vec3(0.0, 1.0, 0.4));
+        vec3 r = pos - u_pointerPos;
+        float rLen = max(0.08, length(r));
+        float r2 = rLen * rLen;
+        float r5 = r2 * r2 * rLen + 1e-5;
+        vec3 dipole = (3.0 * r * dot(axis, r) / r5) - (axis / max(1e-3, r2 * rLen));
+        dipole = clamp(dipole, -vec3(8.0), vec3(8.0));
+        vec3 swirlDir = normalize(cross(dipole, axis) + 0.35 * cross(dirP, axis));
+        float fluxFalloff = 1.0 / (1.0 + pow(rLen / (radius * 1.2), 2.0));
+        acc += dipole * base * (1.8 * fluxFalloff);
+        acc += swirlDir * base * (2.1 * fluxFalloff);
+        vel = mix(vel, dirP * base * 0.7 + dipole * 0.35, 0.4 * falloff);
       }
     }
 
@@ -930,19 +942,23 @@
 
   const POINTER_MODES = ['attract', 'repel', 'vortex-left', 'vortex-right', 'pulse', 'magnet'];
   const pointerWorld = [0, 0, 0];
+  const viewDir = [0, 0, -1];
 
   const computePointerWorld = () => {
     const nx = mouse.x * 2 - 1;
     const ny = 1 - mouse.y * 2;
     const aspect = canvas.width / canvas.height;
     const fov = Math.PI / 4;
-    const depth = Math.max(0.25, camera.distance - 1.2);
+    const depth = Math.max(0.35, camera.distance * 0.55);
 
     const forward = [
       -camera.pos[0] / camera.distance,
       -camera.pos[1] / camera.distance,
       -camera.pos[2] / camera.distance,
     ];
+    viewDir[0] = forward[0];
+    viewDir[1] = forward[1];
+    viewDir[2] = forward[2];
 
     const right = [
       forward[2],
@@ -960,7 +976,8 @@
     const ulen = Math.hypot(up[0], up[1], up[2]) || 1;
     up = up.map((v) => v / ulen);
 
-    const scale = Math.tan(fov / 2) * depth * 1.4;
+    const zoomScale = 1.0 + (camera.distance - 1.0) * 0.14;
+    const scale = Math.tan(fov / 2) * depth * (1.2 + zoomScale * 0.4);
     pointerWorld[0] = camera.target[0] + forward[0] * depth + (right[0] * nx * aspect + up[0] * ny) * scale;
     pointerWorld[1] = camera.target[1] + forward[1] * depth + (right[1] * nx * aspect + up[1] * ny) * scale;
     pointerWorld[2] = camera.target[2] + forward[2] * depth + (right[2] * nx * aspect + up[2] * ny) * scale;
@@ -1133,13 +1150,17 @@
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_shapeStrength'), shapeStrength);
     gl.uniform2f(gl.getUniformLocation(progSim, 'u_simSize'), texSize, texSize);
     const pointerActive = pointerState.active && mouse.leftDown;
+    const zoomReach = Math.pow(camera.distance * 0.55, 0.85);
+    const pointerRadius = pointerState.radius * (0.8 + zoomReach * 0.9);
+    const pointerStrength = pointerState.strength * (0.85 + zoomReach * 0.65);
     gl.uniform3f(gl.getUniformLocation(progSim, 'u_pointerPos'), pointerWorld[0], pointerWorld[1], pointerWorld[2]);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerStrength'), pointerState.strength);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerRadius'), pointerState.radius);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerStrength'), pointerStrength);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerRadius'), pointerRadius);
     gl.uniform1i(gl.getUniformLocation(progSim, 'u_pointerMode'), POINTER_MODES.indexOf(pointerState.mode));
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerActive'), pointerActive ? 1.0 : 0.0);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerPress'), pointerActive ? 1.0 : 0.0);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerPulse'), pointerState.pulse ? 1.0 : 0.0);
+    gl.uniform3f(gl.getUniformLocation(progSim, 'u_viewDir'), viewDir[0], viewDir[1], viewDir[2]);
     drawQuad();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     simRead = 1 - simRead;
