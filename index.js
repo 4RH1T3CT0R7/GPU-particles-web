@@ -479,13 +479,13 @@
     vec3 tangential = normalize(cross(surfaceNormal, vec3(0.0, 1.0, 0.0)) + 0.4 * cross(surfaceNormal, vec3(1.0, 0.0, 0.0)));
     vec3 swirlAroundShape = tangential * (0.45 + 0.35 * liftNoise) * shapeWeight * (0.65 + 0.5 * calmFactor);
 
-    vec3 shapeForce = toShape * (1.08 + 0.9 * calmFactor) * shapeWeight / (1.0 + dist*dist*0.42);
-    shapeForce += swirlAroundShape;
+    vec3 shapeForce = toShape * (0.78 + 0.7 * calmFactor) * shapeWeight / (1.0 + dist*dist*0.36);
+    shapeForce += swirlAroundShape * 0.85;
 
     float cohesion = smoothstep(0.0, 0.9, shapeWeight);
-    acc = mix(acc, acc * 0.6 + shapeForce * 1.35, cohesion * 0.95);
-    acc += shapeForce * 0.32;
-    vel *= mix(0.96, 0.9, cohesion * calmFactor);
+    acc = mix(acc, acc * 0.55 + shapeForce * 1.05, cohesion * 0.9);
+    acc += shapeForce * 0.22;
+    vel *= mix(0.97, 0.92, cohesion * calmFactor);
 
     // ==== АКТИВНЫЙ КУРСОР ====
     if (u_pointerActive > 0.5) {
@@ -498,6 +498,7 @@
       vec3 dirP = toPointer / max(distPointer, 0.001);
       float jitter = hash11(idHash * 91.0);
 
+      float pulseWave = 0.65 + 0.35 * sin(u_time * 3.5 + jitter * 7.0);
       if (u_pointerMode == 0) {
         // Притяжение/захват
         acc += dirP * base * 1.45;
@@ -511,14 +512,16 @@
         // Вихревой закрут в обе стороны
         float spin = (u_pointerMode == 2 ? -1.0 : 1.0);
         vec3 tangent = vec3(dirP.y * spin, -dirP.x * spin, dirP.z * 0.35 * spin);
-        acc += tangent * base * 3.2;
-        acc += dirP * base * 0.6;
+        float spiralBoost = 1.6 + pulseWave * 1.4;
+        acc += tangent * base * (3.8 * spiralBoost);
+        acc += dirP * base * (0.9 + 0.8 * pulseWave);
+        vel = mix(vel, vel + tangent * base * 0.75, 0.35 + 0.25 * pulseWave);
       } else if (u_pointerMode == 4) {
         // Импульсные всплески
-        float pulsePhase = u_time * 5.0 + jitter * 13.0;
-        float carrier = 0.6 + 0.4 * sin(pulsePhase);
-        float burst = smoothstep(0.1, 0.95, sin(pulsePhase * 0.6 + 1.2));
-        float pulse = 1.0 + (u_pointerPulse > 0.5 ? carrier + burst * 1.4 : 0.0);
+        float pulsePhase = u_time * 4.2 + jitter * 9.0;
+        float carrier = 0.55 + 0.45 * sin(pulsePhase);
+        float burst = smoothstep(-0.1, 0.9, sin(pulsePhase * 0.7 + 1.2));
+        float pulse = 0.6 + carrier + (u_pointerPulse > 0.5 ? burst * 1.6 : carrier * 0.35);
         vec3 swirl = normalize(vec3(-dirP.y, dirP.x, dirP.z * 0.4));
         acc -= dirP * base * (1.8 + burst * 1.3);
         acc += swirl * base * (1.4 + burst * 1.8);
@@ -1266,6 +1269,14 @@
     let dt = Math.min(0.033, (now - last) * 0.001);
     last = now;
     scheduleShapes(dt, t);
+    const shapeBase = shapeMode === 'shapes' ? manualShapeStrength : 0.0;
+    if (scatterCooldown > 0.0) {
+      scatterCooldown = Math.max(0.0, scatterCooldown - dt);
+      const relax = 0.35 + 0.65 * (scatterCooldown / SCATTER_RELAX_TIME);
+      targetShapeStrength = Math.min(shapeBase, manualShapeStrength * relax);
+    } else {
+      targetShapeStrength = shapeBase;
+    }
     shapeStrength += (targetShapeStrength - shapeStrength) * 0.08;
     updateShapeForceLabel();
 
@@ -1293,9 +1304,10 @@
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_shapeStrength'), shapeStrength);
     gl.uniform2f(gl.getUniformLocation(progSim, 'u_simSize'), texSize, texSize);
     const pointerActive = pointerState.active && mouse.leftDown;
-    const zoomReach = Math.pow(camera.distance * 0.55, 0.85);
-    const pointerRadius = pointerState.radius * (0.8 + zoomReach * 0.9);
-    const pointerStrength = pointerState.strength * (0.75 + zoomReach * 0.5);
+    const zoomReach = Math.max(0.35, camera.distance * 0.45);
+    const zoomPower = Math.pow(3.8 / (zoomReach + 0.25), 0.65);
+    const pointerRadius = pointerState.radius * (0.65 + (1.0 / zoomPower) * 0.9);
+    const pointerStrength = pointerState.strength * (0.9 + zoomPower * 0.85);
     gl.uniform3f(gl.getUniformLocation(progSim, 'u_pointerPos'), pointerWorld[0], pointerWorld[1], pointerWorld[2]);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerStrength'), pointerStrength);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerRadius'), pointerRadius);
@@ -1392,6 +1404,8 @@
   };
 
   let manualShapeStrength = parseFloat(shapeAttractionInput.value);
+  const SCATTER_RELAX_TIME = 6.0;
+  let scatterCooldown = 0;
 
   // Ручной выбор фигуры включает режим фигур
   function selectShape(idx) {
@@ -1467,6 +1481,7 @@
     shapeStrength = DEFAULTS.shapeStrength;
     targetShapeStrength = DEFAULTS.shapeStrength;
     shapeAttractionInput.value = DEFAULTS.shapeStrength.toFixed(2);
+    scatterCooldown = 0;
 
     camera.angle.x = 0.5;
     camera.angle.y = 0.5;
@@ -1514,6 +1529,9 @@
     reinitializeParticles(1.0);
     morph = 0.0;
     isMorphing = false;
+    scatterCooldown = SCATTER_RELAX_TIME;
+    targetShapeStrength = Math.min(manualShapeStrength, manualShapeStrength * 0.55);
+    shapeStrength = Math.min(shapeStrength, targetShapeStrength);
     nextSwitch = performance.now() * 0.001 + transitionSpeed * 0.5;
   }
 
