@@ -65,6 +65,40 @@
       font-size: 11px;
       letter-spacing: 0.02em;
     }
+    .section {
+      border-top: 1px solid rgba(126, 224, 255, 0.2);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+    .section:first-of-type {
+      border-top: none;
+      padding-top: 0;
+      margin-top: 4px;
+    }
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #b8ecff;
+      margin: 0 0 8px;
+    }
+    .hint {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #8cb6c7;
+      font-size: 11px;
+      margin: 6px 0 10px;
+    }
+    .hint::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: linear-gradient(120deg, #70d5ff, #a07bff);
+      box-shadow: 0 0 10px rgba(126, 224, 255, 0.6);
+    }
     .control-group {
       margin-bottom: 14px;
     }
@@ -158,97 +192,109 @@
   <div id="controls">
     <h3>GPU Shapes</h3>
     <div class="subtitle">Морфирующий поток частиц с мягким свечением и шумовыми вихрями.</div>
+    <div class="section">
+      <div class="section-title">Фигуры и полёт</div>
+      <div class="control-group">
+        <label>Фигуры</label>
+        <div class="shape-buttons" id="shapeButtons"></div>
+      </div>
 
-    <div class="control-group">
-      <label>Фигуры</label>
-      <div class="shape-buttons" id="shapeButtons"></div>
-    </div>
-
-    <div class="control-group">
-      <label>Режимы</label>
-      <div class="shape-buttons">
-        <button id="mode-shapes" class="active">Shapes</button>
-        <button id="mode-free">Free Flight</button>
+      <div class="control-group">
+        <label>Режимы</label>
+        <div class="shape-buttons">
+          <button id="mode-shapes" class="active">Shapes</button>
+          <button id="mode-free">Free Flight</button>
+        </div>
       </div>
     </div>
 
-    <div class="control-group">
-      <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
-        <input type="checkbox" id="cursorActive" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
-        Активный курсор
-      </label>
-      <div class="pill-row">
-        <span class="value-pill">Режим: <strong id="cursorModeLabel">Притягивать</strong></span>
-        <span class="value-pill">Радиус: <strong id="cursorRadiusLabel">1.10</strong></span>
+    <div class="section">
+      <div class="section-title">Морфинг фигур</div>
+      <div class="control-group">
+        <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
+          <input type="checkbox" id="autoToggle" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
+          Автоматически переключать фигуры
+        </label>
+        <div class="pill-row">
+          <span class="value-pill">Сила формы: <strong id="shapeForceValue">1.10x</strong></span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Скорость автоперехода</label>
+        <select id="speedControl">
+          <option value="slow">Slow (20s)</option>
+          <option value="normal" selected>Normal (15s)</option>
+          <option value="fast">Fast (6s)</option>
+          <option value="manual">Custom</option>
+        </select>
+      </div>
+
+      <div class="control-group" id="manualSpeedGroup" style="display:none;">
+        <label>Custom transition (seconds)</label>
+        <input type="range" id="manualSpeed" min="4" max="30" step="0.5" value="15">
+        <span id="speedValue">15s</span>
+      </div>
+
+      <div class="control-group">
+        <label>Притяжение к фигуре</label>
+        <input type="range" id="shapeAttraction" min="0.25" max="1.4" step="0.05" value="1.1">
       </div>
     </div>
 
-    <div class="control-group">
-      <label>Тип взаимодействия</label>
-      <select id="cursorMode">
-        <option value="attract" selected>Притягивать частицы</option>
-        <option value="repel">Отталкивать и разгонять</option>
-        <option value="vortex-left">Вихрь (левый закрут)</option>
-        <option value="vortex-right">Вихрь (правый закрут)</option>
-        <option value="pulse">Пульсирующий импульс</option>
-        <option value="magnet">Магнитный поток</option>
-      </select>
-    </div>
+    <div class="section">
+      <div class="section-title">Активный курсор</div>
+      <div class="hint">ЛКМ — воздействие курсора, ПКМ — вращение камеры</div>
+      <div class="control-group">
+        <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
+          <input type="checkbox" id="cursorActive" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
+          Включить курсор
+        </label>
+        <div class="pill-row">
+          <span class="value-pill">Режим: <strong id="cursorModeLabel">Притягивать</strong></span>
+          <span class="value-pill">Радиус: <strong id="cursorRadiusLabel">1.10</strong></span>
+        </div>
+      </div>
 
-    <div class="control-group">
-      <label>Сила курсора</label>
-      <input type="range" id="cursorStrength" min="0.25" max="3.0" step="0.05" value="1.25">
-      <span id="cursorStrengthValue">1.25x</span>
-    </div>
+      <div class="control-group">
+        <label>Тип взаимодействия</label>
+        <select id="cursorMode">
+          <option value="attract" selected>Притягивать частицы</option>
+          <option value="repel">Отталкивать и разгонять</option>
+          <option value="vortex-left">Вихрь (левый закрут)</option>
+          <option value="vortex-right">Вихрь (правый закрут)</option>
+          <option value="pulse">Пульсирующий импульс</option>
+          <option value="magnet">Магнитный поток</option>
+        </select>
+      </div>
 
-    <div class="control-group">
-      <label>Радиус влияния</label>
-      <input type="range" id="cursorRadius" min="0.4" max="2.4" step="0.05" value="1.1">
-      <span id="cursorRadiusValue">1.10</span>
-      <label style="display:flex; align-items:center; gap:8px; margin-top:6px; text-transform:none; font-weight:600; color:#bdefff;">
-        <input type="checkbox" id="cursorPulse" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
-        Пульсирующий импульс при зажатии
-      </label>
-    </div>
+      <div class="control-group">
+        <label>Сила курсора</label>
+        <input type="range" id="cursorStrength" min="0.25" max="3.0" step="0.05" value="1.25">
+        <span id="cursorStrengthValue">1.25x</span>
+      </div>
 
-    <div class="control-group">
-      <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
-        <input type="checkbox" id="autoToggle" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
-        Автоматически переключать фигуры
-      </label>
-      <div class="pill-row">
-        <span class="value-pill">Сила формы: <strong id="shapeForceValue">1.10x</strong></span>
-        <span class="value-pill">Частиц: <strong id="particleCountLabel">65 536</strong></span>
+      <div class="control-group">
+        <label>Радиус влияния</label>
+        <input type="range" id="cursorRadius" min="0.4" max="2.4" step="0.05" value="1.1">
+        <span id="cursorRadiusValue">1.10</span>
+        <label style="display:flex; align-items:center; gap:8px; margin-top:6px; text-transform:none; font-weight:600; color:#bdefff;">
+          <input type="checkbox" id="cursorPulse" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
+          Пульсирующий импульс при зажатии
+        </label>
       </div>
     </div>
 
-    <div class="control-group">
-      <label>Auto transition speed</label>
-      <select id="speedControl">
-        <option value="slow">Slow (20s)</option>
-        <option value="normal" selected>Normal (15s)</option>
-        <option value="fast">Fast (6s)</option>
-        <option value="manual">Custom</option>
-      </select>
-    </div>
-
-    <div class="control-group" id="manualSpeedGroup" style="display:none;">
-      <label>Custom transition (seconds)</label>
-      <input type="range" id="manualSpeed" min="4" max="30" step="0.5" value="15">
-      <span id="speedValue">15s</span>
-    </div>
-
-    <div class="control-group">
-      <label>Shape attraction</label>
-      <input type="range" id="shapeAttraction" min="0.25" max="1.4" step="0.05" value="1.1">
-    </div>
-
-    <div class="control-group">
-      <label>Particle count</label>
-      <input type="range" id="particleCount" min="128" max="384" step="64" value="256">
-      <div class="pill-row">
-        <span class="value-pill">Texture: <strong id="particleTextureLabel">256 × 256</strong></span>
-        <span class="value-pill">~<strong id="particleCountValue">65 536</strong> частиц</span>
+    <div class="section">
+      <div class="section-title">Частицы</div>
+      <div class="control-group">
+        <label>Количество частиц</label>
+        <input type="range" id="particleCount" min="128" max="384" step="64" value="256">
+        <div class="pill-row">
+          <span class="value-pill">Texture: <strong id="particleTextureLabel">256 × 256</strong></span>
+          <span class="value-pill">~<strong id="particleCountValue">65 536</strong> частиц</span>
+          <span class="value-pill">Активно: <strong id="particleCountLabel">65 536</strong></span>
+        </div>
       </div>
     </div>
   </div>
