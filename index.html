@@ -216,7 +216,7 @@
           Автоматически переключать фигуры
         </label>
         <div class="pill-row">
-          <span class="value-pill">Сила формы: <strong id="shapeForceValue">1.10x</strong></span>
+          <span class="value-pill">Сила формы: <strong id="shapeForceValue">0.95x</strong></span>
         </div>
       </div>
 
@@ -238,7 +238,7 @@
 
       <div class="control-group">
         <label>Притяжение к фигуре</label>
-        <input type="range" id="shapeAttraction" min="0.25" max="1.4" step="0.05" value="1.1">
+        <input type="range" id="shapeAttraction" min="0.25" max="1.4" step="0.05" value="0.95">
       </div>
     </div>
 
@@ -250,11 +250,11 @@
           <input type="checkbox" id="cursorActive" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
           Включить курсор
         </label>
-        <div class="pill-row">
-          <span class="value-pill">Режим: <strong id="cursorModeLabel">Притягивать</strong></span>
-          <span class="value-pill">Радиус: <strong id="cursorRadiusLabel">1.10</strong></span>
+          <div class="pill-row">
+            <span class="value-pill">Режим: <strong id="cursorModeLabel">Притягивать</strong></span>
+            <span class="value-pill">Радиус: <strong id="cursorRadiusLabel">1.00</strong></span>
+          </div>
         </div>
-      </div>
 
       <div class="control-group">
         <label>Тип взаимодействия</label>
@@ -270,14 +270,14 @@
 
       <div class="control-group">
         <label>Сила курсора</label>
-        <input type="range" id="cursorStrength" min="0.25" max="3.0" step="0.05" value="1.25">
-        <span id="cursorStrengthValue">1.25x</span>
+        <input type="range" id="cursorStrength" min="0.25" max="3.0" step="0.05" value="1.10">
+        <span id="cursorStrengthValue">1.10x</span>
       </div>
 
       <div class="control-group">
         <label>Радиус влияния</label>
-        <input type="range" id="cursorRadius" min="0.4" max="2.4" step="0.05" value="1.1">
-        <span id="cursorRadiusValue">1.10</span>
+        <input type="range" id="cursorRadius" min="0.4" max="2.4" step="0.05" value="1.0">
+        <span id="cursorRadiusValue">1.00</span>
         <label style="display:flex; align-items:center; gap:8px; margin-top:6px; text-transform:none; font-weight:600; color:#bdefff;">
           <input type="checkbox" id="cursorPulse" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
           Пульсирующий импульс при зажатии
@@ -294,6 +294,14 @@
           <span class="value-pill">Texture: <strong id="particleTextureLabel">256 × 256</strong></span>
           <span class="value-pill">~<strong id="particleCountValue">65 536</strong> частиц</span>
           <span class="value-pill">Активно: <strong id="particleCountLabel">65 536</strong></span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Быстрые действия</label>
+        <div class="shape-buttons">
+          <button id="resetFlow">Сбросить</button>
+          <button id="scatterFlow">Разброс / узор</button>
         </div>
       </div>
     </div>
