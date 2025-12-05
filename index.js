@@ -359,6 +359,7 @@
   uniform sampler2D u_vel;
   uniform float u_dt;
   uniform float u_time;
+  uniform float u_speedMultiplier;
   uniform int u_shapeA;
   uniform int u_shapeB;
   uniform float u_morph; // 0..1
@@ -565,12 +566,13 @@
     }
 
     // Интеграция
-    vel += acc * u_dt;
-    vel *= 0.915;
+    float simDt = u_dt * u_speedMultiplier;
+    vel += acc * simDt;
+    vel *= mix(1.0, 0.915, step(0.0001, u_speedMultiplier));
     float speed = length(vel);
     if (speed > 18.0) vel = vel / speed * 18.0;
 
-    pos += vel * u_dt;
+    pos += vel * simDt;
     o_pos = vec4(pos, 1.0);
     o_vel = vec4(vel, 1.0);
   }
@@ -1269,6 +1271,7 @@
     let dt = Math.min(0.033, (now - last) * 0.001);
     last = now;
     scheduleShapes(dt, t);
+    const simDt = dt * particleSpeed;
     const shapeBase = shapeMode === 'shapes' ? manualShapeStrength : 0.0;
     if (scatterCooldown > 0.0) {
       scatterCooldown = Math.max(0.0, scatterCooldown - dt);
@@ -1296,8 +1299,9 @@
     gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
     bindTex(progSim, 'u_pos', posTex[read], 0);
     bindTex(progSim, 'u_vel', velTex[read], 1);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_dt'), dt);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_dt'), simDt);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_time'), t);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_speedMultiplier'), particleSpeed);
     gl.uniform1i(gl.getUniformLocation(progSim, 'u_shapeA'), shapeA);
     gl.uniform1i(gl.getUniformLocation(progSim, 'u_shapeB'), shapeB);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_morph'), morph);
@@ -1387,6 +1391,8 @@
   const cursorModeLabel = document.getElementById('cursorModeLabel');
   const cursorRadiusLabel = document.getElementById('cursorRadiusLabel');
   const cursorPulseToggle = document.getElementById('cursorPulse');
+  const particleSpeedInput = document.getElementById('particleSpeed');
+  const particleSpeedValue = document.getElementById('particleSpeedValue');
   const manualGroup = document.getElementById('manualSpeedGroup');
   const colorCountInput = document.getElementById('colorCount');
   const colorCountValue = document.getElementById('colorCountValue');
@@ -1401,11 +1407,13 @@
     pointerMode: 'attract',
     particleTexSize: 256,
     colorStops: 3,
+    particleSpeed: 1.0,
   };
 
   let manualShapeStrength = parseFloat(shapeAttractionInput.value);
   const SCATTER_RELAX_TIME = 6.0;
   let scatterCooldown = 0;
+  let particleSpeed = DEFAULTS.particleSpeed;
 
   // Ручной выбор фигуры включает режим фигур
   function selectShape(idx) {
@@ -1461,6 +1469,10 @@
     shapeForceValue.textContent = `${shapeStrength.toFixed(2)}x`;
   }
 
+  function updateParticleSpeedLabel() {
+    particleSpeedValue.textContent = `${particleSpeed.toFixed(2)}x`;
+  }
+
   function resetSystem() {
     autoMorph = true;
     autoToggle.checked = true;
@@ -1510,6 +1522,9 @@
     fractalState.morph = 0.0;
     fractalState.duration = 11.0;
     updateCursorLabels();
+    particleSpeed = DEFAULTS.particleSpeed;
+    particleSpeedInput.value = DEFAULTS.particleSpeed;
+    updateParticleSpeedLabel();
 
     if (texSize !== DEFAULTS.particleTexSize) {
       particleCountSlider.value = DEFAULTS.particleTexSize;
@@ -1550,6 +1565,8 @@
   const manualSpeedInput = document.getElementById('manualSpeed');
   const manualMorphValue = document.getElementById('speedValue');
   manualMorphValue.textContent = `${manualSpeedInput.value}s`;
+  particleSpeed = parseFloat(particleSpeedInput.value);
+  updateParticleSpeedLabel();
 
   speedControl.addEventListener('change', (e) => {
     if (e.target.value === 'manual') {
@@ -1606,6 +1623,11 @@
     const size = parseInt(e.target.value, 10);
     initSimulation(size);
     updateParticleLabels();
+  });
+
+  particleSpeedInput.addEventListener('input', (e) => {
+    particleSpeed = parseFloat(e.target.value);
+    updateParticleSpeedLabel();
   });
 
   cursorToggle.addEventListener('change', (e) => {
