@@ -30,6 +30,8 @@
       top: 20px;
       left: 20px;
       max-width: 320px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
       background: radial-gradient(circle at 20% 20%, rgba(126, 224, 255, 0.12), transparent 45%), rgba(5, 8, 15, 0.88);
       border: 1px solid rgba(126, 224, 255, 0.35);
       border-radius: 14px;
@@ -172,6 +174,45 @@
 
     <div class="control-group">
       <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
+        <input type="checkbox" id="cursorActive" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
+        Активный курсор
+      </label>
+      <div class="pill-row">
+        <span class="value-pill">Режим: <strong id="cursorModeLabel">Притягивать</strong></span>
+        <span class="value-pill">Радиус: <strong id="cursorRadiusLabel">1.10</strong></span>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label>Тип взаимодействия</label>
+      <select id="cursorMode">
+        <option value="attract" selected>Притягивать частицы</option>
+        <option value="repel">Отталкивать и разгонять</option>
+        <option value="vortex-left">Вихрь (левый закрут)</option>
+        <option value="vortex-right">Вихрь (правый закрут)</option>
+        <option value="pulse">Пульсирующий импульс</option>
+        <option value="magnet">Магнитный поток</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Сила курсора</label>
+      <input type="range" id="cursorStrength" min="0.25" max="3.0" step="0.05" value="1.25">
+      <span id="cursorStrengthValue">1.25x</span>
+    </div>
+
+    <div class="control-group">
+      <label>Радиус влияния</label>
+      <input type="range" id="cursorRadius" min="0.4" max="2.4" step="0.05" value="1.1">
+      <span id="cursorRadiusValue">1.10</span>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:6px; text-transform:none; font-weight:600; color:#bdefff;">
+        <input type="checkbox" id="cursorPulse" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
+        Пульсирующий импульс при зажатии
+      </label>
+    </div>
+
+    <div class="control-group">
+      <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
         <input type="checkbox" id="autoToggle" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
         Автоматически переключать фигуры
       </label>
@@ -185,7 +226,7 @@
       <label>Auto transition speed</label>
       <select id="speedControl">
         <option value="slow">Slow (20s)</option>
-        <option value="normal" selected>Normal (12s)</option>
+        <option value="normal" selected>Normal (15s)</option>
         <option value="fast">Fast (6s)</option>
         <option value="manual">Custom</option>
       </select>
@@ -193,8 +234,8 @@
 
     <div class="control-group" id="manualSpeedGroup" style="display:none;">
       <label>Custom transition (seconds)</label>
-      <input type="range" id="manualSpeed" min="4" max="30" step="0.5" value="12">
-      <span id="speedValue">12s</span>
+      <input type="range" id="manualSpeed" min="4" max="30" step="0.5" value="15">
+      <span id="speedValue">15s</span>
     </div>
 
     <div class="control-group">

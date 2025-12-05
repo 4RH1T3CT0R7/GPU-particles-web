@@ -340,6 +340,13 @@
   uniform float u_morph; // 0..1
   uniform float u_shapeStrength;
   uniform vec2 u_simSize;
+  uniform vec3 u_pointerPos;
+  uniform float u_pointerStrength;
+  uniform float u_pointerRadius;
+  uniform int u_pointerMode;
+  uniform float u_pointerActive;
+  uniform float u_pointerPress;
+  uniform float u_pointerPulse;
   layout(location=0) out vec4 o_pos;
   layout(location=1) out vec4 o_vel;
   in vec2 v_uv;
@@ -448,6 +455,48 @@
     acc = mix(acc, acc * 0.48 + shapeForce * 1.65, cohesion);
     acc += shapeForce * 0.45;
     vel *= mix(0.93, 0.86, cohesion * calmFactor);
+
+    // ==== АКТИВНЫЙ КУРСОР ====
+    if (u_pointerActive > 0.5) {
+      vec3 toPointer = u_pointerPos - pos;
+      float distPointer = length(toPointer);
+      float radius = max(0.12, u_pointerRadius);
+      float falloff = exp(-pow(distPointer / radius, 1.35));
+      float pressBoost = mix(0.68, 1.4, u_pointerPress);
+      float base = u_pointerStrength * pressBoost * falloff;
+      vec3 dirP = toPointer / max(distPointer, 0.001);
+      float jitter = hash11(idHash * 91.0);
+
+      if (u_pointerMode == 0) {
+        // Притяжение/захват
+        acc += dirP * base * 2.2;
+        vel += dirP * base * 0.7;
+      } else if (u_pointerMode == 1) {
+        // Отталкивание и разгон
+        acc -= dirP * base * 2.0;
+        acc += vec3(dirP.y, -dirP.x, 0.15) * base * 1.6;
+        vel *= 0.97;
+      } else if (u_pointerMode == 2 || u_pointerMode == 3) {
+        // Вихревой закрут в обе стороны
+        float spin = (u_pointerMode == 2 ? -1.0 : 1.0);
+        vec3 tangent = vec3(dirP.y * spin, -dirP.x * spin, dirP.z * 0.35 * spin);
+        acc += tangent * base * 3.2;
+        acc += dirP * base * 0.6;
+      } else if (u_pointerMode == 4) {
+        // Импульсные всплески
+        float pulse = 1.0 + (u_pointerPulse > 0.5 ? sin(u_time * 6.0 + jitter * 18.0) * 0.55 : 0.0);
+        acc += dirP * base * 2.6 * pulse;
+        acc += normalize(vec3(-dirP.y, dirP.x, dirP.z * 0.35)) * base * 0.9;
+        vel *= 0.98 + 0.02 * pulse;
+      } else {
+        // Магнитные дуги с лёгким свирлом
+        float orbit = 0.55 + 0.6 * sin(u_time * 1.2 + jitter * 12.0);
+        vec3 swirlDir = normalize(vec3(dirP.y, -dirP.x, 0.2));
+        acc += dirP * base * 1.8;
+        acc += swirlDir * base * (2.2 * orbit);
+        vel = mix(vel, dirP * base * 0.8, 0.35 * falloff);
+      }
+    }
 
     // ==== СОХРАНЯЕМ ОБЛАКО ====
     float roamRadius = 4.5;
@@ -854,6 +903,52 @@
     camera.targetDistance = Math.max(1.0, Math.min(12, camera.targetDistance));
   }, {passive: false});
 
+  const pointerState = {
+    active: true,
+    mode: 'attract',
+    strength: 1.25,
+    radius: 1.1,
+    pulse: true,
+  };
+
+  const POINTER_MODES = ['attract', 'repel', 'vortex-left', 'vortex-right', 'pulse', 'magnet'];
+  const pointerWorld = [0, 0, 0];
+
+  const computePointerWorld = () => {
+    const nx = mouse.x * 2 - 1;
+    const ny = 1 - mouse.y * 2;
+    const aspect = canvas.width / canvas.height;
+    const fov = Math.PI / 4;
+    const depth = Math.max(0.25, camera.distance - 1.2);
+
+    const forward = [
+      -camera.pos[0] / camera.distance,
+      -camera.pos[1] / camera.distance,
+      -camera.pos[2] / camera.distance,
+    ];
+
+    const right = [
+      forward[2],
+      0,
+      -forward[0],
+    ];
+    const rlen = Math.hypot(right[0], right[1], right[2]) || 1;
+    right[0] /= rlen; right[1] /= rlen; right[2] /= rlen;
+
+    let up = [
+      right[1] * forward[2] - right[2] * forward[1],
+      right[2] * forward[0] - right[0] * forward[2],
+      right[0] * forward[1] - right[1] * forward[0],
+    ];
+    const ulen = Math.hypot(up[0], up[1], up[2]) || 1;
+    up = up.map((v) => v / ulen);
+
+    const scale = Math.tan(fov / 2) * depth * 1.4;
+    pointerWorld[0] = camera.target[0] + forward[0] * depth + (right[0] * nx * aspect + up[0] * ny) * scale;
+    pointerWorld[1] = camera.target[1] + forward[1] * depth + (right[1] * nx * aspect + up[1] * ny) * scale;
+    pointerWorld[2] = camera.target[2] + forward[2] * depth + (right[2] * nx * aspect + up[2] * ny) * scale;
+  };
+
   // Resize
   const size = { w: 0, h: 0 };
   function resize(){
@@ -906,8 +1001,8 @@
   let shapeA = 0, shapeB = 1;
   let morph = 0.0;
   let nextSwitch = 5.0; // Start first transition after 5s
-  let transitionSpeed = 12.0;
-  let customTransition = 12.0;
+  let transitionSpeed = 15.0;
+  let customTransition = 15.0;
   let controlMode = 'preset'; // 'preset' or 'custom'
   let isMorphing = false;
   let shapeMode = 'shapes';
@@ -991,6 +1086,7 @@
     // ПЛАВНЫЙ ZOOM - интерполяция к целевому расстоянию
     camera.distance += (camera.targetDistance - camera.distance) * 0.1; // плавно
     updateCameraMatrix();
+    computePointerWorld();
 
     // Обновляем цвета из текущей палитры
     const palette = colorPalettes[currentPaletteIndex];
@@ -1019,6 +1115,13 @@
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_morph'), morph);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_shapeStrength'), shapeStrength);
     gl.uniform2f(gl.getUniformLocation(progSim, 'u_simSize'), texSize, texSize);
+    gl.uniform3f(gl.getUniformLocation(progSim, 'u_pointerPos'), pointerWorld[0], pointerWorld[1], pointerWorld[2]);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerStrength'), pointerState.strength);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerRadius'), pointerState.radius);
+    gl.uniform1i(gl.getUniformLocation(progSim, 'u_pointerMode'), POINTER_MODES.indexOf(pointerState.mode));
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerActive'), pointerState.active ? 1.0 : 0.0);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerPress'), mouse.down ? 1.0 : 0.0);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerPulse'), pointerState.pulse ? 1.0 : 0.0);
     drawQuad();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     simRead = 1 - simRead;
@@ -1077,6 +1180,15 @@
   const particleCountValue = document.getElementById('particleCountValue');
   const particleTextureLabel = document.getElementById('particleTextureLabel');
   const particleCountLabel = document.getElementById('particleCountLabel');
+  const cursorToggle = document.getElementById('cursorActive');
+  const cursorModeSelect = document.getElementById('cursorMode');
+  const cursorStrengthInput = document.getElementById('cursorStrength');
+  const cursorStrengthValue = document.getElementById('cursorStrengthValue');
+  const cursorRadiusInput = document.getElementById('cursorRadius');
+  const cursorRadiusValue = document.getElementById('cursorRadiusValue');
+  const cursorModeLabel = document.getElementById('cursorModeLabel');
+  const cursorRadiusLabel = document.getElementById('cursorRadiusLabel');
+  const cursorPulseToggle = document.getElementById('cursorPulse');
 
   let manualShapeStrength = parseFloat(shapeAttractionInput.value);
 
@@ -1107,6 +1219,13 @@
   function updateModeButtons() {
     modeShapesBtn.classList.toggle('active', shapeMode === 'shapes');
     modeFreeBtn.classList.toggle('active', shapeMode === 'free');
+  }
+
+  function updateCursorLabels() {
+    cursorStrengthValue.textContent = `${pointerState.strength.toFixed(2)}x`;
+    cursorRadiusValue.textContent = pointerState.radius.toFixed(2);
+    cursorRadiusLabel.textContent = pointerState.radius.toFixed(2);
+    cursorModeLabel.textContent = cursorModeSelect.options[cursorModeSelect.selectedIndex].textContent;
   }
 
   const formatNumber = (val) => val.toLocaleString('ru-RU');
@@ -1147,7 +1266,7 @@
       manualGroup.style.display = 'none';
       if (e.target.value === 'slow') transitionSpeed = 20.0;
       else if (e.target.value === 'fast') transitionSpeed = 6.0;
-      else transitionSpeed = 12.0;
+      else transitionSpeed = 15.0;
     }
     nextSwitch = performance.now() * 0.001 + transitionSpeed;
   });
@@ -1194,6 +1313,29 @@
     updateParticleLabels();
   });
 
+  cursorToggle.addEventListener('change', (e) => {
+    pointerState.active = e.target.checked;
+  });
+
+  cursorModeSelect.addEventListener('change', (e) => {
+    pointerState.mode = e.target.value;
+    updateCursorLabels();
+  });
+
+  cursorStrengthInput.addEventListener('input', (e) => {
+    pointerState.strength = parseFloat(e.target.value);
+    updateCursorLabels();
+  });
+
+  cursorRadiusInput.addEventListener('input', (e) => {
+    pointerState.radius = parseFloat(e.target.value);
+    updateCursorLabels();
+  });
+
+  cursorPulseToggle.addEventListener('change', (e) => {
+    pointerState.pulse = e.target.checked;
+  });
+
   modeShapesBtn.addEventListener('click', () => {
     shapeMode = 'shapes';
     targetShapeStrength = manualShapeStrength;
@@ -1214,5 +1356,6 @@
   updateModeButtons();
   updateParticleLabels();
   updateShapeForceLabel();
+  updateCursorLabels();
   console.log('✓ UI инициализирован успешно!');
 })();
