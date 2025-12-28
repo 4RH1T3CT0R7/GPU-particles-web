@@ -53,36 +53,45 @@
     }
     #controls {
       position: fixed;
-      top: 24px;
-      left: 24px;
-      max-width: 360px;
-      max-height: calc(100vh - 48px);
+      top: 20px;
+      left: 20px;
+      max-width: 340px;
+      max-height: calc(100vh - 40px);
       overflow-y: auto;
-      background: var(--glass);
-      border: 1px solid var(--card-border);
-      border-radius: 22px;
-      padding: 18px 18px 16px;
+      background: linear-gradient(165deg, rgba(12, 20, 35, 0.92), rgba(8, 14, 28, 0.88));
+      border: 1px solid rgba(106, 243, 255, 0.18);
+      border-radius: 18px;
+      padding: 20px 18px 18px;
       font-size: 12px;
-      backdrop-filter: blur(26px) saturate(210%);
-      box-shadow: var(--panel-shadow), 0 0 32px rgba(106, 243, 255, 0.12);
+      backdrop-filter: blur(24px) saturate(180%);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(106, 243, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
       z-index: 10;
+    }
+    #controls::-webkit-scrollbar {
+      width: 6px;
+    }
+    #controls::-webkit-scrollbar-track {
+      background: rgba(106, 243, 255, 0.05);
+      border-radius: 3px;
+    }
+    #controls::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(106, 243, 255, 0.3), rgba(174, 123, 255, 0.2));
+      border-radius: 3px;
     }
     #controls::before {
       content: "";
       position: absolute;
-      top: 1px;
-      left: 1px;
-      right: 1px;
-      bottom: 1px;
-      border-radius: 20px;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 18px;
       padding: 1px;
-      background: linear-gradient(120deg, rgba(122, 245, 255, 0.58), rgba(225, 150, 255, 0.45));
-      -webkit-mask-image: -webkit-linear-gradient(white, white), -webkit-linear-gradient(white, white);
-      -webkit-mask-clip: content, border;
+      background: linear-gradient(135deg, rgba(106, 243, 255, 0.25), rgba(174, 123, 255, 0.15), rgba(106, 243, 255, 0.1));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
       -webkit-mask-composite: xor;
-      mask-image: linear-gradient(white, white), linear-gradient(white, white);
-      mask-clip: content-box, border-box;
-      opacity: 0.55;
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask-composite: exclude;
       pointer-events: none;
     }
     .panel-header {
@@ -141,47 +150,55 @@
       filter: drop-shadow(0 0 6px rgba(154, 244, 255, 0.65));
     }
     .section {
-      border-top: 1px solid rgba(106, 243, 255, 0.14);
-      padding-top: 14px;
-      margin-top: 14px;
+      border-top: 1px solid rgba(106, 243, 255, 0.1);
+      padding-top: 16px;
+      margin-top: 16px;
       position: relative;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 60%);
-      border-radius: 16px;
-      padding: 16px 14px 14px;
+      background: linear-gradient(180deg, rgba(106, 243, 255, 0.02), transparent 80%);
+      border-radius: 14px;
+      padding: 16px 12px 12px;
     }
     .section:first-of-type {
       border-top: none;
-      padding-top: 4px;
-      margin-top: 2px;
+      padding-top: 6px;
+      margin-top: 4px;
     }
     .section::before {
       content: "";
       position: absolute;
       top: -1px;
       left: 0;
-      width: 84px;
-      height: 1px;
-      background: linear-gradient(90deg, rgba(106, 243, 255, 0.5), rgba(174, 123, 255, 0));
-      opacity: 0.9;
+      width: 100px;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(106, 243, 255, 0.6), rgba(174, 123, 255, 0.3), transparent);
+      border-radius: 1px;
     }
     .section:first-of-type::before { display: none; }
     .section-title {
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.12em;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: #e9f7ff;
-      margin: 0 0 10px;
+      color: #a8d8ff;
+      margin: 0 0 12px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+      text-shadow: 0 0 20px rgba(106, 243, 255, 0.3);
+    }
+    .section-title::before {
+      content: "";
+      width: 4px;
+      height: 4px;
+      background: linear-gradient(135deg, #7af5ff, #c8a8ff);
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(106, 243, 255, 0.6);
     }
     .section-title::after {
       content: "";
       flex: 1;
       height: 1px;
-      background: linear-gradient(90deg, rgba(174, 123, 255, 0.8), rgba(106, 243, 255, 0));
-      opacity: 0.4;
+      background: linear-gradient(90deg, rgba(174, 123, 255, 0.4), rgba(106, 243, 255, 0.1), transparent);
     }
     .hint {
       display: flex;
@@ -223,90 +240,147 @@
       margin-bottom: 8px;
     }
     button {
-      padding: 10px 12px;
-      background: linear-gradient(150deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
-      border: 1.5px solid rgba(106, 243, 255, 0.5);
-      color: #ffffff;
-      border-radius: 12px;
+      padding: 11px 14px;
+      background: linear-gradient(160deg, rgba(20, 35, 60, 0.95), rgba(15, 25, 45, 0.9));
+      border: 1.5px solid rgba(106, 243, 255, 0.35);
+      color: #e8f4ff;
+      border-radius: 10px;
       cursor: pointer;
-      font-size: 11px;
+      font-size: 12px;
       text-transform: none;
-      transition: all 0.2s ease;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      backdrop-filter: blur(10px);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 14px 32px rgba(0, 0, 0, 0.42);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
       position: relative;
       overflow: hidden;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    }
+    button::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent);
+      pointer-events: none;
     }
     button::after {
       content: "";
       position: absolute;
       inset: 0;
-      background: linear-gradient(120deg, rgba(106, 243, 255, 0.22), rgba(174, 123, 255, 0.2));
+      background: linear-gradient(120deg, rgba(106, 243, 255, 0.15), rgba(174, 123, 255, 0.12));
       opacity: 0;
-      transition: opacity 0.2s ease;
+      transition: opacity 0.25s ease;
       pointer-events: none;
     }
     button:hover {
-      background: linear-gradient(150deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.12));
-      border-color: rgba(106, 243, 255, 0.7);
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), 0 0 26px rgba(106, 243, 255, 0.45);
+      background: linear-gradient(160deg, rgba(30, 50, 80, 0.95), rgba(20, 35, 60, 0.9));
+      border-color: rgba(106, 243, 255, 0.6);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(106, 243, 255, 0.25);
       transform: translateY(-1px);
+      color: #ffffff;
     }
     button:hover::after { opacity: 1; }
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+    }
     button.active {
-      background: linear-gradient(135deg, rgba(106, 243, 255, 0.45), rgba(174, 123, 255, 0.35));
-      color: #000000;
-      border-color: rgba(106, 243, 255, 0.9);
-      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 0 22px rgba(106, 243, 255, 0.7);
-      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
+      background: linear-gradient(160deg, rgba(80, 180, 220, 0.35), rgba(140, 100, 200, 0.3));
+      color: #ffffff;
+      border-color: rgba(106, 243, 255, 0.85);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 25px rgba(106, 243, 255, 0.4);
+      text-shadow: 0 0 12px rgba(106, 243, 255, 0.6), 0 1px 2px rgba(0, 0, 0, 0.3);
+      font-weight: 700;
     }
     select {
       width: 100%;
-      padding: 9px 12px;
-      background: rgba(14, 24, 43, 0.95);
-      border: 1.5px solid rgba(106, 243, 255, 0.45);
-      color: #ffffff;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 600;
+      padding: 10px 14px;
+      background: linear-gradient(160deg, rgba(18, 30, 50, 0.95), rgba(12, 22, 40, 0.9));
+      border: 1.5px solid rgba(106, 243, 255, 0.3);
+      color: #e8f4ff;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 500;
       outline: none;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.06);
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.25s ease;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236af3ff' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
     }
     select:hover {
-      border-color: rgba(106, 243, 255, 0.65);
-      background: rgba(14, 24, 43, 1);
+      border-color: rgba(106, 243, 255, 0.55);
+      background-color: rgba(20, 35, 55, 0.95);
     }
     select:focus {
-      border-color: rgba(106, 243, 255, 0.8);
-      box-shadow: 0 0 0 3px rgba(106, 243, 255, 0.15);
+      border-color: rgba(106, 243, 255, 0.75);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 3px rgba(106, 243, 255, 0.12);
+    }
+    select option {
+      background: #0d1a2d;
+      color: #e8f4ff;
+      padding: 8px;
     }
     input[type="range"] {
       width: 100%;
-      margin: 6px 0 4px;
+      margin: 8px 0 6px;
       cursor: pointer;
       accent-color: #6af3ff;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: linear-gradient(90deg, rgba(106, 243, 255, 0.2), rgba(174, 123, 255, 0.15));
+      border-radius: 3px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: linear-gradient(135deg, #7af5ff, #a8b8ff);
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(106, 243, 255, 0.4);
+      transition: all 0.2s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 2px 12px rgba(106, 243, 255, 0.6);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: linear-gradient(135deg, #7af5ff, #a8b8ff);
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(106, 243, 255, 0.4);
     }
     .value-pill {
-      background: rgba(106, 243, 255, 0.12);
-      border: 1px solid rgba(106, 243, 255, 0.35);
-      color: #ffffff;
-      padding: 7px 12px;
-      border-radius: 999px;
-      font-weight: 700;
+      background: linear-gradient(135deg, rgba(106, 243, 255, 0.12), rgba(174, 123, 255, 0.08));
+      border: 1px solid rgba(106, 243, 255, 0.25);
+      color: #d8e8ff;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: 600;
       font-size: 11px;
       letter-spacing: 0.02em;
       display: inline-flex;
-      gap: 6px;
+      gap: 5px;
       align-items: center;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 6px 16px rgba(0, 0, 0, 0.32);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
-    .value-pill strong { color: #6af3ff; }
+    .value-pill strong {
+      color: #7af5ff;
+      font-weight: 700;
+      text-shadow: 0 0 8px rgba(106, 243, 255, 0.4);
+    }
     .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
     #manualSpeedGroup {
       border-top: 1px solid rgba(106, 243, 255, 0.14);
@@ -409,9 +483,10 @@
       <div class="control-group">
         <label data-i18n="modes">Режимы</label>
         <div class="shape-buttons">
-          <button id="mode-shapes" class="active">Shapes</button>
-          <button id="mode-free">Free Flight</button>
-          <button id="mode-fractal">Fractals</button>
+          <button id="mode-shapes" class="active" data-i18n="mode_shapes">Фигуры</button>
+          <button id="mode-free" data-i18n="mode_free">Свободный полёт</button>
+          <button id="mode-fractal" data-i18n="mode_fractal">Фракталы</button>
+          <button id="mode-equalizer" data-i18n="mode_equalizer">Эквалайзер</button>
         </div>
       </div>
     </div>
@@ -443,10 +518,10 @@
       <div class="control-group">
         <label data-i18n="auto_speed">Скорость автоперехода</label>
         <select id="speedControl">
-          <option value="slow">Slow (20s)</option>
-          <option value="normal" selected>Normal (15s)</option>
-          <option value="fast">Fast (6s)</option>
-          <option value="manual">Custom</option>
+          <option value="slow" data-i18n-opt="speed_slow">Медленно (20с)</option>
+          <option value="normal" selected data-i18n-opt="speed_normal">Нормально (15с)</option>
+          <option value="fast" data-i18n-opt="speed_fast">Быстро (6с)</option>
+          <option value="manual" data-i18n-opt="speed_custom">Свой вариант</option>
         </select>
       </div>
 
@@ -530,20 +605,20 @@
     </div>
 
     <div class="section">
-      <div class="section-title">Audio Reactivity</div>
-      <div class="hint">Particles react to audio frequency bands: bass, mid, treble</div>
+      <div class="section-title" data-i18n="audio_reactivity">Аудио-реактивность</div>
+      <div class="hint" data-i18n="audio_hint">Частицы реагируют на частотные диапазоны: бас, середина, высокие</div>
       <div class="control-group">
         <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
           <input type="checkbox" id="audioEnabled" style="width:15px; height:15px; accent-color:#7ee0ff;">
-          Enable Audio Reactivity
+          <span data-i18n="enable_audio">Включить аудио-реактивность</span>
         </label>
       </div>
 
       <div class="control-group">
-        <label>Audio Source</label>
+        <label data-i18n="audio_source">Источник звука</label>
         <div class="shape-buttons">
-          <button id="enableMic">Use Microphone</button>
-          <button id="selectAudioFile">Load Audio File</button>
+          <button id="enableMic" data-i18n="use_microphone">Микрофон</button>
+          <button id="selectAudioFile" data-i18n="load_audio_file">Загрузить файл</button>
         </div>
         <input type="file" id="audioFileInput" accept="audio/*" style="display:none;">
         <audio id="audioElement" style="display:none;" controls></audio>
@@ -551,24 +626,24 @@
 
       <div class="control-group">
         <div class="pill-row">
-          <span class="value-pill">Bass: <strong id="bassValue">0%</strong></span>
-          <span class="value-pill">Mid: <strong id="midValue">0%</strong></span>
-          <span class="value-pill">Treble: <strong id="trebleValue">0%</strong></span>
+          <span class="value-pill"><span data-i18n="bass">Бас</span>: <strong id="bassValue">0%</strong></span>
+          <span class="value-pill"><span data-i18n="mid">Середина</span>: <strong id="midValue">0%</strong></span>
+          <span class="value-pill"><span data-i18n="treble">Высокие</span>: <strong id="trebleValue">0%</strong></span>
         </div>
       </div>
 
       <div class="control-group">
-        <label>Bass Sensitivity <span class="value-pill"><strong id="bassSensitivityValue">1.0x</strong></span></label>
+        <label><span data-i18n="bass_sensitivity">Чувствительность баса</span> <span class="value-pill"><strong id="bassSensitivityValue">1.0x</strong></span></label>
         <input type="range" id="bassSensitivity" min="0" max="3" step="0.1" value="1.0">
       </div>
 
       <div class="control-group">
-        <label>Mid Sensitivity <span class="value-pill"><strong id="midSensitivityValue">1.0x</strong></span></label>
+        <label><span data-i18n="mid_sensitivity">Чувствительность середины</span> <span class="value-pill"><strong id="midSensitivityValue">1.0x</strong></span></label>
         <input type="range" id="midSensitivity" min="0" max="3" step="0.1" value="1.0">
       </div>
 
       <div class="control-group">
-        <label>Treble Sensitivity <span class="value-pill"><strong id="trebleSensitivityValue">1.0x</strong></span></label>
+        <label><span data-i18n="treble_sensitivity">Чувствительность высоких</span> <span class="value-pill"><strong id="trebleSensitivityValue">1.0x</strong></span></label>
         <input type="range" id="trebleSensitivity" min="0" max="3" step="0.1" value="1.0">
       </div>
     </div>
