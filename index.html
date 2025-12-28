@@ -607,16 +607,11 @@
     <div class="section">
       <div class="section-title" data-i18n="audio_reactivity">Аудио-реактивность</div>
       <div class="hint" data-i18n="audio_hint">Частицы реагируют на частотные диапазоны: бас, середина, высокие</div>
-      <div class="control-group">
-        <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
-          <input type="checkbox" id="audioEnabled" style="width:15px; height:15px; accent-color:#7ee0ff;">
-          <span data-i18n="enable_audio">Включить аудио-реактивность</span>
-        </label>
-      </div>
 
       <div class="control-group">
         <label data-i18n="audio_source">Источник звука</label>
         <div class="shape-buttons">
+          <button id="useMicrophone" data-i18n="use_microphone">Микрофон</button>
           <button id="selectAudioFile" data-i18n="load_audio_file">Загрузить файл</button>
         </div>
         <input type="file" id="audioFileInput" accept="audio/*" style="display:none;">
