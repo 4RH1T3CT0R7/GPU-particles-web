@@ -248,34 +248,51 @@
     );
   }
 
-  // Эквалайзер - плоскость с волнами от аудио
+  // Эквалайзер - столбцы визуализации частот
   vec3 shape_equalizer(float t, float s, float bass, float mid, float treble, float time){
-    // Создаём плоскую сетку
-    float x = (t - 0.5) * 2.4;
-    float z = (s - 0.5) * 2.4;
+    // Создаём сетку из столбцов 8x8
+    float cols = 8.0;
+    float colX = floor(t * cols) / cols;
+    float colZ = floor(s * cols) / cols;
+    float localT = fract(t * cols);
+    float localS = fract(s * cols);
 
-    // Базовая высота плоскости
-    float y = 0.0;
+    // Позиция частицы внутри столбца
+    float x = (colX - 0.5 + localT / cols) * 2.2;
+    float z = (colZ - 0.5 + localS / cols) * 2.2;
 
-    // Добавляем волны от разных частот
-    // Бас - крупные волны от центра
-    float distFromCenter = length(vec2(x, z));
-    float bassWave = sin(distFromCenter * 3.0 - time * 2.5) * bass * 0.6;
-    bassWave += cos(distFromCenter * 2.0 + time * 1.5) * bass * 0.4;
+    // Определяем к какой частоте относится столбец (по X)
+    float freqBand = colX * cols;
+    float bandHeight = 0.0;
 
-    // Середина - средние волны в направлении X
-    float midWave = sin(x * 4.0 + time * 3.0) * mid * 0.4;
-    midWave += cos(z * 3.5 - time * 2.0) * mid * 0.3;
+    // Бас - левые столбцы (0-2)
+    if (freqBand < 2.5) {
+      bandHeight = bass * 1.8;
+    }
+    // Середина - центральные столбцы (3-5)
+    else if (freqBand < 5.5) {
+      bandHeight = mid * 1.5;
+    }
+    // Высокие - правые столбцы (6-7)
+    else {
+      bandHeight = treble * 1.2;
+    }
 
-    // Высокие - мелкая рябь
-    float trebleWave = sin(x * 8.0 + z * 6.0 + time * 6.0) * treble * 0.25;
-    trebleWave += cos(x * 7.0 - z * 9.0 + time * 8.0) * treble * 0.15;
+    // Добавляем вариации по Z для глубины
+    float zVariation = 0.85 + 0.15 * sin(colZ * 12.0 + time * 0.5);
+    bandHeight *= zVariation;
 
-    y = bassWave + midWave + trebleWave;
+    // Высота частицы внутри столбца
+    float particleInBar = localS;
 
-    // Добавляем небольшое затухание к краям для красивой формы
-    float edgeFade = 1.0 - smoothstep(0.8, 1.2, distFromCenter);
-    y *= edgeFade;
+    // Частица видна только если она ниже высоты столбца
+    float barTop = bandHeight;
+    float y = -0.8 + particleInBar * 1.6;
+
+    // Если частица выше столбца - прижимаем к верхушке
+    if (particleInBar > barTop) {
+      y = -0.8 + barTop * 1.6;
+    }
 
     return vec3(x, y, z);
   }
@@ -316,17 +333,41 @@
 
   vec3 fractalFlow(vec2 id, float time, vec4 seed){
     vec2 p = id * 2.0 - 1.0;
-    float pulse = 0.82 + 0.2 * sin(time * 0.37 + seed.x * 1.7);
-    float twist = seed.w + time * (0.16 + 0.07 * sin(seed.y));
-    p = rot2(twist) * p * (0.7 + 0.45 * sin(seed.z + time * 0.21));
-    vec3 z = vec3(p, sin(dot(p, vec2(3.1, 2.3)) + seed.y) * 0.45);
-    for(int i=0;i<5;i++){
-      z = abs(z) / clamp(dot(z,z) + 0.65 + float(i) * 0.07, 0.42, 2.35) - vec3(seed.y*0.18, seed.z*0.12, 0.0);
-      z.xy = rot2(twist * (1.1 + float(i)*0.08)) * (z.xy + curl(id * (3.0 + seed.x) + seed.xy * 2.3));
-      z.z += sin(seed.w + float(i) * 1.7 + time * 0.33) * 0.17;
+
+    // Мандельброт-подобная итерация
+    vec2 c = p * 1.5 + vec2(-0.5, 0.0);
+    vec2 z = vec2(0.0);
+    float iter = 0.0;
+    float maxIter = 12.0;
+
+    for(int i = 0; i < 12; i++) {
+      if (dot(z, z) > 4.0) break;
+      z = vec2(z.x*z.x - z.y*z.y, 2.0*z.x*z.y) + c;
+      iter += 1.0;
     }
-    z *= pulse;
-    return normalize(z + vec3(0.0, 0.12 * sin(time*0.6 + seed.x), 0.0)) * 0.95;
+
+    // Нормализуем результат итерации
+    float fractalVal = iter / maxIter;
+
+    // Создаём 3D позицию на основе фрактала
+    float angle = time * 0.3 + seed.w;
+    float radius = 0.3 + fractalVal * 0.7;
+
+    // Спиральная форма с фрактальной модуляцией
+    float spiralAngle = p.x * 6.28318 * 2.0 + time * 0.5;
+    float height = p.y * 1.2;
+
+    vec3 pos = vec3(
+      cos(spiralAngle) * radius * (0.5 + 0.5 * fractalVal),
+      height + sin(fractalVal * 6.28318 + time) * 0.3,
+      sin(spiralAngle) * radius * (0.5 + 0.5 * fractalVal)
+    );
+
+    // Добавляем фрактальные ветви
+    float branch = sin(fractalVal * 12.0 + seed.x * 3.0 + time * 0.8) * 0.25;
+    pos.xy += vec2(cos(angle), sin(angle)) * branch;
+
+    return pos * 0.85;
   }
 
   vec3 targetFor(int sid, vec2 id, float time, int seedSlot){
@@ -443,73 +484,40 @@
     float idHash = hash12(id);
     float layerHash = hash12(id*23.7);
 
-    // ==== БАЗОВАЯ ШТОРМОВАЯ ФИЗИКА ====
+    // ==== УЛУЧШЕННАЯ ФИЗИКА ЧАСТИЦ ====
     float structure = smoothstep(0.1, 0.95, u_shapeStrength);
     float calmFactor = smoothstep(0.55, 1.05, u_shapeStrength);
 
-    // Увеличенные завихрения для более активного движения песка
-    vec2 curlLarge = curl(pos.xy * 0.6 + u_time * 0.18) * 1.4;
-    vec2 curlMid   = curl(pos.xy * 1.5 - u_time * 0.24) * 1.2;
-    vec2 curlFine  = curl(pos.xy * 4.5 + u_time * 0.45 + idHash*6.0);
-    vec2 curlCascade = vec2(0.0);
-    float amp = 1.6;
-    float freq = 0.9;
-    for(int i=0;i<4;i++){
-      curlCascade += curl(pos.xy * freq + u_time * (0.18 + float(i)*0.09) + layerHash*3.1) * amp;
-      freq *= 1.8;
-      amp *= 0.65;
-    }
-    vec2 swirl = (curlLarge * 1.5 + curlMid * 1.0 + curlFine * 0.6 + curlCascade * 0.7);
+    // Мягкие завихрения - уменьшена интенсивность для плавности
+    vec2 curlLarge = curl(pos.xy * 0.5 + u_time * 0.12) * 0.6;
+    vec2 curlMid   = curl(pos.xy * 1.2 - u_time * 0.15) * 0.4;
+    vec2 curlFine  = curl(pos.xy * 3.0 + u_time * 0.25 + idHash*4.0) * 0.2;
 
-    // Множественные вихри для эффекта песчаной бури
-    vec2 vortexCenter1 = vec2(sin(u_time*0.17), cos(u_time*0.21))*0.8;
-    vec2 vortexCenter2 = vec2(cos(u_time*0.13 + 2.1), sin(u_time*0.19 + 1.3))*0.6;
-    vec2 rel1 = pos.xy - vortexCenter1;
-    vec2 rel2 = pos.xy - vortexCenter2;
-    float r2_1 = max(0.08, dot(rel1, rel1));
-    float r2_2 = max(0.08, dot(rel2, rel2));
-    vec2 vortex = vec2(-rel1.y, rel1.x) / r2_1 * 1.2 + vec2(-rel2.y, rel2.x) / r2_2 * 0.8;
+    vec2 swirl = curlLarge + curlMid + curlFine;
 
-    vec2 gust = curl(pos.xy * 3.5 + idHash*10.0 + u_time*0.8) * 2.0;
-    vec2 wind = normalize(vec2(1.0, 0.3)) * (0.3 + 0.6*sin(u_time*0.6 + idHash*5.0));
-    vec2 shimmer = normalize(curl(pos.xy * 6.0 + u_time*1.2 + layerHash*2.4));
+    // Один плавный вихрь
+    vec2 vortexCenter = vec2(sin(u_time*0.1), cos(u_time*0.12))*0.3;
+    vec2 rel = pos.xy - vortexCenter;
+    float r2 = max(0.2, dot(rel, rel));
+    vec2 vortex = vec2(-rel.y, rel.x) / r2 * 0.3;
 
-    vec2 baseFlow = swirl + gust * mix(0.6, 0.9, 1.0 - calmFactor);
-    vec2 dampedFlow = mix(baseFlow, swirl * 0.5, calmFactor);
-    vec2 stormFlow = mix(dampedFlow + vortex * 1.1 + wind * 1.3 + shimmer*0.5, baseFlow + vortex * 1.4 + gust*0.8 + wind * 1.5 + shimmer*0.6, 1.0 - structure);
+    // Мягкий поток
+    vec2 baseFlow = swirl * 0.5 + vortex * 0.3;
+    vec2 dampedFlow = mix(baseFlow, swirl * 0.2, calmFactor);
 
-    vec3 flow = vec3(stormFlow, 0.0);
-    float liftNoise = fbm(pos.xy * 0.8 + u_time * 0.3 + layerHash*1.7);
-    flow.z = sin(u_time*0.5 + pos.x*2.2 + pos.y*1.5) * 0.8 + sin(u_time*0.9 + layerHash*6.28)*0.5 + liftNoise*1.1;
+    vec3 flow = vec3(dampedFlow, 0.0);
+    flow.z = sin(u_time*0.3 + pos.x*1.5 + pos.y*1.0) * 0.3;
 
-    vec3 acc = flow * mix(0.6, 1.0, 1.0 - structure);
-    acc.y -= 0.15; // облегчённая гравитация для более свободного полёта
-    acc *= 0.7 + 0.2*sin(u_time*0.3 + idHash*6.0);
-    acc += normalize(vec3(swirl, 0.2)) * mix(0.08, 0.15, calmFactor); // уменьшенная закрутка в 3D
+    vec3 acc = flow * mix(0.3, 0.5, 1.0 - structure);
+    acc.y -= 0.05; // минимальная гравитация
 
-    // Дополнительная буря: песчаные слои, сдвиг по высоте и трение
-    float altitude = clamp(pos.y * 0.35 + 0.5, 0.0, 1.0);
-    vec2 shear = vec2(1.2, 0.0) * mix(1.6, 0.5, altitude); // нижние слои быстрее
-    vec2 duneFlow = vec2(
-      sin(pos.y * 2.1 + u_time * 0.35 + layerHash * 3.7),
-      cos(pos.x * 1.7 - u_time * 0.28 + idHash * 4.1)
-    ) * 0.45;
-    acc.xy += shear * 0.08 + duneFlow * 0.2;
-    acc += vec3(curlCascade * 0.35, 0.0);
-    acc += vec3(0.0, 0.25 * fbm(pos.yx * 1.3 + u_time * 0.35), 0.0);
-    vec3 microCurl = vec3(curl(pos.xy * 8.5 + u_time * 0.9 + layerHash * 4.3), 0.0);
-    acc += microCurl * 0.28;
+    // Минимальное демпфирование скорости
     float velMag = length(vel);
-    acc -= vel * velMag * 0.045;
-    acc += normalize(vec3(swirl, 0.15)) * (0.12 + 0.06 * sin(u_time * 1.1 + idHash * 19.0));
+    acc -= vel * velMag * 0.02;
 
-    // Зернистое трение: частицы замедляются ближе к земле и при больших скоростях
-    float ground = -1.35;
-    float groundProximity = smoothstep(0.0, 1.2, pos.y - ground);
-    float drag = mix(0.85, 0.92, groundProximity);
-    vel.xy *= drag;
-    vel.z *= mix(0.9, 0.97, groundProximity);
-    acc.y += smoothstep(0.0, 0.8, -(pos.y - ground)) * 0.35; // подъёмный поток над «поверхностью»
+    // Плавное трение
+    float drag = mix(0.94, 0.97, calmFactor);
+    vel *= drag;
 
     // ==== ПРИТЯЖЕНИЕ К ФИГУРАМ ====
     vec3 targetA = targetFor(u_shapeA, id, u_time*0.6, 0);
@@ -520,24 +528,20 @@
     float shapeWeight = u_shapeStrength * affinity;
     vec3 toShape = desired - pos;
     float dist = max(0.01, length(toShape));
-    vec3 surfaceNormal = normalize(toShape + vec3(0.001, 0.002, 0.003));
-    vec3 tangential = normalize(cross(surfaceNormal, vec3(0.0, 1.0, 0.0)) + 0.3 * cross(surfaceNormal, vec3(1.0, 0.0, 0.0)));
-    vec3 swirlAroundShape = tangential * (0.25 + 0.2 * liftNoise) * shapeWeight * (0.4 + 0.3 * calmFactor);
 
-    // Сильно усиленное притяжение к фигурам - экспоненциальное затухание по расстоянию
-    float springStrength = 8.0 + 6.0 * calmFactor;
-    float dampingFactor = exp(-dist * 0.8);
+    // Упрощённое и более сильное притяжение к фигурам
+    float springStrength = 12.0 + 8.0 * calmFactor;
+    float dampingFactor = exp(-dist * 0.5);
     vec3 shapeForce = toShape * springStrength * shapeWeight * dampingFactor;
     // Добавляем прямое притяжение для близких частиц
-    shapeForce += normalize(toShape) * 3.5 * shapeWeight * smoothstep(0.5, 0.0, dist);
-    shapeForce += swirlAroundShape * 0.5;
+    shapeForce += normalize(toShape) * 5.0 * shapeWeight * smoothstep(0.4, 0.0, dist);
 
-    float cohesion = smoothstep(0.0, 0.7, shapeWeight);
-    // При высоком shapeWeight практически заменяем всю физику на притяжение к фигуре
-    acc = mix(acc, shapeForce * 2.5, cohesion * 0.92);
-    acc += shapeForce * 0.8;
-    // Сильное демпфирование для стабилизации формы
-    vel *= mix(0.96, 0.82, cohesion * calmFactor);
+    float cohesion = smoothstep(0.0, 0.6, shapeWeight);
+    // При высоком shapeWeight заменяем физику на притяжение к фигуре
+    acc = mix(acc, shapeForce * 2.0, cohesion * 0.95);
+    acc += shapeForce * 0.5;
+    // Демпфирование для стабильной формы
+    vel *= mix(0.97, 0.88, cohesion * calmFactor);
 
     // ==== АКТИВНЫЙ КУРСОР (уменьшенная сила) ====
     if (u_pointerActive > 0.5) {
@@ -767,9 +771,11 @@
     float t = fract(h * bands);
     int i0 = int(clamp(idx, 0.0, bands-1.0));
     int i1 = int(mod(idx + 1.0, bands));
-    vec3 c0 = u_colors[i0];
-    vec3 c1 = u_colors[i1];
-    return mix(c0, c1, smoothstep(0.0, 1.0, t));
+    vec3 c0 = u_colors[i0] * 1.4; // Усиливаем насыщенность
+    vec3 c1 = u_colors[i1] * 1.4;
+    vec3 result = mix(c0, c1, smoothstep(0.0, 1.0, t));
+    // Увеличиваем контраст цветов
+    return pow(result, vec3(0.85));
   }
 
   void main(){
@@ -781,29 +787,40 @@
     float fresnel = pow(1.0 - clamp(dot(normalize(vec3(p, 0.35)), vec3(0,0,1)), 0.0, 1.0), 2.0);
     float sparkle = smoothstep(0.35, 0.0, r) * (0.55 + 0.45 * sin(u_time * 7.0 + v_hash * 60.0));
     float pulse = 0.35 + 0.65 * sin(u_time * 1.7 + v_energy * 3.5 + v_hash * 11.0);
-    vec3 base = paletteSample(fract(v_hash + u_time * 0.08));
-    vec3 iridescent = mix(base, vec3(1.2, 0.95, 0.75), 0.45 * pulse);
-    vec3 rim = mix(vec3(0.2, 0.35, 0.9), vec3(0.9, 0.2, 0.8), v_energy) * fresnel;
+
+    // Более насыщенный базовый цвет из палитры
+    vec3 base = paletteSample(fract(v_hash * 0.7 + v_energy * 0.3 + u_time * 0.05));
+
+    // Меньше разбавления белым, больше сохранения цвета палитры
+    vec3 iridescent = mix(base, base * 1.3 + vec3(0.15), 0.25 * pulse);
+
+    // Цветной rim на основе палитры
+    vec3 rimColor = paletteSample(fract(v_hash + 0.5));
+    vec3 rim = rimColor * fresnel * 0.8;
+
     vec3 lightDir = normalize(u_lightPos - v_world);
-    float light = clamp(0.4 + 0.6 * (0.35 + 0.65 * lightDir.y), 0.35, 1.3);
-    float depthFade = clamp(1.9 / (1.0 + 0.03 * v_depth * v_depth), 0.1, 1.0);
-    float energyGlow = 0.45 + 0.75 * v_energy;
+    float light = clamp(0.5 + 0.5 * (0.4 + 0.6 * lightDir.y), 0.45, 1.2);
+    float depthFade = clamp(1.9 / (1.0 + 0.025 * v_depth * v_depth), 0.15, 1.0);
+    float energyGlow = 0.5 + 0.7 * v_energy;
     float core = exp(-r * 3.5);
     float halo = exp(-r * 1.25);
 
     vec3 color = iridescent * light;
-    color += rim * 0.6;
-    color *= (energyGlow * alpha + sparkle * 0.18 + core * 0.5);
-    color += iridescent * halo * 0.15;
-    vec3 fogColor = vec3(0.035, 0.055, 0.095);
-    float fog = clamp(exp(-v_depth * 0.22), 0.05, 1.0);
-    float volumetric = exp(-r * 2.2) * 0.3;
-    color = mix(fogColor, color, fog);
-    color += fogColor * volumetric;
-    float tone = 1.0 / (1.0 + dot(color, vec3(0.6)));
-    color *= tone * 1.4;
+    color += rim;
+    color *= (energyGlow * alpha + sparkle * 0.2 + core * 0.6);
+    color += base * halo * 0.25; // Цветное гало
 
-    o_col = vec4(color * depthFade, alpha * 0.92);
+    // Меньше тумана для сохранения цвета
+    vec3 fogColor = vec3(0.02, 0.03, 0.06);
+    float fog = clamp(exp(-v_depth * 0.15), 0.1, 1.0);
+    float volumetric = exp(-r * 2.2) * 0.2;
+    color = mix(fogColor, color, fog);
+    color += base * volumetric * 0.3; // Цветной объём
+
+    float tone = 1.0 / (1.0 + dot(color, vec3(0.5)));
+    color *= tone * 1.5;
+
+    o_col = vec4(color * depthFade, alpha * 0.95);
   }
   `;
   const blitFS = `#version 300 es
@@ -1347,10 +1364,17 @@
   let autoMorph = true;
 
 
-  const SHAPE_NAMES = [
+  const SHAPE_NAMES_EN = [
     'Cube', 'Sphere', 'Torus', 'Helix', 'Octahedron',
     'Superformula', 'Rose', 'Wave', 'Ribbon', 'Icosahedron', 'Polygon'
   ];
+
+  const SHAPE_NAMES_RU = [
+    'Куб', 'Сфера', 'Тор', 'Спираль', 'Октаэдр',
+    'Суперформула', 'Роза', 'Волна', 'Лента', 'Икосаэдр', 'Полигон'
+  ];
+
+  let SHAPE_NAMES = SHAPE_NAMES_RU;
 
   const FRACTAL_SHAPE_ID = 11;
 
@@ -1984,7 +2008,6 @@
 
   // ==== AUDIO CONTROLS ====
   const audioEnabledToggle = document.getElementById('audioEnabled');
-  const enableMicBtn = document.getElementById('enableMic');
   const selectAudioFileBtn = document.getElementById('selectAudioFile');
   const audioFileInput = document.getElementById('audioFileInput');
   const audioElement = document.getElementById('audioElement');
@@ -2001,19 +2024,6 @@
   audioEnabledToggle.addEventListener('change', (e) => {
     audioReactivityEnabled = e.target.checked;
     console.log('Audio reactivity:', audioReactivityEnabled ? 'enabled' : 'disabled');
-  });
-
-  enableMicBtn.addEventListener('click', async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      await initAudio(stream);
-      audioElement.pause();
-      audioElement.src = '';
-      console.log('✓ Microphone enabled');
-    } catch (err) {
-      console.error('Microphone access denied:', err);
-      alert('Microphone access denied. Please allow microphone access to use audio reactivity.');
-    }
   });
 
   selectAudioFileBtn.addEventListener('click', () => {
@@ -2220,6 +2230,16 @@
   function switchLanguage(lang) {
     currentLang = lang;
     const t = translations[lang];
+
+    // Update shape names based on language
+    SHAPE_NAMES = lang === 'ru' ? SHAPE_NAMES_RU : SHAPE_NAMES_EN;
+
+    // Update shape buttons text
+    document.querySelectorAll('#shapeButtons button').forEach((btn, i) => {
+      if (i < SHAPE_NAMES.length) {
+        btn.textContent = SHAPE_NAMES[i];
+      }
+    });
 
     // Update all elements with data-i18n attribute
     document.querySelectorAll('[data-i18n]').forEach(el => {
