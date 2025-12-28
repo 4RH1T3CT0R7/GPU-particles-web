@@ -12,8 +12,9 @@ This document provides guidance for Claude (and other AI assistants) when workin
 
 - **WebGL2** - Hardware-accelerated graphics rendering
 - **GPGPU (General-Purpose GPU)** - Particle physics computed entirely on GPU
-- **Transform Feedback** - GPU-based particle state updates
-- **Floating-Point Textures** - Particle state storage
+- **Framebuffer-based Rendering** - GPU-based particle state updates using Multiple Render Targets (MRT)
+- **Floating-Point Textures** - Particle state storage (RGBA32F)
+- **Ping-Pong Buffering** - Double-buffered texture swapping for particle updates
 - **Vanilla JavaScript (ES6+)** - No frameworks or build tools
 
 ## Project Structure
@@ -37,77 +38,91 @@ GPU-particles-web/
 - Responsive layout with left sidebar controls
 - No external CSS dependencies
 
-### index.js (64KB)
+### index.js (64KB, 1758 lines)
 The heart of the application containing:
 
 **Main Components:**
-1. **WebGL2 Context & Initialization** (~lines 1-100)
-   - Canvas setup, WebGL2 context creation
-   - Extension checking and feature detection
+1. **WebGL2 Context & Initialization** (start of file)
+   - Canvas setup, WebGL2 context creation (line 13)
+   - Extension checking (EXT_color_buffer_float, line 21)
+   - GPU limits detection and utility functions
 
-2. **Shader Programs** (~lines 100-400)
-   - Vertex shaders for particle rendering and computation
-   - Fragment shaders for visual effects
-   - Transform feedback setup
+2. **Shader Programs** (lines ~60-800)
+   - Simulation vertex shader: Full-screen quad for GPGPU
+   - Simulation fragment shader: Physics computation (lines 130-700+)
+   - Particle rendering vertex shader: Position lookup and transform
+   - Particle rendering fragment shader: Visual appearance
+   - Shape generator functions (GLSL): Lines 154-238
+     - shape_cube, shape_sphere, shape_torus, shape_helix
+     - shape_octahedron, shape_wave, shape_ribbon, shape_icosahedron
 
-3. **Shape Generators** (~lines 400-800)
-   - Mathematical shape functions (sphere, cube, torus, helix, etc.)
-   - Position calculation algorithms
-   - Morphing interpolation logic
+3. **Texture & Framebuffer Setup** (lines ~800-900)
+   - Floating-point texture creation
+   - Framebuffer setup with Multiple Render Targets (MRT)
+   - Ping-pong buffer initialization
 
-4. **Particle System Core** (~lines 800-1200)
-   - Particle initialization
-   - GPU buffer management
-   - Transform feedback loop
-   - State management (positions, velocities, colors)
+4. **Input & Interaction System** (lines ~990-1050)
+   - Mouse/touch event handlers
+   - Cursor position tracking (2D screen to 3D world)
+   - Pointer state management
+   - Camera rotation and zoom controls
 
-5. **Physics & Interactions** (~lines 1200-1600)
-   - Cursor interaction modes (attract, repel, vortex, pulse, etc.)
-   - Shape morphing forces
-   - Velocity damping and acceleration
+5. **Animation Loop & Physics** (lines ~1200-1405)
+   - Main render loop with requestAnimationFrame
+   - Shape morphing logic and auto-transition
+   - GPGPU simulation pass with MRT (lines 1330-1364)
+   - Particle rendering pass (lines 1366-1394)
+   - Camera matrix updates and uniform uploads
 
-6. **Rendering Pipeline** (~lines 1600-2000)
-   - Draw calls and buffer swapping
-   - Camera controls (rotation, zoom)
-   - Trail effects and blending
-
-7. **UI Event Handlers** (~lines 2000-end)
-   - Control panel bindings
-   - Mouse/touch input processing
-   - Parameter updates and validation
+6. **UI Controls & Event Handlers** (lines ~1410-end)
+   - Shape button generation and selection
+   - Slider inputs (speed, attraction, particle count, colors)
+   - Color palette system and shuffling
+   - Mode switching (Shapes/Free Flight/Fractals)
+   - Parameter validation and defaults
 
 ## Technical Architecture
 
 ### GPU-Based Particle System
 
-The particle system uses **ping-pong buffering** with transform feedback:
+The particle system uses **framebuffer-based GPGPU** with **ping-pong buffering**:
 
 1. **Particle State:** Stored in floating-point textures (RGBA32F)
-   - Position (x, y, z) + metadata
-   - Velocity (vx, vy, vz) + age/life
-   - Color (r, g, b, a)
+   - Position texture: (x, y, z) + metadata
+   - Velocity texture: (vx, vy, vz) + age/life
+   - Color computed dynamically from position/velocity
 
-2. **Update Loop:**
+2. **Update Loop (Framebuffer-based GPGPU):**
    ```
-   GPU Buffer A (current state)
-     → Vertex Shader (compute physics)
-     → Transform Feedback
-     → GPU Buffer B (next state)
+   Read: Position Texture A + Velocity Texture A
+     → Fragment Shader (compute physics via full-screen quad)
+     → Multiple Render Targets (MRT)
+     → Write: Position Texture B + Velocity Texture B
 
-   Swap buffers each frame
+   Swap texture pairs each frame (ping-pong buffering)
    ```
 
-3. **Rendering:** Points/particles drawn with additive blending for glow effects
+3. **Rendering:**
+   - Particle positions read from texture
+   - Each pixel in texture = one particle
+   - Points drawn with additive blending (gl.SRC_ALPHA, gl.ONE) for glow effects
+   - Point size adjusts based on texture size for consistent appearance
 
 ### Shader Architecture
 
-**Vertex Shaders:**
-- Compute shader: Updates particle physics (positions, velocities)
-- Render shader: Transforms particles for display
+**Simulation Pass (GPGPU via Framebuffer):**
+- Vertex Shader: Full-screen quad setup, passes UV coordinates
+- Fragment Shader: Computes physics updates (positions, velocities, forces)
+  - Reads current particle state from textures
+  - Applies shape morphing forces, cursor interactions, and physics
+  - Outputs to Multiple Render Targets (MRT): new position + new velocity
 
-**Fragment Shaders:**
-- Particle appearance (color gradients, alpha blending)
-- Trail effects (motion blur via canvas persistence)
+**Rendering Pass (Visual Display):**
+- Vertex Shader: Reads particle positions from texture, transforms to screen space
+- Fragment Shader: Computes particle appearance
+  - Dynamic color gradients based on particle properties
+  - Alpha blending for soft glow effects
+  - Iridescent color mixing with energy-based variation
 
 ### Particle Textures
 
@@ -116,20 +131,51 @@ The particle system uses **ping-pong buffering** with transform feedback:
 - Data stored as RGBA float textures
 - Each pixel = one particle's state
 
+## Rendering Modes
+
+The application supports **three distinct rendering modes**:
+
+### 1. Shapes Mode (Default)
+- Particles morph between predefined mathematical shapes
+- Automatic shape transitions available
+- Configurable attraction force pulls particles toward target shape
+- Smooth interpolation between source and target
+
+### 2. Free Flight Mode
+- Particles move freely in 3D space
+- No shape constraints
+- Natural flow and turbulence effects
+- Emphasis on fluid dynamics and cursor interactions
+
+### 3. Fractals Mode
+- Emergent fractal-like patterns from particle interactions
+- Self-organizing behavior
+- Special fractal shape ID triggers unique physics
+- Complex visual structures emerge from simple rules
+
+**Mode Switching:** Users can switch between modes via UI buttons (index.html:390-392)
+
+---
+
 ## Shape System
 
 ### Available Shapes
 
+The system includes **11 mathematical shapes** that particles can morph between:
+
 | Shape | Description | Key Features |
 |-------|-------------|--------------|
-| Sphere | Perfect sphere | Uniform distribution on surface |
-| Cube | Cubic form | Edge and face particles |
-| Torus | Donut shape | Major/minor radius control |
-| Helix | Spiral structure | Customizable turns and radius |
-| Galaxy | Spiral galaxy | Arms with particle density variation |
-| Cloud | Organic cluster | Random distribution with falloff |
-| Plane | Flat surface | 2D arrangement in 3D space |
-| Cylinder | Cylindrical form | Radial symmetry |
+| Cube | Cubic form | Uniform surface distribution with edge definition |
+| Sphere | Perfect sphere | Spherical coordinates with even distribution |
+| Torus | Donut shape | Major/minor radius with smooth topology |
+| Helix | Spiral structure | Parametric spiral with controllable pitch |
+| Octahedron | 8-faced polyhedron | Platonic solid with symmetrical faces |
+| Superformula | Parametric surface | Complex organic shapes via superellipse formula |
+| Rose | Mathematical curve | Polar rose pattern in 3D space |
+| Wave | Procedural surface | Sinusoidal wave patterns |
+| Ribbon | 3D parametric curve | Twisted ribbon topology |
+| Icosahedron | 20-faced polyhedron | Complex platonic solid structure |
+| Polygon | Configurable polygon | Adjustable vertex count and radius |
 
 ### Shape Morphing
 
@@ -188,15 +234,22 @@ gl.compileShader(shader);
 // Always check compilation status
 ```
 
-**Buffer Management:**
+**Framebuffer Management (Ping-Pong Pattern):**
 ```javascript
-// Ping-pong pattern
-gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, targetBuffer);
-gl.beginTransformFeedback(gl.POINTS);
-gl.drawArrays(gl.POINTS, 0, particleCount);
-gl.endTransformFeedback();
-// Swap buffers
-[currentBuffer, targetBuffer] = [targetBuffer, currentBuffer];
+// Render to framebuffer with Multiple Render Targets
+const writeFBO = simFBO[simRead];
+gl.bindFramebuffer(gl.FRAMEBUFFER, writeFBO);
+gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+
+// Bind input textures (current state)
+bindTex(progSim, 'u_pos', posTex[simRead], 0);
+bindTex(progSim, 'u_vel', velTex[simRead], 1);
+
+// Render full-screen quad to compute new state
+drawQuad();
+
+// Swap texture indices (ping-pong)
+simRead = 1 - simRead;
 ```
 
 **Uniform Updates:**
@@ -263,14 +316,20 @@ function checkGLError(gl, label) {
 
 **Minimum Requirements:**
 - WebGL2 support (check with `canvas.getContext('webgl2')`)
-- Floating-point texture support (`EXT_color_buffer_float`)
-- Transform feedback support (core WebGL2 feature)
+- Floating-point texture support (`EXT_color_buffer_float` extension)
+- Multiple Render Targets (MRT) support (core WebGL2 feature)
+- Floating-point texture rendering capability
 
 **Tested Browsers:**
-- Chrome 56+ ✅
-- Firefox 51+ ✅
-- Safari 15+ ✅
-- Edge 79+ ✅
+- Chrome 56+ ✅ (Full WebGL2 support)
+- Firefox 51+ ✅ (Full WebGL2 support)
+- Safari 15+ ✅ (WebGL2 support added)
+- Edge 79+ ✅ (Chromium-based, full support)
+
+**Notes:**
+- The application checks for WebGL2 availability on startup
+- Alerts users if required extensions are unavailable
+- Works best on systems with dedicated GPUs for optimal performance
 
 ## Important Notes for AI Assistants
 
@@ -287,10 +346,11 @@ function checkGLError(gl, label) {
 - ❌ Add external dependencies (keep it vanilla JS)
 - ❌ Use WebGL1 features (project requires WebGL2)
 - ❌ Ignore shader compilation errors
-- ❌ Create memory leaks (cleanup buffers/textures)
+- ❌ Create memory leaks (cleanup buffers/textures/framebuffers)
 - ❌ Hardcode values (use configurable parameters)
 - ❌ Break backward compatibility without discussion
 - ❌ Add build tools or transpilation steps
+- ❌ Assume transform feedback is used (it's framebuffer-based GPGPU)
 
 ### When Making Changes:
 
@@ -350,10 +410,20 @@ let particleSpeed = 1.0;
 
 ## Resources
 
-- [WebGL2 Fundamentals](https://webgl2fundamentals.org/)
-- [Transform Feedback Tutorial](https://open.gl/feedback)
-- [GPU Particle Systems](https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-23-high-speed-high-quality-rendering)
-- [GLSL Reference](https://www.khronos.org/files/opengles_shading_language.pdf)
+### WebGL & Graphics Programming
+- [WebGL2 Fundamentals](https://webgl2fundamentals.org/) - Comprehensive WebGL2 tutorial
+- [OpenGL Transform Feedback](https://open.gl/feedback) - General GPU compute patterns
+- [WebGL2 Specification](https://www.khronos.org/registry/webgl/specs/latest/2.0/) - Official API reference
+- [GLSL ES 3.0 Quick Reference](https://www.khronos.org/files/webgl20-reference-guide.pdf) - Shader language guide
+
+### GPGPU Techniques
+- [GPGPU on WebGL](https://webglfundamentals.org/webgl/lessons/webgl-gpgpu.html) - Framebuffer-based computation
+- [Multiple Render Targets (MRT)](https://webgl2fundamentals.org/webgl/lessons/webgl-render-to-texture.html) - Rendering to multiple textures
+- [GPU Particle Systems Overview](https://developer.nvidia.com/gpugems/gpugems3/part-v-physics-simulation/chapter-29-real-time-rigid-body-simulation-gpus) - General GPU physics concepts
+
+### Mathematical Resources
+- [Superformula](https://en.wikipedia.org/wiki/Superformula) - Complex parametric shapes
+- [Platonic Solids](https://en.wikipedia.org/wiki/Platonic_solid) - Icosahedron & Octahedron geometry
 
 ## Contact & Contributions
 

@@ -39,6 +39,16 @@
 | **Free Flight** | Particles move freely in 3D space with natural flow |
 | **Fractals** | Emergent fractal-like patterns from particle interactions |
 
+### Available Shapes (11 Total)
+
+The system includes a diverse collection of mathematical forms:
+
+- **Geometric Primitives:** Cube, Sphere
+- **Curved Surfaces:** Torus (donut), Helix (spiral)
+- **Platonic Solids:** Octahedron (8 faces), Icosahedron (20 faces)
+- **Parametric Forms:** Superformula, Rose curve, Wave surface
+- **Complex Shapes:** Ribbon (twisted curve), Polygon (configurable)
+
 ### Interactive Cursor Modes
 
 - **Attract** - Pull particles toward cursor position
@@ -142,9 +152,9 @@ The left panel provides real-time control over:
 ### Architecture
 
 - **WebGL2** - Hardware-accelerated graphics rendering
-- **Transform Feedback** - GPU-based particle physics simulation
-- **GPGPU Techniques** - Computation performed entirely on GPU
-- **Texture-based Storage** - Particle state stored in floating-point textures
+- **Framebuffer-based GPGPU** - GPU-based particle physics using Multiple Render Targets (MRT)
+- **Ping-Pong Buffering** - Double-buffered texture swapping for efficient state updates
+- **Floating-Point Textures** - Particle state stored in RGBA32F textures (position & velocity)
 
 ### Performance
 
@@ -195,12 +205,14 @@ Contributions are welcome! Here's how you can help:
 
 ### Ideas for Contribution
 
-- Add new particle shapes (torus, mobius strip, etc.)
-- Implement audio reactivity
-- Add new cursor interaction modes
+- Add new particle shapes (Möbius strip, Klein bottle, trefoil knot, Lorenz attractor, etc.)
+- Implement audio reactivity (particles respond to music)
+- Add new cursor interaction modes (gravity wells, black holes, wind fields)
 - Optimize performance for mobile devices
-- Create preset configurations
-- Add screenshot/recording functionality
+- Create preset configurations (save/load particle states)
+- Add screenshot/recording functionality (canvas capture)
+- Implement particle trails with motion blur
+- Add VR/AR support for immersive experiences
 
 ## 📝 License
 
