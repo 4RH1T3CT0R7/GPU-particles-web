@@ -799,15 +799,14 @@
 
   vec3 paletteSample(float h){
     float bands = float(max(1, u_colorCount));
-    float idx = floor(h * bands);
-    float t = fract(h * bands);
-    int i0 = int(clamp(idx, 0.0, bands-1.0));
-    int i1 = int(mod(idx + 1.0, bands));
-    vec3 c0 = u_colors[i0] * 1.6; // Усиленная насыщенность
-    vec3 c1 = u_colors[i1] * 1.6;
-    vec3 result = mix(c0, c1, smoothstep(0.0, 1.0, t));
-    // Увеличенный контраст цветов
-    return pow(result, vec3(0.8));
+    h = clamp(h, 0.0, 0.9999);
+    float scaled = h * bands;
+    int i0 = int(floor(scaled));
+    int i1 = int(min(float(i0 + 1), bands - 1.0));
+    float t = fract(scaled);
+    vec3 c0 = u_colors[i0];
+    vec3 c1 = u_colors[i1];
+    return mix(c0, c1, t);
   }
 
   void main(){
@@ -815,62 +814,51 @@
     float r = dot(p, p);
     if (r > 1.0) discard;
 
-    // Улучшенное затухание от центра
     float alpha = smoothstep(1.0, 0.0, r);
-    float softEdge = smoothstep(1.0, 0.3, r);
+    float softEdge = smoothstep(1.0, 0.2, r);
 
-    // Усиленный fresnel для яркого ореола
-    float fresnel = pow(1.0 - clamp(dot(normalize(vec3(p, 0.4)), vec3(0,0,1)), 0.0, 1.0), 1.8);
+    // Fresnel для ореола
+    float fresnel = pow(1.0 - clamp(dot(normalize(vec3(p, 0.35)), vec3(0,0,1)), 0.0, 1.0), 2.0);
 
-    // Интенсивные искры
-    float sparkle = smoothstep(0.25, 0.0, r) * (0.6 + 0.4 * sin(u_time * 8.0 + v_hash * 70.0));
-    float twinkle = 0.7 + 0.3 * sin(u_time * 12.0 + v_hash * 100.0);
+    // Мерцание
+    float sparkle = smoothstep(0.3, 0.0, r) * (0.6 + 0.4 * sin(u_time * 7.0 + v_hash * 60.0));
+    float pulse = 0.5 + 0.5 * sin(u_time * 1.8 + v_energy * 3.5 + v_hash * 11.0);
 
-    float pulse = 0.4 + 0.6 * sin(u_time * 2.0 + v_energy * 4.0 + v_hash * 13.0);
+    // Базовый цвет из палитры - используем v_hash для вариации
+    vec3 base = paletteSample(fract(v_hash + u_time * 0.03));
 
-    // Насыщенный базовый цвет из палитры
-    vec3 base = paletteSample(fract(v_hash * 0.65 + v_energy * 0.35 + u_time * 0.04));
+    // Цвет с вариациями
+    vec3 color = base * (1.0 + 0.3 * pulse);
 
-    // Яркое ядро с сохранением цвета
-    vec3 coreColor = base * 1.5 + vec3(0.2, 0.15, 0.1);
-    vec3 iridescent = mix(base * 1.2, coreColor, 0.3 * pulse * softEdge);
+    // Rim color
+    vec3 rimColor = paletteSample(fract(v_hash + 0.33));
+    color += rimColor * fresnel * 0.5;
 
-    // Цветной rim на основе палитры
-    vec3 rimColor = paletteSample(fract(v_hash + 0.5));
-    vec3 rim = rimColor * fresnel * 1.0;
-
+    // Освещение
     vec3 lightDir = normalize(u_lightPos - v_world);
-    float light = clamp(0.55 + 0.45 * (0.45 + 0.55 * lightDir.y), 0.5, 1.3);
-    float depthFade = clamp(2.2 / (1.0 + 0.02 * v_depth * v_depth), 0.2, 1.0);
-    float energyGlow = 0.6 + 0.8 * v_energy;
+    float light = 0.6 + 0.4 * max(0.0, lightDir.y);
 
-    // Улучшенные эффекты свечения
-    float core = exp(-r * 4.0);
-    float innerGlow = exp(-r * 2.0);
-    float halo = exp(-r * 0.9);
+    float depthFade = clamp(2.0 / (1.0 + 0.02 * v_depth * v_depth), 0.25, 1.0);
+    float energyGlow = 0.7 + 0.5 * v_energy;
 
-    vec3 color = iridescent * light;
-    color += rim;
-    color *= (energyGlow * alpha + sparkle * twinkle * 0.35 + core * 0.8);
-    color += base * innerGlow * 0.4; // Внутреннее свечение
-    color += base * halo * 0.2; // Цветное гало
+    // Эффекты свечения
+    float core = exp(-r * 3.5);
+    float halo = exp(-r * 1.2);
 
-    // Мягкий туман для глубины
-    vec3 fogColor = vec3(0.015, 0.025, 0.05);
-    float fog = clamp(exp(-v_depth * 0.12), 0.15, 1.0);
-    float volumetric = exp(-r * 1.8) * 0.25;
+    color *= light * energyGlow;
+    color *= (alpha + core * 0.5 + sparkle * 0.3);
+    color += base * halo * 0.25;
+
+    // Туман для глубины
+    vec3 fogColor = vec3(0.02, 0.03, 0.06);
+    float fog = clamp(exp(-v_depth * 0.1), 0.2, 1.0);
     color = mix(fogColor, color, fog);
-    color += base * volumetric * 0.35; // Объёмное свечение
 
-    // Тональное отображение с сохранением насыщенности
-    float luminance = dot(color, vec3(0.299, 0.587, 0.114));
-    float tone = 1.0 / (1.0 + luminance * 0.4);
-    color *= tone * 1.7;
+    // Тональное отображение
+    color = color / (1.0 + color * 0.3);
+    color *= 1.4;
 
-    // Финальное усиление ярких участков
-    color += core * base * 0.3;
-
-    o_col = vec4(color * depthFade, alpha * 0.92);
+    o_col = vec4(color * depthFade, alpha * 0.9);
   }
   `;
   const blitFS = `#version 300 es
@@ -888,84 +876,39 @@
     vec2 texel = 1.0 / u_resolution;
     vec3 base = texture(u_tex, uv).rgb;
 
-    // Улучшенный градиентный фон
-    vec3 gradient = mix(vec3(0.02, 0.03, 0.07), vec3(0.06, 0.09, 0.14), smoothstep(-0.1, 1.0, uv.y));
-    float radial = smoothstep(0.0, 1.0, 1.0 - length(uv - 0.5) * 1.3);
-    gradient += radial * vec3(0.04, 0.03, 0.06);
+    // Фоновый градиент
+    vec3 gradient = mix(vec3(0.02, 0.03, 0.07), vec3(0.05, 0.07, 0.12), uv.y);
+    float radial = 1.0 - length(uv - 0.5) * 1.2;
+    gradient += max(0.0, radial) * vec3(0.03, 0.02, 0.05);
 
-    // Усиленный двухпроходный bloom
+    // Bloom
     vec3 bloom = vec3(0.0);
-    vec3 bloomWide = vec3(0.0);
     float weight = 0.0;
-    float weightWide = 0.0;
-
-    // Тесный bloom для деталей
-    for(int x=-4; x<=4; x++){
-      for(int y=-4; y<=4; y++){
-        vec2 off = vec2(float(x), float(y)) * texel * 1.4;
-        float w = exp(-0.35 * float(x*x + y*y));
+    for(int x=-3; x<=3; x++){
+      for(int y=-3; y<=3; y++){
+        vec2 off = vec2(float(x), float(y)) * texel * 1.8;
+        float w = exp(-0.4 * float(x*x + y*y));
         bloom += texture(u_tex, uv + off).rgb * w;
         weight += w;
       }
     }
-    bloom /= max(0.0001, weight);
+    bloom /= weight;
 
-    // Широкий bloom для мягкого свечения
-    for(int x=-3; x<=3; x++){
-      for(int y=-3; y<=3; y++){
-        vec2 off = vec2(float(x), float(y)) * texel * 4.0;
-        float w = exp(-0.5 * float(x*x + y*y));
-        bloomWide += texture(u_tex, uv + off).rgb * w;
-        weightWide += w;
-      }
-    }
-    bloomWide /= max(0.0001, weightWide);
+    // Комбинирование
+    vec3 col = mix(base, bloom, 0.45);
 
-    // Хроматические завихрения с усиленным эффектом
-    float swirlAngle = u_time * 0.08;
-    vec2 swirl = (uv - 0.5) * mat2(cos(swirlAngle), -sin(swirlAngle), sin(swirlAngle), cos(swirlAngle));
-    vec3 ray = vec3(
-      texture(u_tex, uv + swirl * 0.007).r,
-      texture(u_tex, uv - swirl * 0.005).g,
-      texture(u_tex, uv + swirl * 0.004).b
-    );
-
-    // Комбинирование с усиленным bloom
-    vec3 col = base;
-    col = mix(col, bloom, 0.5);
-    col += bloomWide * 0.35;
-    col += ray * 0.3;
-
-    // Световые лучи от ярких точек
-    vec2 dir = normalize((uv - 0.5) + 0.001);
-    float streak = 0.0;
-    float streakWeight = 0.0;
-    for(int i=1; i<=5; i++){
-      float s = float(i) * 0.015;
-      float w = exp(-float(i) * 0.7);
-      vec3 streakSample = texture(u_tex, uv - dir * s).rgb;
-      streak += (streakSample.r + streakSample.g + streakSample.b) * 0.33 * w;
-      streakWeight += w;
-    }
-    streak /= max(0.0001, streakWeight);
-    col += vec3(streak * 0.25);
-
-    // Мягкий vignette
-    vec2 p = uv*2.0-1.0;
-    p.x *= u_resolution.x/u_resolution.y;
-    float vig = smoothstep(1.2, 0.3, length(p));
+    // Vignette
+    vec2 p = uv * 2.0 - 1.0;
+    p.x *= u_resolution.x / u_resolution.y;
+    float vig = smoothstep(1.3, 0.4, length(p));
     col *= vig;
 
-    // Плавная пульсация яркости
-    col *= 0.95 + 0.05 * sin(u_time * 0.8 + uv.x * 2.0 + uv.y * 1.2);
+    // Гамма
+    col = pow(col, vec3(0.95));
 
-    // Тональное отображение и гамма
-    col = col / (col + vec3(0.8)); // Soft HDR
-    col = pow(col, vec3(0.92));
-
-    // Минимальный шум
-    float grain = hash(uv * u_time) * 0.012 - 0.006;
-    col += gradient * 0.6 + grain;
+    // Шум и фон
+    float grain = hash(uv * u_time) * 0.01 - 0.005;
+    col += gradient * 0.5 + grain;
 
     o_col = vec4(col, 1.0);
   }
@@ -1625,7 +1568,17 @@
     updateAudioAnalysis();
     scheduleShapes(dt, t);
     const simDt = dt * particleSpeed;
-    const shapeBase = shapeMode === 'shapes' ? manualShapeStrength : 0.0;
+    // Определяем базовую силу притяжения в зависимости от режима
+    let shapeBase;
+    if (shapeMode === 'shapes') {
+      shapeBase = manualShapeStrength;
+    } else if (shapeMode === 'fractal') {
+      shapeBase = Math.max(1.25, manualShapeStrength * 1.3);
+    } else if (shapeMode === 'equalizer') {
+      shapeBase = 1.3;
+    } else {
+      shapeBase = 0.0; // free mode
+    }
     if (scatterCooldown > 0.0) {
       scatterCooldown = Math.max(0.0, scatterCooldown - dt);
       const relax = 0.35 + 0.65 * (scatterCooldown / SCATTER_RELAX_TIME);
@@ -1633,7 +1586,7 @@
     } else {
       targetShapeStrength = shapeBase;
     }
-    shapeStrength += (targetShapeStrength - shapeStrength) * 0.08;
+    shapeStrength += (targetShapeStrength - shapeStrength) * 0.1;
     updateShapeForceLabel();
 
     // ПЛАВНЫЙ ZOOM - интерполяция к целевому расстоянию
