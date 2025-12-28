@@ -334,40 +334,63 @@
   vec3 fractalFlow(vec2 id, float time, vec4 seed){
     vec2 p = id * 2.0 - 1.0;
 
-    // Мандельброт-подобная итерация
-    vec2 c = p * 1.5 + vec2(-0.5, 0.0);
+    // Параметрический фрактал с seed-ами
+    float seedScale = 1.2 + seed.x * 0.5;
+    float seedOffset = seed.y * 0.3;
+    vec2 c = p * seedScale + vec2(-0.5 + seedOffset, seed.z * 0.2);
     vec2 z = vec2(0.0);
     float iter = 0.0;
-    float maxIter = 12.0;
+    float maxIter = 32.0;
+    float smoothIter = 0.0;
 
-    for(int i = 0; i < 12; i++) {
-      if (dot(z, z) > 4.0) break;
-      z = vec2(z.x*z.x - z.y*z.y, 2.0*z.x*z.y) + c;
+    for(int i = 0; i < 32; i++) {
+      float zLen = dot(z, z);
+      if (zLen > 16.0) {
+        // Smooth iteration count для плавных переходов
+        smoothIter = float(i) - log2(log2(zLen));
+        break;
+      }
+      // Вариативная итерация с seed
+      float zx = z.x*z.x - z.y*z.y;
+      float zy = 2.0*z.x*z.y;
+      z = vec2(zx, zy) + c;
       iter += 1.0;
     }
 
     // Нормализуем результат итерации
-    float fractalVal = iter / maxIter;
+    float fractalVal = smoothIter > 0.0 ? smoothIter / maxIter : iter / maxIter;
+    fractalVal = clamp(fractalVal, 0.0, 1.0);
 
-    // Создаём 3D позицию на основе фрактала
-    float angle = time * 0.3 + seed.w;
-    float radius = 0.3 + fractalVal * 0.7;
+    // Создаём 3D форму на основе фрактала
+    float baseAngle = atan(p.y, p.x);
+    float distFromCenter = length(p);
 
-    // Спиральная форма с фрактальной модуляцией
-    float spiralAngle = p.x * 6.28318 * 2.0 + time * 0.5;
-    float height = p.y * 1.2;
+    // Множественные спиральные ветви
+    float arms = 3.0 + floor(seed.x * 3.0);
+    float armAngle = baseAngle * arms + time * 0.4 + seed.w;
+    float armModulation = 0.5 + 0.5 * sin(armAngle);
+
+    // Радиус зависит от фрактального значения
+    float radius = (0.2 + fractalVal * 0.8) * (0.6 + 0.4 * armModulation);
+
+    // 3D форма с ветвящейся структурой
+    float spiralZ = sin(baseAngle * arms + distFromCenter * 4.0 + time * 0.6) * 0.4;
+    float height = (fractalVal - 0.5) * 1.6 + spiralZ * fractalVal;
 
     vec3 pos = vec3(
-      cos(spiralAngle) * radius * (0.5 + 0.5 * fractalVal),
-      height + sin(fractalVal * 6.28318 + time) * 0.3,
-      sin(spiralAngle) * radius * (0.5 + 0.5 * fractalVal)
+      cos(baseAngle + time * 0.15) * radius * (0.7 + 0.3 * fractalVal),
+      height,
+      sin(baseAngle + time * 0.15) * radius * (0.7 + 0.3 * fractalVal)
     );
 
-    // Добавляем фрактальные ветви
-    float branch = sin(fractalVal * 12.0 + seed.x * 3.0 + time * 0.8) * 0.25;
-    pos.xy += vec2(cos(angle), sin(angle)) * branch;
+    // Добавляем фрактальные детали
+    float detail = sin(fractalVal * 18.0 + seed.x * 5.0 + time * 0.7) * 0.15;
+    float detail2 = cos(fractalVal * 12.0 + seed.y * 4.0 - time * 0.5) * 0.1;
+    pos.x += detail * fractalVal;
+    pos.z += detail2 * fractalVal;
+    pos.y += sin(distFromCenter * 8.0 + time) * 0.1 * (1.0 - fractalVal);
 
-    return pos * 0.85;
+    return pos * 0.9;
   }
 
   vec3 targetFor(int sid, vec2 id, float time, int seedSlot){
@@ -485,72 +508,81 @@
     float layerHash = hash12(id*23.7);
 
     // ==== УЛУЧШЕННАЯ ФИЗИКА ЧАСТИЦ ====
-    float structure = smoothstep(0.1, 0.95, u_shapeStrength);
-    float calmFactor = smoothstep(0.55, 1.05, u_shapeStrength);
+    float structure = smoothstep(0.1, 0.9, u_shapeStrength);
+    float calmFactor = smoothstep(0.5, 1.0, u_shapeStrength);
 
-    // Мягкие завихрения - уменьшена интенсивность для плавности
-    vec2 curlLarge = curl(pos.xy * 0.5 + u_time * 0.12) * 0.6;
-    vec2 curlMid   = curl(pos.xy * 1.2 - u_time * 0.15) * 0.4;
-    vec2 curlFine  = curl(pos.xy * 3.0 + u_time * 0.25 + idHash*4.0) * 0.2;
+    // Многослойные завихрения для органичного движения
+    vec2 curlLarge = curl(pos.xy * 0.4 + u_time * 0.1) * 0.7;
+    vec2 curlMid   = curl(pos.xy * 1.0 + pos.z * 0.3 - u_time * 0.12) * 0.5;
+    vec2 curlFine  = curl(pos.xy * 2.5 + u_time * 0.2 + idHash*3.0) * 0.25;
+    float curlZ = noise(pos.xy * 1.5 + u_time * 0.15) - 0.5;
 
     vec2 swirl = curlLarge + curlMid + curlFine;
 
-    // Один плавный вихрь
-    vec2 vortexCenter = vec2(sin(u_time*0.1), cos(u_time*0.12))*0.3;
+    // Плавающий центр вихря
+    vec2 vortexCenter = vec2(sin(u_time*0.08), cos(u_time*0.1))*0.4;
     vec2 rel = pos.xy - vortexCenter;
-    float r2 = max(0.2, dot(rel, rel));
-    vec2 vortex = vec2(-rel.y, rel.x) / r2 * 0.3;
+    float r2 = max(0.15, dot(rel, rel));
+    vec2 vortex = vec2(-rel.y, rel.x) / r2 * 0.35;
 
-    // Мягкий поток
-    vec2 baseFlow = swirl * 0.5 + vortex * 0.3;
-    vec2 dampedFlow = mix(baseFlow, swirl * 0.2, calmFactor);
+    // Органичный поток с 3D компонентой
+    vec2 baseFlow = swirl * 0.55 + vortex * 0.35;
+    vec2 dampedFlow = mix(baseFlow, swirl * 0.25, calmFactor);
 
-    vec3 flow = vec3(dampedFlow, 0.0);
-    flow.z = sin(u_time*0.3 + pos.x*1.5 + pos.y*1.0) * 0.3;
+    vec3 flow = vec3(dampedFlow, curlZ * 0.4);
+    flow.z += sin(u_time*0.25 + pos.x*1.2 + pos.y*0.8) * 0.35;
 
-    vec3 acc = flow * mix(0.3, 0.5, 1.0 - structure);
-    acc.y -= 0.05; // минимальная гравитация
+    vec3 acc = flow * mix(0.35, 0.55, 1.0 - structure);
+    acc.y -= 0.04; // лёгкая гравитация
 
-    // Минимальное демпфирование скорости
+    // Улучшенное демпфирование скорости
     float velMag = length(vel);
-    acc -= vel * velMag * 0.02;
+    acc -= vel * velMag * 0.018;
 
-    // Плавное трение
-    float drag = mix(0.94, 0.97, calmFactor);
+    // Адаптивное трение
+    float drag = mix(0.93, 0.965, calmFactor);
     vel *= drag;
 
     // ==== ПРИТЯЖЕНИЕ К ФИГУРАМ ====
-    vec3 targetA = targetFor(u_shapeA, id, u_time*0.6, 0);
-    vec3 targetB = targetFor(u_shapeB, id, u_time*0.63 + 2.7, 1);
+    vec3 targetA = targetFor(u_shapeA, id, u_time*0.55, 0);
+    vec3 targetB = targetFor(u_shapeB, id, u_time*0.58 + 2.5, 1);
     vec3 desired = mix(targetA, targetB, easeInOutCubic(u_morph));
 
-    float affinity = smoothstep(0.05, 0.85, idHash);
+    float affinity = smoothstep(0.03, 0.9, idHash);
     float shapeWeight = u_shapeStrength * affinity;
     vec3 toShape = desired - pos;
-    float dist = max(0.01, length(toShape));
+    float dist = max(0.005, length(toShape));
+    vec3 dirToShape = toShape / dist;
 
-    // Упрощённое и более сильное притяжение к фигурам
-    float springStrength = 12.0 + 8.0 * calmFactor;
-    float dampingFactor = exp(-dist * 0.5);
+    // Усиленное притяжение к фигурам с плавным приближением
+    float springStrength = 15.0 + 10.0 * calmFactor;
+    float dampingFactor = exp(-dist * 0.4);
     vec3 shapeForce = toShape * springStrength * shapeWeight * dampingFactor;
-    // Добавляем прямое притяжение для близких частиц
-    shapeForce += normalize(toShape) * 5.0 * shapeWeight * smoothstep(0.4, 0.0, dist);
 
-    float cohesion = smoothstep(0.0, 0.6, shapeWeight);
-    // При высоком shapeWeight заменяем физику на притяжение к фигуре
-    acc = mix(acc, shapeForce * 2.0, cohesion * 0.95);
-    acc += shapeForce * 0.5;
+    // Притяжение для близких частиц с мягкой посадкой
+    float closeRange = smoothstep(0.5, 0.0, dist);
+    shapeForce += dirToShape * 6.0 * shapeWeight * closeRange;
+
+    // Дополнительная стабилизация при приближении к цели
+    float nearTarget = smoothstep(0.15, 0.0, dist);
+    shapeForce += dirToShape * 3.0 * shapeWeight * nearTarget;
+    vel *= mix(1.0, 0.85, nearTarget * shapeWeight); // Мягкое торможение
+
+    float cohesion = smoothstep(0.0, 0.55, shapeWeight);
+    // Плавный переход к притяжению к фигуре
+    acc = mix(acc, shapeForce * 2.2, cohesion * 0.92);
+    acc += shapeForce * 0.6;
     // Демпфирование для стабильной формы
-    vel *= mix(0.97, 0.88, cohesion * calmFactor);
+    vel *= mix(0.96, 0.87, cohesion * calmFactor);
 
-    // ==== АКТИВНЫЙ КУРСОР (уменьшенная сила) ====
+    // ==== АКТИВНЫЙ КУРСОР ====
     if (u_pointerActive > 0.5) {
       vec3 toPointer = u_pointerPos - pos;
       float distPointer = length(toPointer);
-      float radius = max(0.12, u_pointerRadius);
-      float falloff = exp(-pow(distPointer / radius, 1.35));
-      float pressBoost = mix(0.5, 1.0, u_pointerPress);
-      float base = u_pointerStrength * pressBoost * falloff * 0.4; // глобальное снижение силы
+      float radius = max(0.15, u_pointerRadius);
+      float falloff = exp(-pow(distPointer / radius, 1.25));
+      float pressBoost = mix(0.6, 1.0, u_pointerPress);
+      float base = u_pointerStrength * pressBoost * falloff * 0.5;
       vec3 dirP = toPointer / max(distPointer, 0.001);
       float jitter = hash11(idHash * 91.0);
 
@@ -771,11 +803,11 @@
     float t = fract(h * bands);
     int i0 = int(clamp(idx, 0.0, bands-1.0));
     int i1 = int(mod(idx + 1.0, bands));
-    vec3 c0 = u_colors[i0] * 1.4; // Усиливаем насыщенность
-    vec3 c1 = u_colors[i1] * 1.4;
+    vec3 c0 = u_colors[i0] * 1.6; // Усиленная насыщенность
+    vec3 c1 = u_colors[i1] * 1.6;
     vec3 result = mix(c0, c1, smoothstep(0.0, 1.0, t));
-    // Увеличиваем контраст цветов
-    return pow(result, vec3(0.85));
+    // Увеличенный контраст цветов
+    return pow(result, vec3(0.8));
   }
 
   void main(){
@@ -783,44 +815,62 @@
     float r = dot(p, p);
     if (r > 1.0) discard;
 
+    // Улучшенное затухание от центра
     float alpha = smoothstep(1.0, 0.0, r);
-    float fresnel = pow(1.0 - clamp(dot(normalize(vec3(p, 0.35)), vec3(0,0,1)), 0.0, 1.0), 2.0);
-    float sparkle = smoothstep(0.35, 0.0, r) * (0.55 + 0.45 * sin(u_time * 7.0 + v_hash * 60.0));
-    float pulse = 0.35 + 0.65 * sin(u_time * 1.7 + v_energy * 3.5 + v_hash * 11.0);
+    float softEdge = smoothstep(1.0, 0.3, r);
 
-    // Более насыщенный базовый цвет из палитры
-    vec3 base = paletteSample(fract(v_hash * 0.7 + v_energy * 0.3 + u_time * 0.05));
+    // Усиленный fresnel для яркого ореола
+    float fresnel = pow(1.0 - clamp(dot(normalize(vec3(p, 0.4)), vec3(0,0,1)), 0.0, 1.0), 1.8);
 
-    // Меньше разбавления белым, больше сохранения цвета палитры
-    vec3 iridescent = mix(base, base * 1.3 + vec3(0.15), 0.25 * pulse);
+    // Интенсивные искры
+    float sparkle = smoothstep(0.25, 0.0, r) * (0.6 + 0.4 * sin(u_time * 8.0 + v_hash * 70.0));
+    float twinkle = 0.7 + 0.3 * sin(u_time * 12.0 + v_hash * 100.0);
+
+    float pulse = 0.4 + 0.6 * sin(u_time * 2.0 + v_energy * 4.0 + v_hash * 13.0);
+
+    // Насыщенный базовый цвет из палитры
+    vec3 base = paletteSample(fract(v_hash * 0.65 + v_energy * 0.35 + u_time * 0.04));
+
+    // Яркое ядро с сохранением цвета
+    vec3 coreColor = base * 1.5 + vec3(0.2, 0.15, 0.1);
+    vec3 iridescent = mix(base * 1.2, coreColor, 0.3 * pulse * softEdge);
 
     // Цветной rim на основе палитры
     vec3 rimColor = paletteSample(fract(v_hash + 0.5));
-    vec3 rim = rimColor * fresnel * 0.8;
+    vec3 rim = rimColor * fresnel * 1.0;
 
     vec3 lightDir = normalize(u_lightPos - v_world);
-    float light = clamp(0.5 + 0.5 * (0.4 + 0.6 * lightDir.y), 0.45, 1.2);
-    float depthFade = clamp(1.9 / (1.0 + 0.025 * v_depth * v_depth), 0.15, 1.0);
-    float energyGlow = 0.5 + 0.7 * v_energy;
-    float core = exp(-r * 3.5);
-    float halo = exp(-r * 1.25);
+    float light = clamp(0.55 + 0.45 * (0.45 + 0.55 * lightDir.y), 0.5, 1.3);
+    float depthFade = clamp(2.2 / (1.0 + 0.02 * v_depth * v_depth), 0.2, 1.0);
+    float energyGlow = 0.6 + 0.8 * v_energy;
+
+    // Улучшенные эффекты свечения
+    float core = exp(-r * 4.0);
+    float innerGlow = exp(-r * 2.0);
+    float halo = exp(-r * 0.9);
 
     vec3 color = iridescent * light;
     color += rim;
-    color *= (energyGlow * alpha + sparkle * 0.2 + core * 0.6);
-    color += base * halo * 0.25; // Цветное гало
+    color *= (energyGlow * alpha + sparkle * twinkle * 0.35 + core * 0.8);
+    color += base * innerGlow * 0.4; // Внутреннее свечение
+    color += base * halo * 0.2; // Цветное гало
 
-    // Меньше тумана для сохранения цвета
-    vec3 fogColor = vec3(0.02, 0.03, 0.06);
-    float fog = clamp(exp(-v_depth * 0.15), 0.1, 1.0);
-    float volumetric = exp(-r * 2.2) * 0.2;
+    // Мягкий туман для глубины
+    vec3 fogColor = vec3(0.015, 0.025, 0.05);
+    float fog = clamp(exp(-v_depth * 0.12), 0.15, 1.0);
+    float volumetric = exp(-r * 1.8) * 0.25;
     color = mix(fogColor, color, fog);
-    color += base * volumetric * 0.3; // Цветной объём
+    color += base * volumetric * 0.35; // Объёмное свечение
 
-    float tone = 1.0 / (1.0 + dot(color, vec3(0.5)));
-    color *= tone * 1.5;
+    // Тональное отображение с сохранением насыщенности
+    float luminance = dot(color, vec3(0.299, 0.587, 0.114));
+    float tone = 1.0 / (1.0 + luminance * 0.4);
+    color *= tone * 1.7;
 
-    o_col = vec4(color * depthFade, alpha * 0.95);
+    // Финальное усиление ярких участков
+    color += core * base * 0.3;
+
+    o_col = vec4(color * depthFade, alpha * 0.92);
   }
   `;
   const blitFS = `#version 300 es
@@ -838,57 +888,84 @@
     vec2 texel = 1.0 / u_resolution;
     vec3 base = texture(u_tex, uv).rgb;
 
-    vec3 gradient = mix(vec3(0.025, 0.04, 0.08), vec3(0.08, 0.11, 0.16), smoothstep(-0.2, 1.0, uv.y));
-    float radial = smoothstep(0.0, 1.0, 1.0 - length(uv - 0.5) * 1.4);
-    gradient += radial * vec3(0.06, 0.04, 0.08);
+    // Улучшенный градиентный фон
+    vec3 gradient = mix(vec3(0.02, 0.03, 0.07), vec3(0.06, 0.09, 0.14), smoothstep(-0.1, 1.0, uv.y));
+    float radial = smoothstep(0.0, 1.0, 1.0 - length(uv - 0.5) * 1.3);
+    gradient += radial * vec3(0.04, 0.03, 0.06);
 
-    // Bloom через однопроходный gather blur
+    // Усиленный двухпроходный bloom
     vec3 bloom = vec3(0.0);
+    vec3 bloomWide = vec3(0.0);
     float weight = 0.0;
-    for(int x=-3; x<=3; x++){
-      for(int y=-3; y<=3; y++){
-        vec2 off = vec2(float(x), float(y)) * texel * 1.6;
-        float w = exp(-0.4 * float(x*x + y*y));
+    float weightWide = 0.0;
+
+    // Тесный bloom для деталей
+    for(int x=-4; x<=4; x++){
+      for(int y=-4; y<=4; y++){
+        vec2 off = vec2(float(x), float(y)) * texel * 1.4;
+        float w = exp(-0.35 * float(x*x + y*y));
         bloom += texture(u_tex, uv + off).rgb * w;
         weight += w;
       }
     }
     bloom /= max(0.0001, weight);
 
-    // Хроматические завихрения вокруг ярких зон
-    vec2 swirl = (uv - 0.5) * mat2(cos(u_time*0.07), -sin(u_time*0.07), sin(u_time*0.07), cos(u_time*0.07));
+    // Широкий bloom для мягкого свечения
+    for(int x=-3; x<=3; x++){
+      for(int y=-3; y<=3; y++){
+        vec2 off = vec2(float(x), float(y)) * texel * 4.0;
+        float w = exp(-0.5 * float(x*x + y*y));
+        bloomWide += texture(u_tex, uv + off).rgb * w;
+        weightWide += w;
+      }
+    }
+    bloomWide /= max(0.0001, weightWide);
+
+    // Хроматические завихрения с усиленным эффектом
+    float swirlAngle = u_time * 0.08;
+    vec2 swirl = (uv - 0.5) * mat2(cos(swirlAngle), -sin(swirlAngle), sin(swirlAngle), cos(swirlAngle));
     vec3 ray = vec3(
-      texture(u_tex, uv + swirl * 0.006).r,
-      texture(u_tex, uv - swirl * 0.004).g,
-      texture(u_tex, uv + swirl * 0.003).b
+      texture(u_tex, uv + swirl * 0.007).r,
+      texture(u_tex, uv - swirl * 0.005).g,
+      texture(u_tex, uv + swirl * 0.004).b
     );
 
-    vec3 col = mix(base, bloom, 0.55);
-    col += ray * 0.35;
+    // Комбинирование с усиленным bloom
+    vec3 col = base;
+    col = mix(col, bloom, 0.5);
+    col += bloomWide * 0.35;
+    col += ray * 0.3;
 
+    // Световые лучи от ярких точек
     vec2 dir = normalize((uv - 0.5) + 0.001);
     float streak = 0.0;
     float streakWeight = 0.0;
-    for(int i=1; i<=4; i++){
-      float s = float(i) * 0.018;
-      float w = exp(-float(i) * 0.8);
-      streak += texture(u_tex, uv - dir * s).r * w;
+    for(int i=1; i<=5; i++){
+      float s = float(i) * 0.015;
+      float w = exp(-float(i) * 0.7);
+      vec3 streakSample = texture(u_tex, uv - dir * s).rgb;
+      streak += (streakSample.r + streakSample.g + streakSample.b) * 0.33 * w;
       streakWeight += w;
     }
     streak /= max(0.0001, streakWeight);
-    col += vec3(streak * 0.35);
+    col += vec3(streak * 0.25);
 
-    // Subtle vignette для плавного края сцены
+    // Мягкий vignette
     vec2 p = uv*2.0-1.0;
     p.x *= u_resolution.x/u_resolution.y;
-    float vig = smoothstep(1.15, 0.25, length(p));
+    float vig = smoothstep(1.2, 0.3, length(p));
     col *= vig;
 
-    // Лёгкая пульсация яркости, чтобы подчеркнуть пыль
-    col *= 0.94 + 0.06 * sin(u_time * 0.7 + uv.x * 2.5 + uv.y * 1.5);
-    col = pow(col, vec3(0.95));
-    float grain = hash(uv * u_time) * 0.015 - 0.0075;
-    col += gradient * 0.75 + grain;
+    // Плавная пульсация яркости
+    col *= 0.95 + 0.05 * sin(u_time * 0.8 + uv.x * 2.0 + uv.y * 1.2);
+
+    // Тональное отображение и гамма
+    col = col / (col + vec3(0.8)); // Soft HDR
+    col = pow(col, vec3(0.92));
+
+    // Минимальный шум
+    float grain = hash(uv * u_time) * 0.012 - 0.006;
+    col += gradient * 0.6 + grain;
 
     o_col = vec4(col, 1.0);
   }
@@ -1467,7 +1544,9 @@
     if (shapeMode === 'fractal') {
       shapeA = FRACTAL_SHAPE_ID;
       shapeB = FRACTAL_SHAPE_ID;
-      const hold = 0.18;
+      // Поддерживаем высокое притяжение для фракталов
+      targetShapeStrength = Math.max(1.25, manualShapeStrength * 1.3);
+      const hold = 0.15;
       const phase = fractalState.timer / fractalState.duration;
       const clampedPhase = Math.min(1.0, phase);
       const eased = (() => {
@@ -1483,7 +1562,7 @@
         fractalState.morph = 0.0;
         fractalState.seedA = fractalState.seedB;
         fractalState.seedB = randomFractalSeed();
-        fractalState.duration = 18.0 + Math.random() * 6.0;
+        fractalState.duration = 14.0 + Math.random() * 8.0;
         currentPaletteIndex = (currentPaletteIndex + 1) % colorPalettes.length;
         rebuildColorStops();
       }
@@ -1976,12 +2055,14 @@
 
   modeFractalBtn.addEventListener('click', () => {
     shapeMode = 'fractal';
-    targetShapeStrength = Math.max(1.05, manualShapeStrength);
+    // Усиленное притяжение для фракталов
+    targetShapeStrength = Math.max(1.25, manualShapeStrength * 1.3);
+    shapeStrength = targetShapeStrength * 0.8; // Быстрый старт
     fractalState.seedA = randomFractalSeed();
     fractalState.seedB = randomFractalSeed();
     fractalState.morph = 0.0;
     fractalState.timer = 0.0;
-    fractalState.duration = 18.0 + Math.random() * 6.0;
+    fractalState.duration = 14.0 + Math.random() * 8.0;
     morph = 0.0;
     isMorphing = false;
     rebuildColorStops();
@@ -2000,14 +2081,12 @@
       isMorphing = false;
       // Enable audio reactivity automatically in equalizer mode
       audioReactivityEnabled = true;
-      const audioToggle = document.getElementById('audioEnabled');
-      if (audioToggle) audioToggle.checked = true;
       updateModeButtons();
     });
   }
 
   // ==== AUDIO CONTROLS ====
-  const audioEnabledToggle = document.getElementById('audioEnabled');
+  const useMicrophoneBtn = document.getElementById('useMicrophone');
   const selectAudioFileBtn = document.getElementById('selectAudioFile');
   const audioFileInput = document.getElementById('audioFileInput');
   const audioElement = document.getElementById('audioElement');
@@ -2021,9 +2100,18 @@
   const midSensitivityValue = document.getElementById('midSensitivityValue');
   const trebleSensitivityValue = document.getElementById('trebleSensitivityValue');
 
-  audioEnabledToggle.addEventListener('change', (e) => {
-    audioReactivityEnabled = e.target.checked;
-    console.log('Audio reactivity:', audioReactivityEnabled ? 'enabled' : 'disabled');
+  useMicrophoneBtn.addEventListener('click', async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      await initAudio(stream);
+      audioReactivityEnabled = true;
+      useMicrophoneBtn.classList.add('active');
+      selectAudioFileBtn.classList.remove('active');
+      console.log('✓ Microphone activated');
+    } catch (err) {
+      console.error('Microphone access denied:', err);
+      alert('Не удалось получить доступ к микрофону');
+    }
   });
 
   selectAudioFileBtn.addEventListener('click', () => {
@@ -2038,6 +2126,9 @@
       audioElement.style.display = 'block';
       audioElement.play();
       initAudioFromFile(audioElement);
+      audioReactivityEnabled = true;
+      selectAudioFileBtn.classList.add('active');
+      useMicrophoneBtn.classList.remove('active');
       console.log('✓ Audio file loaded:', file.name);
     }
   });
