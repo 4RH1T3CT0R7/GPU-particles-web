@@ -248,6 +248,38 @@
     );
   }
 
+  // Эквалайзер - плоскость с волнами от аудио
+  vec3 shape_equalizer(float t, float s, float bass, float mid, float treble, float time){
+    // Создаём плоскую сетку
+    float x = (t - 0.5) * 2.4;
+    float z = (s - 0.5) * 2.4;
+
+    // Базовая высота плоскости
+    float y = 0.0;
+
+    // Добавляем волны от разных частот
+    // Бас - крупные волны от центра
+    float distFromCenter = length(vec2(x, z));
+    float bassWave = sin(distFromCenter * 3.0 - time * 2.5) * bass * 0.6;
+    bassWave += cos(distFromCenter * 2.0 + time * 1.5) * bass * 0.4;
+
+    // Середина - средние волны в направлении X
+    float midWave = sin(x * 4.0 + time * 3.0) * mid * 0.4;
+    midWave += cos(z * 3.5 - time * 2.0) * mid * 0.3;
+
+    // Высокие - мелкая рябь
+    float trebleWave = sin(x * 8.0 + z * 6.0 + time * 6.0) * treble * 0.25;
+    trebleWave += cos(x * 7.0 - z * 9.0 + time * 8.0) * treble * 0.15;
+
+    y = bassWave + midWave + trebleWave;
+
+    // Добавляем небольшое затухание к краям для красивой формы
+    float edgeFade = 1.0 - smoothstep(0.8, 1.2, distFromCenter);
+    y *= edgeFade;
+
+    return vec3(x, y, z);
+  }
+
   // 2D shape generators (kept for variety)
   vec2 shape_superformula(float t, float m, float n1, float n2, float n3){
     float a = 1.0, b = 1.0;
@@ -344,6 +376,8 @@
       p = applyRotations(f * (0.9 + shells), time * 0.45 + seed.w);
       p.xy += curl(id * 8.5 + seed.xy * 2.7 + time * 0.35) * 0.22;
       p.z += sin(angle * 0.6 + seed.z + time * 0.35) * 0.25;
+    } else if (sid==12){ // эквалайзер - плоскость с волнами от аудио
+      p = shape_equalizer(id.x, id.y, u_audioBass, u_audioMid, u_audioTreble, time);
     } else { // polygon/star
       float n = 5.0 + floor(mod(time*0.2, 4.0));
       vec2 p2 = shape_polygon(angle, n)*(0.5 + 0.5*sqrt(s));
@@ -448,10 +482,10 @@
     float liftNoise = fbm(pos.xy * 0.8 + u_time * 0.3 + layerHash*1.7);
     flow.z = sin(u_time*0.5 + pos.x*2.2 + pos.y*1.5) * 0.8 + sin(u_time*0.9 + layerHash*6.28)*0.5 + liftNoise*1.1;
 
-    vec3 acc = flow * mix(1.4, 1.8, 1.0 - structure);
-    acc.y -= 0.25; // облегчённая гравитация для более свободного полёта
-    acc *= 1.0 + 0.4*sin(u_time*0.3 + idHash*6.0);
-    acc += normalize(vec3(swirl, 0.2)) * mix(0.18, 0.3, calmFactor); // усиленная закрутка в 3D
+    vec3 acc = flow * mix(0.6, 1.0, 1.0 - structure);
+    acc.y -= 0.15; // облегчённая гравитация для более свободного полёта
+    acc *= 0.7 + 0.2*sin(u_time*0.3 + idHash*6.0);
+    acc += normalize(vec3(swirl, 0.2)) * mix(0.08, 0.15, calmFactor); // уменьшенная закрутка в 3D
 
     // Дополнительная буря: песчаные слои, сдвиг по высоте и трение
     float altitude = clamp(pos.y * 0.35 + 0.5, 0.0, 1.0);
@@ -482,22 +516,28 @@
     vec3 targetB = targetFor(u_shapeB, id, u_time*0.63 + 2.7, 1);
     vec3 desired = mix(targetA, targetB, easeInOutCubic(u_morph));
 
-    float affinity = smoothstep(0.15, 0.95, idHash);
+    float affinity = smoothstep(0.05, 0.85, idHash);
     float shapeWeight = u_shapeStrength * affinity;
     vec3 toShape = desired - pos;
-    float dist = max(0.08, length(toShape));
+    float dist = max(0.01, length(toShape));
     vec3 surfaceNormal = normalize(toShape + vec3(0.001, 0.002, 0.003));
-    vec3 tangential = normalize(cross(surfaceNormal, vec3(0.0, 1.0, 0.0)) + 0.4 * cross(surfaceNormal, vec3(1.0, 0.0, 0.0)));
-    vec3 swirlAroundShape = tangential * (0.6 + 0.5 * liftNoise) * shapeWeight * (0.85 + 0.7 * calmFactor);
+    vec3 tangential = normalize(cross(surfaceNormal, vec3(0.0, 1.0, 0.0)) + 0.3 * cross(surfaceNormal, vec3(1.0, 0.0, 0.0)));
+    vec3 swirlAroundShape = tangential * (0.25 + 0.2 * liftNoise) * shapeWeight * (0.4 + 0.3 * calmFactor);
 
-    // Усиленное притяжение к фигурам для лучшего формирования
-    vec3 shapeForce = toShape * (1.4 + 1.2 * calmFactor) * shapeWeight / (1.0 + dist*dist*0.25);
-    shapeForce += swirlAroundShape * 1.3;
+    // Сильно усиленное притяжение к фигурам - экспоненциальное затухание по расстоянию
+    float springStrength = 8.0 + 6.0 * calmFactor;
+    float dampingFactor = exp(-dist * 0.8);
+    vec3 shapeForce = toShape * springStrength * shapeWeight * dampingFactor;
+    // Добавляем прямое притяжение для близких частиц
+    shapeForce += normalize(toShape) * 3.5 * shapeWeight * smoothstep(0.5, 0.0, dist);
+    shapeForce += swirlAroundShape * 0.5;
 
-    float cohesion = smoothstep(0.0, 0.9, shapeWeight);
-    acc = mix(acc, acc * 0.45 + shapeForce * 1.8, cohesion * 1.1);
-    acc += shapeForce * 0.5;
-    vel *= mix(0.97, 0.90, cohesion * calmFactor);
+    float cohesion = smoothstep(0.0, 0.7, shapeWeight);
+    // При высоком shapeWeight практически заменяем всю физику на притяжение к фигуре
+    acc = mix(acc, shapeForce * 2.5, cohesion * 0.92);
+    acc += shapeForce * 0.8;
+    // Сильное демпфирование для стабилизации формы
+    vel *= mix(0.96, 0.82, cohesion * calmFactor);
 
     // ==== АКТИВНЫЙ КУРСОР (уменьшенная сила) ====
     if (u_pointerActive > 0.5) {
@@ -1371,13 +1411,30 @@
       colorStopsBase[i * 3 + 1] = (palette.a[1] * (1 - t) + palette.b[1] * t) * vibrato;
       colorStopsBase[i * 3 + 2] = (palette.a[2] * (1 - t) + palette.b[2] * t) * vibrato;
     }
-    palettePreview.style.setProperty('--preview-gradient', paletteToGradient(palette));
-    paletteLabel.textContent = palette.name;
+    // Update palette preview with CSS variable
+    const gradientCSS = paletteToGradient(palette);
+    document.documentElement.style.setProperty('--preview-gradient', gradientCSS);
+    if (palettePreview) {
+      palettePreview.style.setProperty('--preview-gradient', gradientCSS);
+    }
+    if (paletteLabel) {
+      paletteLabel.textContent = palette.name;
+    }
   };
   rebuildColorStops();
 
+  const EQUALIZER_SHAPE_ID_SIM = 12;
+
   function scheduleShapes(dt, t) {
     if (shapeMode === 'free') {
+      morph = 0.0;
+      isMorphing = false;
+      return;
+    }
+
+    if (shapeMode === 'equalizer') {
+      shapeA = EQUALIZER_SHAPE_ID_SIM;
+      shapeB = EQUALIZER_SHAPE_ID_SIM;
       morph = 0.0;
       isMorphing = false;
       return;
@@ -1636,11 +1693,13 @@
   const modeShapesBtn = document.getElementById('mode-shapes');
   const modeFreeBtn = document.getElementById('mode-free');
   const modeFractalBtn = document.getElementById('mode-fractal');
+  const modeEqualizerBtn = document.getElementById('mode-equalizer');
 
   function updateModeButtons() {
     modeShapesBtn.classList.toggle('active', shapeMode === 'shapes');
     modeFreeBtn.classList.toggle('active', shapeMode === 'free');
     modeFractalBtn.classList.toggle('active', shapeMode === 'fractal');
+    if (modeEqualizerBtn) modeEqualizerBtn.classList.toggle('active', shapeMode === 'equalizer');
   }
 
   function updateCursorLabels() {
@@ -1905,6 +1964,24 @@
     updateModeButtons();
   });
 
+  // Equalizer mode - particles form a plane and oscillate with audio
+  const EQUALIZER_SHAPE_ID = 12;
+  if (modeEqualizerBtn) {
+    modeEqualizerBtn.addEventListener('click', () => {
+      shapeMode = 'equalizer';
+      targetShapeStrength = 1.2;
+      shapeA = EQUALIZER_SHAPE_ID;
+      shapeB = EQUALIZER_SHAPE_ID;
+      morph = 0.0;
+      isMorphing = false;
+      // Enable audio reactivity automatically in equalizer mode
+      audioReactivityEnabled = true;
+      const audioToggle = document.getElementById('audioEnabled');
+      if (audioToggle) audioToggle.checked = true;
+      updateModeButtons();
+    });
+  }
+
   // ==== AUDIO CONTROLS ====
   const audioEnabledToggle = document.getElementById('audioEnabled');
   const enableMicBtn = document.getElementById('enableMic');
@@ -1989,6 +2066,10 @@
       shapes_flight: 'Фигуры и полёт',
       shapes: 'Фигуры',
       modes: 'Режимы',
+      mode_shapes: 'Фигуры',
+      mode_free: 'Свободный полёт',
+      mode_fractal: 'Фракталы',
+      mode_equalizer: 'Эквалайзер',
       colors: 'Цвета',
       color_count: 'Количество цветов',
       shuffle_palette: 'Сменить палитру',
@@ -2024,13 +2105,35 @@
       scatter: 'Разброс / узор',
       color_2: 'цвета',
       color_3_4: 'цвета',
-      color_5_plus: 'цветов'
+      color_5_plus: 'цветов',
+      // Audio reactivity
+      audio_reactivity: 'Аудио-реактивность',
+      audio_hint: 'Частицы реагируют на частотные диапазоны: бас, середина, высокие',
+      enable_audio: 'Включить аудио-реактивность',
+      audio_source: 'Источник звука',
+      use_microphone: 'Микрофон',
+      load_audio_file: 'Загрузить файл',
+      bass: 'Бас',
+      mid: 'Середина',
+      treble: 'Высокие',
+      bass_sensitivity: 'Чувствительность баса',
+      mid_sensitivity: 'Чувствительность середины',
+      treble_sensitivity: 'Чувствительность высоких',
+      // Speed presets
+      speed_slow: 'Медленно (20с)',
+      speed_normal: 'Нормально (15с)',
+      speed_fast: 'Быстро (6с)',
+      speed_custom: 'Свой вариант'
     },
     en: {
       subtitle: 'Morphing particle flow with soft glow, smooth morphing and intuitive controls.',
       shapes_flight: 'Shapes & Flight',
       shapes: 'Shapes',
       modes: 'Modes',
+      mode_shapes: 'Shapes',
+      mode_free: 'Free Flight',
+      mode_fractal: 'Fractals',
+      mode_equalizer: 'Equalizer',
       colors: 'Colors',
       color_count: 'Color count',
       shuffle_palette: 'Shuffle palette',
@@ -2066,7 +2169,25 @@
       scatter: 'Scatter / pattern',
       color_2: 'colors',
       color_3_4: 'colors',
-      color_5_plus: 'colors'
+      color_5_plus: 'colors',
+      // Audio reactivity
+      audio_reactivity: 'Audio Reactivity',
+      audio_hint: 'Particles react to frequency bands: bass, mid, treble',
+      enable_audio: 'Enable audio reactivity',
+      audio_source: 'Audio source',
+      use_microphone: 'Microphone',
+      load_audio_file: 'Load file',
+      bass: 'Bass',
+      mid: 'Mid',
+      treble: 'Treble',
+      bass_sensitivity: 'Bass sensitivity',
+      mid_sensitivity: 'Mid sensitivity',
+      treble_sensitivity: 'Treble sensitivity',
+      // Speed presets
+      speed_slow: 'Slow (20s)',
+      speed_normal: 'Normal (15s)',
+      speed_fast: 'Fast (6s)',
+      speed_custom: 'Custom'
     }
   };
 
@@ -2136,7 +2257,6 @@
   });
 
   // Override updateColorLabels to use translations
-  const originalUpdateColorLabels = updateColorLabels;
   updateColorLabels = function() {
     const count = colorStopCount;
     const t = translations[currentLang];
@@ -2147,13 +2267,6 @@
       plural = count === 1 ? 'color' : t.color_2;
     }
     colorCountValue.textContent = `${count} ${plural}`;
-
-    // Update palette preview
-    const grad = colorStops.map((c, i) => {
-      const pct = (i / (colorStops.length - 1)) * 100;
-      return `rgb(${c[0]}, ${c[1]}, ${c[2]}) ${pct}%`;
-    }).join(', ');
-    palettePreview.style.setProperty('--preview-gradient', `linear-gradient(90deg, ${grad})`);
   };
 
   // Override cursorModeSelect change handler
