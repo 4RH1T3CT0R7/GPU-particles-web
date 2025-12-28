@@ -9,7 +9,7 @@
 
 *A mesmerizing real-time GPU-accelerated particle system that morphs between mathematical shapes with stunning visual effects*
 
-[Live Demo](https://4rh1t3ct0r7.github.io/GPU-particles-web/) • [Features](#-features) • [Getting Started](#-getting-started) • [Controls](#-interactive-controls)
+[Live Demo](https://4RH1T3CT0R7.github.io/GPU-particles-web/) • [Features](#-features) • [Getting Started](#-getting-started) • [Controls](#-interactive-controls)
 
 ---
 

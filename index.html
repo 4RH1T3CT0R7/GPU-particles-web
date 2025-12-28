@@ -187,9 +187,11 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      color: rgba(233, 246, 255, 0.68);
+      color: rgba(233, 246, 255, 0.85);
       font-size: 11px;
+      font-weight: 500;
       margin: 6px 0 10px;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     }
     .hint::before {
       content: "";
@@ -207,10 +209,12 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 6px;
-      color: rgba(233, 246, 255, 0.9);
+      color: #ffffff;
       font-size: 11px;
+      font-weight: 600;
       letter-spacing: 0.04em;
       text-transform: none;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     }
     .shape-buttons {
       display: grid;
@@ -220,9 +224,9 @@
     }
     button {
       padding: 10px 12px;
-      background: linear-gradient(150deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-      border: 1px solid rgba(106, 243, 255, 0.38);
-      color: #f4fbff;
+      background: linear-gradient(150deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+      border: 1.5px solid rgba(106, 243, 255, 0.5);
+      color: #ffffff;
       border-radius: 12px;
       cursor: pointer;
       font-size: 11px;
@@ -231,41 +235,55 @@
       font-weight: 700;
       letter-spacing: 0.02em;
       backdrop-filter: blur(10px);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 14px 32px rgba(0, 0, 0, 0.38);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 14px 32px rgba(0, 0, 0, 0.42);
       position: relative;
       overflow: hidden;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
     button::after {
       content: "";
       position: absolute;
       inset: 0;
-      background: linear-gradient(120deg, rgba(106, 243, 255, 0.18), rgba(174, 123, 255, 0.16));
+      background: linear-gradient(120deg, rgba(106, 243, 255, 0.22), rgba(174, 123, 255, 0.2));
       opacity: 0;
       transition: opacity 0.2s ease;
       pointer-events: none;
     }
     button:hover {
-      background: linear-gradient(150deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08));
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), 0 0 26px rgba(106, 243, 255, 0.35);
+      background: linear-gradient(150deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.12));
+      border-color: rgba(106, 243, 255, 0.7);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), 0 0 26px rgba(106, 243, 255, 0.45);
       transform: translateY(-1px);
     }
     button:hover::after { opacity: 1; }
     button.active {
-      background: linear-gradient(135deg, rgba(106, 243, 255, 0.32), rgba(174, 123, 255, 0.24));
-      color: #041220;
-      border-color: rgba(255, 255, 255, 0.72);
-      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 0 18px rgba(106, 243, 255, 0.55);
+      background: linear-gradient(135deg, rgba(106, 243, 255, 0.45), rgba(174, 123, 255, 0.35));
+      color: #000000;
+      border-color: rgba(106, 243, 255, 0.9);
+      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 0 22px rgba(106, 243, 255, 0.7);
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
     }
     select {
       width: 100%;
       padding: 9px 12px;
-      background: var(--glass-strong);
-      border: 1px solid rgba(106, 243, 255, 0.32);
-      color: #f4fbff;
+      background: rgba(14, 24, 43, 0.95);
+      border: 1.5px solid rgba(106, 243, 255, 0.45);
+      color: #ffffff;
       border-radius: 12px;
       font-size: 11px;
+      font-weight: 600;
       outline: none;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    select:hover {
+      border-color: rgba(106, 243, 255, 0.65);
+      background: rgba(14, 24, 43, 1);
+    }
+    select:focus {
+      border-color: rgba(106, 243, 255, 0.8);
+      box-shadow: 0 0 0 3px rgba(106, 243, 255, 0.15);
     }
     input[type="range"] {
       width: 100%;
@@ -274,9 +292,9 @@
       accent-color: #6af3ff;
     }
     .value-pill {
-      background: rgba(106, 243, 255, 0.08);
-      border: 1px solid rgba(106, 243, 255, 0.22);
-      color: #f6fbff;
+      background: rgba(106, 243, 255, 0.12);
+      border: 1px solid rgba(106, 243, 255, 0.35);
+      color: #ffffff;
       padding: 7px 12px;
       border-radius: 999px;
       font-weight: 700;
@@ -285,9 +303,10 @@
       display: inline-flex;
       gap: 6px;
       align-items: center;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 6px 16px rgba(0, 0, 0, 0.28);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 6px 16px rgba(0, 0, 0, 0.32);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
-    .value-pill strong { color: #c4f1ff; }
+    .value-pill strong { color: #6af3ff; }
     .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
     #manualSpeedGroup {
       border-top: 1px solid rgba(106, 243, 255, 0.14);
@@ -360,9 +379,12 @@
   <div id="controls">
     <div class="panel-header">
       <h3>GPU Shapes</h3>
-      <span class="badge">Live</span>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button id="langToggle" style="padding:6px 10px; font-size:10px; min-width:45px;">EN</button>
+        <span class="badge">Live</span>
+      </div>
     </div>
-    <div class="subtitle">Морфирующий поток частиц с мягким свечением, плавным морфингом и понятными настройками.</div>
+    <div class="subtitle" data-i18n="subtitle">Морфирующий поток частиц с мягким свечением, плавным морфингом и понятными настройками.</div>
     <div class="floating-chips">
       <span class="chip">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3" ry="3"/><path d="M9 9h6v6H9z"/></svg>
@@ -378,14 +400,14 @@
       </span>
     </div>
     <div class="section">
-      <div class="section-title">Фигуры и полёт</div>
+      <div class="section-title" data-i18n="shapes_flight">Фигуры и полёт</div>
       <div class="control-group">
-        <label>Фигуры</label>
+        <label data-i18n="shapes">Фигуры</label>
         <div class="shape-buttons" id="shapeButtons"></div>
       </div>
 
       <div class="control-group">
-        <label>Режимы</label>
+        <label data-i18n="modes">Режимы</label>
         <div class="shape-buttons">
           <button id="mode-shapes" class="active">Shapes</button>
           <button id="mode-free">Free Flight</button>
@@ -395,31 +417,31 @@
     </div>
 
     <div class="section">
-      <div class="section-title">Цвета</div>
+      <div class="section-title" data-i18n="colors">Цвета</div>
       <div class="control-group">
-        <label>Количество цветов <span class="value-pill"><strong id="colorCountValue">3 цвета</strong></span></label>
+        <label><span data-i18n="color_count">Количество цветов</span> <span class="value-pill"><strong id="colorCountValue">3 цвета</strong></span></label>
         <input type="range" id="colorCount" min="2" max="6" step="1" value="3">
       </div>
       <div class="control-group">
         <div class="palette-row">
           <div class="palette-preview" id="palettePreview"></div>
           <div class="palette-label" id="paletteLabel">Palette 1</div>
-          <button id="shufflePalette">Сменить палитру</button>
+          <button id="shufflePalette" data-i18n="shuffle_palette">Сменить палитру</button>
         </div>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-title">Морфинг фигур</div>
+      <div class="section-title" data-i18n="shape_morphing">Морфинг фигур</div>
       <div class="control-group">
         <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
           <input type="checkbox" id="autoToggle" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
-          Автоматически переключать фигуры
+          <span data-i18n="auto_switch">Автоматически переключать фигуры</span>
         </label>
       </div>
 
       <div class="control-group">
-        <label>Скорость автоперехода</label>
+        <label data-i18n="auto_speed">Скорость автоперехода</label>
         <select id="speedControl">
           <option value="slow">Slow (20s)</option>
           <option value="normal" selected>Normal (15s)</option>
@@ -429,80 +451,80 @@
       </div>
 
       <div class="control-group" id="manualSpeedGroup" style="display:none;">
-        <label>Custom transition (seconds) <span class="value-pill"><strong id="speedValue">15s</strong></span></label>
+        <label><span data-i18n="custom_transition">Custom transition (seconds)</span> <span class="value-pill"><strong id="speedValue">15s</strong></span></label>
         <input type="range" id="manualSpeed" min="4" max="30" step="0.5" value="15">
       </div>
 
       <div class="control-group">
-        <label>Притяжение к фигуре <span class="value-pill">Сила: <strong id="shapeForceValue">0.95x</strong></span></label>
+        <label><span data-i18n="shape_attraction">Притяжение к фигуре</span> <span class="value-pill"><span data-i18n="force">Сила</span>: <strong id="shapeForceValue">0.95x</strong></span></label>
         <input type="range" id="shapeAttraction" min="0.25" max="1.4" step="0.05" value="0.95">
       </div>
     </div>
 
     <div class="section">
-      <div class="section-title">Активный курсор</div>
-      <div class="hint">ЛКМ — воздействие курсора, ПКМ — вращение камеры</div>
+      <div class="section-title" data-i18n="active_cursor">Активный курсор</div>
+      <div class="hint" data-i18n="cursor_hint">ЛКМ — воздействие курсора, ПКМ — вращение камеры</div>
       <div class="control-group">
         <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
           <input type="checkbox" id="cursorActive" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
-          Включить курсор
+          <span data-i18n="enable_cursor">Включить курсор</span>
         </label>
           <div class="pill-row">
-            <span class="value-pill">Режим: <strong id="cursorModeLabel">Притягивать</strong></span>
-            <span class="value-pill">Радиус: <strong id="cursorRadiusLabel">1.00</strong></span>
+            <span class="value-pill"><span data-i18n="mode">Режим</span>: <strong id="cursorModeLabel">Притягивать</strong></span>
+            <span class="value-pill"><span data-i18n="radius">Радиус</span>: <strong id="cursorRadiusLabel">1.00</strong></span>
           </div>
         </div>
 
       <div class="control-group">
-        <label>Тип взаимодействия</label>
+        <label data-i18n="interaction_type">Тип взаимодействия</label>
         <select id="cursorMode">
-          <option value="attract" selected>Притягивать частицы</option>
-          <option value="repel">Отталкивать и разгонять</option>
-          <option value="vortex-left">Вихрь (левый закрут)</option>
-          <option value="vortex-right">Вихрь (правый закрут)</option>
-          <option value="pulse">Пульсирующий импульс</option>
-          <option value="quasar">Квазар</option>
-          <option value="magnet">Магнитный поток</option>
+          <option value="attract" selected data-i18n-opt="cursor_attract">Притягивать частицы</option>
+          <option value="repel" data-i18n-opt="cursor_repel">Отталкивать и разгонять</option>
+          <option value="vortex-left" data-i18n-opt="cursor_vortex_left">Вихрь (левый закрут)</option>
+          <option value="vortex-right" data-i18n-opt="cursor_vortex_right">Вихрь (правый закрут)</option>
+          <option value="pulse" data-i18n-opt="cursor_pulse">Пульсирующий импульс</option>
+          <option value="quasar" data-i18n-opt="cursor_quasar">Квазар</option>
+          <option value="magnet" data-i18n-opt="cursor_magnet">Магнитный поток</option>
         </select>
       </div>
 
       <div class="control-group">
-        <label>Сила курсора <span class="value-pill"><strong id="cursorStrengthValue">1.10x</strong></span></label>
+        <label><span data-i18n="cursor_strength">Сила курсора</span> <span class="value-pill"><strong id="cursorStrengthValue">1.10x</strong></span></label>
         <input type="range" id="cursorStrength" min="0.25" max="3.0" step="0.05" value="1.10">
       </div>
 
       <div class="control-group">
-        <label>Радиус влияния <span class="value-pill"><strong id="cursorRadiusValue">1.00</strong></span></label>
+        <label><span data-i18n="influence_radius">Радиус влияния</span> <span class="value-pill"><strong id="cursorRadiusValue">1.00</strong></span></label>
         <input type="range" id="cursorRadius" min="0.4" max="2.4" step="0.05" value="1.0">
         <label style="display:flex; align-items:center; gap:8px; margin-top:6px; text-transform:none; font-weight:600; color:#bdefff;">
           <input type="checkbox" id="cursorPulse" checked style="width:15px; height:15px; accent-color:#7ee0ff;">
-          Пульсирующий импульс при зажатии
+          <span data-i18n="pulse_on_press">Пульсирующий импульс при зажатии</span>
         </label>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-title">Частицы</div>
+      <div class="section-title" data-i18n="particles">Частицы</div>
       <div class="control-group">
-        <label>Количество частиц</label>
+        <label data-i18n="particle_count_label">Количество частиц</label>
         <input type="range" id="particleCount" min="128" max="384" step="64" value="256">
         <div class="pill-row">
           <span class="value-pill">Texture: <strong id="particleTextureLabel">256 × 256</strong></span>
-          <span class="value-pill">~<strong id="particleCountValue">65 536</strong> частиц</span>
-          <span class="value-pill">Активно: <strong id="particleCountLabel">65 536</strong></span>
+          <span class="value-pill">~<strong id="particleCountValue">65 536</strong> <span data-i18n="particles_word">частиц</span></span>
+          <span class="value-pill"><span data-i18n="active">Активно</span>: <strong id="particleCountLabel">65 536</strong></span>
         </div>
       </div>
 
       <div class="control-group">
-        <label>Скорость частиц <span class="value-pill"><strong id="particleSpeedValue">1.0x</strong></span></label>
+        <label><span data-i18n="particle_speed">Скорость частиц</span> <span class="value-pill"><strong id="particleSpeedValue">1.0x</strong></span></label>
         <input type="range" id="particleSpeed" min="0" max="5" step="0.1" value="1">
       </div>
 
       <div class="control-group">
-        <label>Быстрые действия</label>
+        <label data-i18n="quick_actions">Быстрые действия</label>
         <div class="shape-buttons">
-          <button id="resetFlow">Сбросить</button>
-          <button id="scatterFlow">Разброс / узор</button>
+          <button id="resetFlow" data-i18n="reset">Сбросить</button>
+          <button id="scatterFlow" data-i18n="scatter">Разброс / узор</button>
         </div>
       </div>
     </div>

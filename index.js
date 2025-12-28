@@ -412,40 +412,46 @@
     // ==== БАЗОВАЯ ШТОРМОВАЯ ФИЗИКА ====
     float structure = smoothstep(0.1, 0.95, u_shapeStrength);
     float calmFactor = smoothstep(0.55, 1.05, u_shapeStrength);
-    vec2 curlLarge = curl(pos.xy * 0.6 + u_time * 0.12);
-    vec2 curlMid   = curl(pos.xy * 1.5 - u_time * 0.18);
-    vec2 curlFine  = curl(pos.xy * 4.5 + u_time * 0.35 + idHash*6.0);
+
+    // Увеличенные завихрения для более активного движения песка
+    vec2 curlLarge = curl(pos.xy * 0.6 + u_time * 0.18) * 1.4;
+    vec2 curlMid   = curl(pos.xy * 1.5 - u_time * 0.24) * 1.2;
+    vec2 curlFine  = curl(pos.xy * 4.5 + u_time * 0.45 + idHash*6.0);
     vec2 curlCascade = vec2(0.0);
-    float amp = 1.2;
+    float amp = 1.6;
     float freq = 0.9;
     for(int i=0;i<4;i++){
-      curlCascade += curl(pos.xy * freq + u_time * (0.14 + float(i)*0.07) + layerHash*3.1) * amp;
+      curlCascade += curl(pos.xy * freq + u_time * (0.18 + float(i)*0.09) + layerHash*3.1) * amp;
       freq *= 1.8;
-      amp *= 0.6;
+      amp *= 0.65;
     }
-    vec2 swirl = (curlLarge * 1.2 + curlMid * 0.75 + curlFine * 0.45 + curlCascade * 0.45);
+    vec2 swirl = (curlLarge * 1.5 + curlMid * 1.0 + curlFine * 0.6 + curlCascade * 0.7);
 
-    vec2 vortexCenter = vec2(sin(u_time*0.17), cos(u_time*0.21))*0.8;
-    vec2 rel = pos.xy - vortexCenter;
-    float r2 = max(0.08, dot(rel, rel));
-    vec2 vortex = vec2(-rel.y, rel.x) / r2 * 0.9;
+    // Множественные вихри для эффекта песчаной бури
+    vec2 vortexCenter1 = vec2(sin(u_time*0.17), cos(u_time*0.21))*0.8;
+    vec2 vortexCenter2 = vec2(cos(u_time*0.13 + 2.1), sin(u_time*0.19 + 1.3))*0.6;
+    vec2 rel1 = pos.xy - vortexCenter1;
+    vec2 rel2 = pos.xy - vortexCenter2;
+    float r2_1 = max(0.08, dot(rel1, rel1));
+    float r2_2 = max(0.08, dot(rel2, rel2));
+    vec2 vortex = vec2(-rel1.y, rel1.x) / r2_1 * 1.2 + vec2(-rel2.y, rel2.x) / r2_2 * 0.8;
 
-    vec2 gust = curl(pos.xy * 3.5 + idHash*10.0 + u_time*0.6) * 1.4;
-    vec2 wind = normalize(vec2(1.0, 0.3)) * (0.2 + 0.4*sin(u_time*0.6 + idHash*5.0));
-    vec2 shimmer = normalize(curl(pos.xy * 6.0 + u_time*0.9 + layerHash*2.4));
+    vec2 gust = curl(pos.xy * 3.5 + idHash*10.0 + u_time*0.8) * 2.0;
+    vec2 wind = normalize(vec2(1.0, 0.3)) * (0.3 + 0.6*sin(u_time*0.6 + idHash*5.0));
+    vec2 shimmer = normalize(curl(pos.xy * 6.0 + u_time*1.2 + layerHash*2.4));
 
-    vec2 baseFlow = swirl + gust * mix(0.4, 0.7, 1.0 - calmFactor);
-    vec2 dampedFlow = mix(baseFlow, swirl * 0.35, calmFactor);
-    vec2 stormFlow = mix(dampedFlow + vortex * 0.8 + wind + shimmer*0.35, baseFlow + vortex + gust*0.6 + wind + shimmer*0.4, 1.0 - structure);
+    vec2 baseFlow = swirl + gust * mix(0.6, 0.9, 1.0 - calmFactor);
+    vec2 dampedFlow = mix(baseFlow, swirl * 0.5, calmFactor);
+    vec2 stormFlow = mix(dampedFlow + vortex * 1.1 + wind * 1.3 + shimmer*0.5, baseFlow + vortex * 1.4 + gust*0.8 + wind * 1.5 + shimmer*0.6, 1.0 - structure);
 
     vec3 flow = vec3(stormFlow, 0.0);
-    float liftNoise = fbm(pos.xy * 0.8 + u_time * 0.2 + layerHash*1.7);
-    flow.z = sin(u_time*0.4 + pos.x*2.0 + pos.y*1.3) * 0.6 + sin(u_time*0.7 + layerHash*6.28)*0.3 + liftNoise*0.8;
+    float liftNoise = fbm(pos.xy * 0.8 + u_time * 0.3 + layerHash*1.7);
+    flow.z = sin(u_time*0.5 + pos.x*2.2 + pos.y*1.5) * 0.8 + sin(u_time*0.9 + layerHash*6.28)*0.5 + liftNoise*1.1;
 
-    vec3 acc = flow * mix(1.05, 1.42, 1.0 - structure);
-    acc.y -= 0.32; // лёгкая гравитация
-    acc *= 1.0 + 0.28*sin(u_time*0.25 + idHash*6.0);
-    acc += normalize(vec3(swirl, 0.15)) * mix(0.12, 0.2, calmFactor); // легкая закрутка в 3D
+    vec3 acc = flow * mix(1.4, 1.8, 1.0 - structure);
+    acc.y -= 0.25; // облегчённая гравитация для более свободного полёта
+    acc *= 1.0 + 0.4*sin(u_time*0.3 + idHash*6.0);
+    acc += normalize(vec3(swirl, 0.2)) * mix(0.18, 0.3, calmFactor); // усиленная закрутка в 3D
 
     // Дополнительная буря: песчаные слои, сдвиг по высоте и трение
     float altitude = clamp(pos.y * 0.35 + 0.5, 0.0, 1.0);
@@ -482,57 +488,58 @@
     float dist = max(0.08, length(toShape));
     vec3 surfaceNormal = normalize(toShape + vec3(0.001, 0.002, 0.003));
     vec3 tangential = normalize(cross(surfaceNormal, vec3(0.0, 1.0, 0.0)) + 0.4 * cross(surfaceNormal, vec3(1.0, 0.0, 0.0)));
-    vec3 swirlAroundShape = tangential * (0.45 + 0.35 * liftNoise) * shapeWeight * (0.65 + 0.5 * calmFactor);
+    vec3 swirlAroundShape = tangential * (0.6 + 0.5 * liftNoise) * shapeWeight * (0.85 + 0.7 * calmFactor);
 
-    vec3 shapeForce = toShape * (0.78 + 0.7 * calmFactor) * shapeWeight / (1.0 + dist*dist*0.36);
-    shapeForce += swirlAroundShape * 0.85;
+    // Усиленное притяжение к фигурам для лучшего формирования
+    vec3 shapeForce = toShape * (1.4 + 1.2 * calmFactor) * shapeWeight / (1.0 + dist*dist*0.25);
+    shapeForce += swirlAroundShape * 1.3;
 
     float cohesion = smoothstep(0.0, 0.9, shapeWeight);
-    acc = mix(acc, acc * 0.55 + shapeForce * 1.05, cohesion * 0.9);
-    acc += shapeForce * 0.22;
-    vel *= mix(0.97, 0.92, cohesion * calmFactor);
+    acc = mix(acc, acc * 0.45 + shapeForce * 1.8, cohesion * 1.1);
+    acc += shapeForce * 0.5;
+    vel *= mix(0.97, 0.90, cohesion * calmFactor);
 
-    // ==== АКТИВНЫЙ КУРСОР ====
+    // ==== АКТИВНЫЙ КУРСОР (уменьшенная сила) ====
     if (u_pointerActive > 0.5) {
       vec3 toPointer = u_pointerPos - pos;
       float distPointer = length(toPointer);
       float radius = max(0.12, u_pointerRadius);
       float falloff = exp(-pow(distPointer / radius, 1.35));
-      float pressBoost = mix(0.68, 1.4, u_pointerPress);
-      float base = u_pointerStrength * pressBoost * falloff;
+      float pressBoost = mix(0.5, 1.0, u_pointerPress);
+      float base = u_pointerStrength * pressBoost * falloff * 0.4; // глобальное снижение силы
       vec3 dirP = toPointer / max(distPointer, 0.001);
       float jitter = hash11(idHash * 91.0);
 
       float pulseWave = 0.65 + 0.35 * sin(u_time * 3.5 + jitter * 7.0);
       if (u_pointerMode == 0) {
-        // Притяжение/захват
-        acc += dirP * base * 1.45;
-        vel += dirP * base * 0.5;
+        // Притяжение/захват (уменьшено)
+        acc += dirP * base * 0.8;
+        vel += dirP * base * 0.25;
       } else if (u_pointerMode == 1) {
-        // Отталкивание и разгон
-        acc -= dirP * base * 2.15;
-        acc += vec3(dirP.y, -dirP.x, 0.2) * base * 1.75;
-        vel *= 0.975;
+        // Отталкивание и разгон (уменьшено)
+        acc -= dirP * base * 1.1;
+        acc += vec3(dirP.y, -dirP.x, 0.2) * base * 0.9;
+        vel *= 0.985;
       } else if (u_pointerMode == 2 || u_pointerMode == 3) {
-        // Вихревой закрут в обе стороны
+        // Вихревой закрут в обе стороны (уменьшено)
         float spin = (u_pointerMode == 2 ? -1.0 : 1.0);
         vec3 tangent = vec3(dirP.y * spin, -dirP.x * spin, dirP.z * 0.35 * spin);
-        float spiralBoost = 1.6 + pulseWave * 1.4;
-        acc += tangent * base * (3.8 * spiralBoost);
-        acc += dirP * base * (0.9 + 0.8 * pulseWave);
-        vel = mix(vel, vel + tangent * base * 0.75, 0.35 + 0.25 * pulseWave);
+        float spiralBoost = 1.2 + pulseWave * 0.8;
+        acc += tangent * base * (1.8 * spiralBoost);
+        acc += dirP * base * (0.5 + 0.4 * pulseWave);
+        vel = mix(vel, vel + tangent * base * 0.4, 0.25 + 0.15 * pulseWave);
       } else if (u_pointerMode == 4) {
-        // Импульсные всплески
+        // Импульсные всплески (уменьшено)
         float pulsePhase = u_time * 4.2 + jitter * 9.0;
         float carrier = 0.55 + 0.45 * sin(pulsePhase);
         float burst = smoothstep(-0.1, 0.9, sin(pulsePhase * 0.7 + 1.2));
-        float pulse = 0.6 + carrier + (u_pointerPulse > 0.5 ? burst * 1.6 : carrier * 0.35);
+        float pulse = 0.6 + carrier + (u_pointerPulse > 0.5 ? burst * 1.0 : carrier * 0.25);
         vec3 swirl = normalize(vec3(-dirP.y, dirP.x, dirP.z * 0.4));
-        acc -= dirP * base * (1.8 + burst * 1.3);
-        acc += swirl * base * (1.4 + burst * 1.8);
-        vel = mix(vel, vel - dirP * base * 0.9 + swirl * base * 0.6, 0.45 * pulse);
+        acc -= dirP * base * (1.0 + burst * 0.7);
+        acc += swirl * base * (0.8 + burst * 1.0);
+        vel = mix(vel, vel - dirP * base * 0.5 + swirl * base * 0.35, 0.3 * pulse);
       } else if (u_pointerMode == 6) {
-        // Квазар: аккреционный диск + двусторонние струи
+        // Квазар: аккреционный диск + двусторонние струи (уменьшено)
         vec3 axis = normalize(u_viewDir * 0.45 + vec3(0.0, 1.0, 0.35));
         vec3 r = pos - u_pointerPos;
         float rLen = max(0.06, length(r));
@@ -544,13 +551,13 @@
         float jetWeight = smoothstep(0.35, 0.95, abs(axial));
         float funnel = 1.4 / (1.0 + pow(rLen / radius, 1.4));
 
-        acc -= radial * base * (0.8 * diskWeight);
-        acc += axis * base * (1.9 * jetWeight * sign(axial));
-        acc += swirlDir * base * (2.6 * diskWeight + 0.8 * jetWeight);
-        acc += diskDir * base * (1.1 * diskWeight * funnel);
-        vel = mix(vel, vel + swirlDir * 0.85 + axis * jetWeight * 1.1, 0.35 * falloff);
+        acc -= radial * base * (0.5 * diskWeight);
+        acc += axis * base * (1.1 * jetWeight * sign(axial));
+        acc += swirlDir * base * (1.4 * diskWeight + 0.5 * jetWeight);
+        acc += diskDir * base * (0.7 * diskWeight * funnel);
+        vel = mix(vel, vel + swirlDir * 0.5 + axis * jetWeight * 0.6, 0.25 * falloff);
       } else {
-        // Магнитные дуги с лёгким свирлом
+        // Магнитные дуги с лёгким свирлом (уменьшено)
         vec3 axis = normalize(u_viewDir * 0.6 + vec3(0.0, 1.0, 0.4));
         vec3 r = pos - u_pointerPos;
         float rLen = max(0.08, length(r));
@@ -560,11 +567,11 @@
         dipole = clamp(dipole, -vec3(8.0), vec3(8.0));
         vec3 swirlDir = normalize(cross(dipole, axis) + 0.35 * cross(dirP, axis));
         float fluxFalloff = 1.0 / (1.0 + pow(rLen / (radius * 1.2), 2.0));
-        float repel = 0.6 + 0.7 * (1.0 - fluxFalloff);
-        acc += dipole * base * (1.4 * fluxFalloff);
-        acc += swirlDir * base * (2.35 * fluxFalloff);
+        float repel = 0.4 + 0.5 * (1.0 - fluxFalloff);
+        acc += dipole * base * (0.8 * fluxFalloff);
+        acc += swirlDir * base * (1.3 * fluxFalloff);
         acc -= dirP * base * repel;
-        vel = mix(vel, vel - dirP * base * 0.55 + dipole * 0.4, 0.42 * falloff);
+        vel = mix(vel, vel - dirP * base * 0.35 + dipole * 0.25, 0.3 * falloff);
       }
     }
 
@@ -575,23 +582,35 @@
       acc -= pos / distCenter * (distCenter - roamRadius) * 0.6;
     }
 
-    // ==== AUDIO REACTIVITY ====
-    float audioBoost = 1.0 + u_audioEnergy * 0.5;
+    // ==== AUDIO REACTIVITY (усиленная) ====
+    float audioBoost = 1.0 + u_audioEnergy * 1.2;
     acc *= audioBoost;
 
-    // Bass adds outward pulsing force
-    float bassForce = u_audioBass * 2.5;
+    // Bass adds outward pulsing force (усилено)
+    float bassForce = u_audioBass * 4.5;
     vec3 outward = normalize(pos - desired) + vec3(0.001);
     acc += outward * bassForce;
+    // Дополнительная пульсация для басов
+    vel += outward * u_audioBass * 0.8;
 
-    // Mid frequencies add swirling motion
+    // Mid frequencies add swirling motion (усилено)
     float midAngle = u_audioMid * 3.14159 + u_time;
     vec2 midSwirl = vec2(cos(midAngle), sin(midAngle));
-    acc += vec3(midSwirl * u_audioMid * 1.8, 0.0);
+    acc += vec3(midSwirl * u_audioMid * 3.2, 0.0);
+    // Добавляем вращательный момент
+    vec3 midTangent = vec3(-midSwirl.y, midSwirl.x, sin(u_time * 2.0) * 0.5);
+    acc += midTangent * u_audioMid * 2.0;
 
-    // Treble adds vertical lift and sparkle
-    acc.y += u_audioTreble * 2.2;
-    acc += vec3(0.0, 0.0, sin(u_time * 5.0 + idHash * 6.28) * u_audioTreble * 1.5);
+    // Treble adds vertical lift and sparkle (усилено)
+    acc.y += u_audioTreble * 3.8;
+    acc += vec3(0.0, 0.0, sin(u_time * 5.0 + idHash * 6.28) * u_audioTreble * 2.5);
+    // Дополнительные искорки для высоких частот
+    vec3 sparkle = vec3(
+      sin(u_time * 7.0 + idHash * 12.56),
+      cos(u_time * 8.0 + layerHash * 9.42),
+      sin(u_time * 6.0 + idHash * 15.7)
+    ) * u_audioTreble * 1.8;
+    acc += sparkle;
 
     // Интеграция
     float simDt = u_dt * u_speedMultiplier;
@@ -1963,11 +1982,196 @@
   // Скрываем регулятор при загрузке
   manualGroup.style.display = 'none';
 
+  // ==== LANGUAGE SWITCHING ====
+  const translations = {
+    ru: {
+      subtitle: 'Морфирующий поток частиц с мягким свечением, плавным морфингом и понятными настройками.',
+      shapes_flight: 'Фигуры и полёт',
+      shapes: 'Фигуры',
+      modes: 'Режимы',
+      colors: 'Цвета',
+      color_count: 'Количество цветов',
+      shuffle_palette: 'Сменить палитру',
+      shape_morphing: 'Морфинг фигур',
+      auto_switch: 'Автоматически переключать фигуры',
+      auto_speed: 'Скорость автоперехода',
+      custom_transition: 'Настраиваемый переход (секунды)',
+      shape_attraction: 'Притяжение к фигуре',
+      force: 'Сила',
+      active_cursor: 'Активный курсор',
+      cursor_hint: 'ЛКМ — воздействие курсора, ПКМ — вращение камеры',
+      enable_cursor: 'Включить курсор',
+      mode: 'Режим',
+      radius: 'Радиус',
+      interaction_type: 'Тип взаимодействия',
+      cursor_attract: 'Притягивать частицы',
+      cursor_repel: 'Отталкивать и разгонять',
+      cursor_vortex_left: 'Вихрь (левый закрут)',
+      cursor_vortex_right: 'Вихрь (правый закрут)',
+      cursor_pulse: 'Пульсирующий импульс',
+      cursor_quasar: 'Квазар',
+      cursor_magnet: 'Магнитный поток',
+      cursor_strength: 'Сила курсора',
+      influence_radius: 'Радиус влияния',
+      pulse_on_press: 'Пульсирующий импульс при зажатии',
+      particles: 'Частицы',
+      particle_count_label: 'Количество частиц',
+      particles_word: 'частиц',
+      active: 'Активно',
+      particle_speed: 'Скорость частиц',
+      quick_actions: 'Быстрые действия',
+      reset: 'Сбросить',
+      scatter: 'Разброс / узор',
+      color_2: 'цвета',
+      color_3_4: 'цвета',
+      color_5_plus: 'цветов'
+    },
+    en: {
+      subtitle: 'Morphing particle flow with soft glow, smooth morphing and intuitive controls.',
+      shapes_flight: 'Shapes & Flight',
+      shapes: 'Shapes',
+      modes: 'Modes',
+      colors: 'Colors',
+      color_count: 'Color count',
+      shuffle_palette: 'Shuffle palette',
+      shape_morphing: 'Shape Morphing',
+      auto_switch: 'Automatically switch shapes',
+      auto_speed: 'Auto-transition speed',
+      custom_transition: 'Custom transition (seconds)',
+      shape_attraction: 'Shape attraction',
+      force: 'Force',
+      active_cursor: 'Active Cursor',
+      cursor_hint: 'LMB — cursor interaction, RMB — rotate camera',
+      enable_cursor: 'Enable cursor',
+      mode: 'Mode',
+      radius: 'Radius',
+      interaction_type: 'Interaction type',
+      cursor_attract: 'Attract particles',
+      cursor_repel: 'Repel and accelerate',
+      cursor_vortex_left: 'Vortex (left spin)',
+      cursor_vortex_right: 'Vortex (right spin)',
+      cursor_pulse: 'Pulsing burst',
+      cursor_quasar: 'Quasar',
+      cursor_magnet: 'Magnetic flow',
+      cursor_strength: 'Cursor strength',
+      influence_radius: 'Influence radius',
+      pulse_on_press: 'Pulse on press',
+      particles: 'Particles',
+      particle_count_label: 'Particle count',
+      particles_word: 'particles',
+      active: 'Active',
+      particle_speed: 'Particle speed',
+      quick_actions: 'Quick actions',
+      reset: 'Reset',
+      scatter: 'Scatter / pattern',
+      color_2: 'colors',
+      color_3_4: 'colors',
+      color_5_plus: 'colors'
+    }
+  };
+
+  let currentLang = 'ru'; // Начинаем с русского
+
+  function updateCursorModeLabel() {
+    const modeNames = {
+      ru: {
+        attract: 'Притягивать',
+        repel: 'Отталкивать',
+        'vortex-left': 'Вихрь (левый)',
+        'vortex-right': 'Вихрь (правый)',
+        pulse: 'Пульсация',
+        quasar: 'Квазар',
+        magnet: 'Магнитный'
+      },
+      en: {
+        attract: 'Attract',
+        repel: 'Repel',
+        'vortex-left': 'Vortex (left)',
+        'vortex-right': 'Vortex (right)',
+        pulse: 'Pulse',
+        quasar: 'Quasar',
+        magnet: 'Magnetic'
+      }
+    };
+    cursorModeLabel.textContent = modeNames[currentLang][pointerState.mode] || modeNames[currentLang]['attract'];
+  }
+
+  function switchLanguage(lang) {
+    currentLang = lang;
+    const t = translations[lang];
+
+    // Update all elements with data-i18n attribute
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (t[key]) {
+        el.textContent = t[key];
+      }
+    });
+
+    // Update option elements
+    document.querySelectorAll('[data-i18n-opt]').forEach(el => {
+      const key = el.getAttribute('data-i18n-opt');
+      if (t[key]) {
+        el.textContent = t[key];
+      }
+    });
+
+    // Update color count label with proper pluralization
+    updateColorLabels();
+
+    // Update cursor mode label
+    updateCursorModeLabel();
+
+    // Update language button text
+    const langBtn = document.getElementById('langToggle');
+    langBtn.textContent = lang === 'ru' ? 'EN' : 'РУ';
+
+    console.log('✓ Язык переключен на:', lang === 'ru' ? 'русский' : 'english');
+  }
+
+  // Language toggle button
+  const langToggle = document.getElementById('langToggle');
+  langToggle.addEventListener('click', () => {
+    switchLanguage(currentLang === 'ru' ? 'en' : 'ru');
+  });
+
+  // Override updateColorLabels to use translations
+  const originalUpdateColorLabels = updateColorLabels;
+  updateColorLabels = function() {
+    const count = colorStopCount;
+    const t = translations[currentLang];
+    let plural;
+    if (currentLang === 'ru') {
+      plural = count === 1 ? 'цвет' : (count >= 2 && count <= 4 ? t.color_3_4 : t.color_5_plus);
+    } else {
+      plural = count === 1 ? 'color' : t.color_2;
+    }
+    colorCountValue.textContent = `${count} ${plural}`;
+
+    // Update palette preview
+    const grad = colorStops.map((c, i) => {
+      const pct = (i / (colorStops.length - 1)) * 100;
+      return `rgb(${c[0]}, ${c[1]}, ${c[2]}) ${pct}%`;
+    }).join(', ');
+    palettePreview.style.setProperty('--preview-gradient', `linear-gradient(90deg, ${grad})`);
+  };
+
+  // Override cursorModeSelect change handler
+  cursorModeSelect.addEventListener('change', (e) => {
+    const mode = e.target.value;
+    pointerState.mode = mode;
+    updateCursorModeLabel();
+  });
+
   updateShapeButtons();
   updateModeButtons();
   updateParticleLabels();
   updateShapeForceLabel();
   updateCursorLabels();
   updateColorLabels();
+
+  // Initialize with Russian
+  switchLanguage('ru');
+
   console.log('✓ UI инициализирован успешно!');
 })();
