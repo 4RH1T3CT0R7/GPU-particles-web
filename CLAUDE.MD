@@ -6,7 +6,7 @@ This document provides guidance for Claude (and other AI assistants) when workin
 
 **GPU Particle Shapes** is a WebGL2-powered particle system that renders 65,000+ particles in real-time, creating fluid morphing clouds that transition between various 3D mathematical shapes. The project is built with vanilla JavaScript and requires no external dependencies.
 
-**Live Demo:** [GPU Particle Shapes](https://github.com/4RH1T3CT0R7/GPU-particles-web)
+**Live Demo:** [GPU Particle Shapes](https://4rh1t3ct0r7.github.io/GPU-particles-web/)
 
 ## Core Technologies
 
