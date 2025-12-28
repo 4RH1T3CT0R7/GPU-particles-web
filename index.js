@@ -374,6 +374,10 @@
   uniform float u_pointerPulse;
   uniform vec3 u_viewDir;
   uniform vec4 u_fractalSeeds[2];
+  uniform float u_audioBass;
+  uniform float u_audioMid;
+  uniform float u_audioTreble;
+  uniform float u_audioEnergy;
   layout(location=0) out vec4 o_pos;
   layout(location=1) out vec4 o_vel;
   in vec2 v_uv;
@@ -570,6 +574,24 @@
     if (distCenter > roamRadius){
       acc -= pos / distCenter * (distCenter - roamRadius) * 0.6;
     }
+
+    // ==== AUDIO REACTIVITY ====
+    float audioBoost = 1.0 + u_audioEnergy * 0.5;
+    acc *= audioBoost;
+
+    // Bass adds outward pulsing force
+    float bassForce = u_audioBass * 2.5;
+    vec3 outward = normalize(pos - desired) + vec3(0.001);
+    acc += outward * bassForce;
+
+    // Mid frequencies add swirling motion
+    float midAngle = u_audioMid * 3.14159 + u_time;
+    vec2 midSwirl = vec2(cos(midAngle), sin(midAngle));
+    acc += vec3(midSwirl * u_audioMid * 1.8, 0.0);
+
+    // Treble adds vertical lift and sparkle
+    acc.y += u_audioTreble * 2.2;
+    acc += vec3(0.0, 0.0, sin(u_time * 5.0 + idHash * 6.28) * u_audioTreble * 1.5);
 
     // Интеграция
     float simDt = u_dt * u_speedMultiplier;
@@ -1048,6 +1070,120 @@
   };
 
   const POINTER_MODES = ['attract', 'repel', 'vortex-left', 'vortex-right', 'pulse', 'magnet', 'quasar'];
+
+  // ==== AUDIO REACTIVITY ====
+  let audioContext = null;
+  let audioAnalyser = null;
+  let audioDataArray = null;
+  let audioSource = null;
+  let audioEnabled = false;
+  let audioReactivityEnabled = false;
+  let audioSensitivity = {
+    bass: 1.0,
+    mid: 1.0,
+    treble: 1.0
+  };
+  let audioState = {
+    bass: 0,
+    mid: 0,
+    treble: 0,
+    energy: 0,
+    smoothBass: 0,
+    smoothMid: 0,
+    smoothTreble: 0,
+    smoothEnergy: 0
+  };
+
+  const initAudio = async (stream) => {
+    try {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      audioAnalyser = audioContext.createAnalyser();
+      audioAnalyser.fftSize = 512;
+      audioAnalyser.smoothingTimeConstant = 0.7;
+
+      const bufferLength = audioAnalyser.frequencyBinCount;
+      audioDataArray = new Uint8Array(bufferLength);
+
+      if (stream) {
+        // Microphone input
+        audioSource = audioContext.createMediaStreamSource(stream);
+      } else {
+        // File input will be handled separately
+        return;
+      }
+
+      audioSource.connect(audioAnalyser);
+      audioEnabled = true;
+      console.log('✓ Audio initialized');
+    } catch (err) {
+      console.error('Audio initialization failed:', err);
+      audioEnabled = false;
+    }
+  };
+
+  const initAudioFromFile = (audioElement) => {
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    audioAnalyser = audioContext.createAnalyser();
+    audioAnalyser.fftSize = 512;
+    audioAnalyser.smoothingTimeConstant = 0.7;
+
+    const bufferLength = audioAnalyser.frequencyBinCount;
+    audioDataArray = new Uint8Array(bufferLength);
+
+    if (audioSource) {
+      audioSource.disconnect();
+    }
+
+    audioSource = audioContext.createMediaElementSource(audioElement);
+    audioSource.connect(audioAnalyser);
+    audioAnalyser.connect(audioContext.destination);
+    audioEnabled = true;
+    console.log('✓ Audio from file initialized');
+  };
+
+  const updateAudioAnalysis = () => {
+    if (!audioEnabled || !audioReactivityEnabled || !audioAnalyser || !audioDataArray) {
+      audioState.smoothBass += (0 - audioState.smoothBass) * 0.1;
+      audioState.smoothMid += (0 - audioState.smoothMid) * 0.1;
+      audioState.smoothTreble += (0 - audioState.smoothTreble) * 0.1;
+      audioState.smoothEnergy += (0 - audioState.smoothEnergy) * 0.1;
+      return;
+    }
+
+    audioAnalyser.getByteFrequencyData(audioDataArray);
+
+    const bassEnd = Math.floor(audioDataArray.length * 0.1);
+    const midEnd = Math.floor(audioDataArray.length * 0.4);
+
+    let bass = 0, mid = 0, treble = 0;
+    for (let i = 0; i < bassEnd; i++) bass += audioDataArray[i];
+    for (let i = bassEnd; i < midEnd; i++) mid += audioDataArray[i];
+    for (let i = midEnd; i < audioDataArray.length; i++) treble += audioDataArray[i];
+
+    bass /= (bassEnd * 255);
+    mid /= ((midEnd - bassEnd) * 255);
+    treble /= ((audioDataArray.length - midEnd) * 255);
+
+    // Apply sensitivity multipliers
+    bass *= audioSensitivity.bass;
+    mid *= audioSensitivity.mid;
+    treble *= audioSensitivity.treble;
+
+    // Clamp values to 0-1 range
+    bass = Math.min(1.0, bass);
+    mid = Math.min(1.0, mid);
+    treble = Math.min(1.0, treble);
+
+    const energy = (bass + mid + treble) / 3;
+
+    const smoothing = 0.15;
+    audioState.smoothBass += (bass - audioState.smoothBass) * smoothing;
+    audioState.smoothMid += (mid - audioState.smoothMid) * smoothing;
+    audioState.smoothTreble += (treble - audioState.smoothTreble) * smoothing;
+    audioState.smoothEnergy += (energy - audioState.smoothEnergy) * smoothing;
+  };
   const pointerWorld = [0, 0, 0];
   const viewDir = [0, 0, -1];
 
@@ -1307,6 +1443,7 @@
     const t = now * 0.001;
     let dt = Math.min(0.033, (now - last) * 0.001);
     last = now;
+    updateAudioAnalysis();
     scheduleShapes(dt, t);
     const simDt = dt * particleSpeed;
     const shapeBase = shapeMode === 'shapes' ? manualShapeStrength : 0.0;
@@ -1359,6 +1496,10 @@
     gl.uniform3f(gl.getUniformLocation(progSim, 'u_viewDir'), viewDir[0], viewDir[1], viewDir[2]);
     gl.uniform4f(gl.getUniformLocation(progSim, 'u_fractalSeeds[0]'), fractalState.seedA[0], fractalState.seedA[1], fractalState.seedA[2], fractalState.seedA[3]);
     gl.uniform4f(gl.getUniformLocation(progSim, 'u_fractalSeeds[1]'), fractalState.seedB[0], fractalState.seedB[1], fractalState.seedB[2], fractalState.seedB[3]);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_audioBass'), audioState.smoothBass);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_audioMid'), audioState.smoothMid);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_audioTreble'), audioState.smoothTreble);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_audioEnergy'), audioState.smoothEnergy);
     drawQuad();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     simRead = 1 - simRead;
@@ -1744,6 +1885,80 @@
     rebuildColorStops();
     updateModeButtons();
   });
+
+  // ==== AUDIO CONTROLS ====
+  const audioEnabledToggle = document.getElementById('audioEnabled');
+  const enableMicBtn = document.getElementById('enableMic');
+  const selectAudioFileBtn = document.getElementById('selectAudioFile');
+  const audioFileInput = document.getElementById('audioFileInput');
+  const audioElement = document.getElementById('audioElement');
+  const bassValueLabel = document.getElementById('bassValue');
+  const midValueLabel = document.getElementById('midValue');
+  const trebleValueLabel = document.getElementById('trebleValue');
+  const bassSensitivityInput = document.getElementById('bassSensitivity');
+  const midSensitivityInput = document.getElementById('midSensitivity');
+  const trebleSensitivityInput = document.getElementById('trebleSensitivity');
+  const bassSensitivityValue = document.getElementById('bassSensitivityValue');
+  const midSensitivityValue = document.getElementById('midSensitivityValue');
+  const trebleSensitivityValue = document.getElementById('trebleSensitivityValue');
+
+  audioEnabledToggle.addEventListener('change', (e) => {
+    audioReactivityEnabled = e.target.checked;
+    console.log('Audio reactivity:', audioReactivityEnabled ? 'enabled' : 'disabled');
+  });
+
+  enableMicBtn.addEventListener('click', async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      await initAudio(stream);
+      audioElement.pause();
+      audioElement.src = '';
+      console.log('✓ Microphone enabled');
+    } catch (err) {
+      console.error('Microphone access denied:', err);
+      alert('Microphone access denied. Please allow microphone access to use audio reactivity.');
+    }
+  });
+
+  selectAudioFileBtn.addEventListener('click', () => {
+    audioFileInput.click();
+  });
+
+  audioFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      audioElement.src = url;
+      audioElement.style.display = 'block';
+      audioElement.play();
+      initAudioFromFile(audioElement);
+      console.log('✓ Audio file loaded:', file.name);
+    }
+  });
+
+  bassSensitivityInput.addEventListener('input', (e) => {
+    audioSensitivity.bass = parseFloat(e.target.value);
+    bassSensitivityValue.textContent = audioSensitivity.bass.toFixed(1) + 'x';
+  });
+
+  midSensitivityInput.addEventListener('input', (e) => {
+    audioSensitivity.mid = parseFloat(e.target.value);
+    midSensitivityValue.textContent = audioSensitivity.mid.toFixed(1) + 'x';
+  });
+
+  trebleSensitivityInput.addEventListener('input', (e) => {
+    audioSensitivity.treble = parseFloat(e.target.value);
+    trebleSensitivityValue.textContent = audioSensitivity.treble.toFixed(1) + 'x';
+  });
+
+  // Update audio value labels
+  setInterval(() => {
+    if (bassValueLabel && midValueLabel && trebleValueLabel) {
+      bassValueLabel.textContent = Math.round(audioState.smoothBass * 100) + '%';
+      midValueLabel.textContent = Math.round(audioState.smoothMid * 100) + '%';
+      trebleValueLabel.textContent = Math.round(audioState.smoothTreble * 100) + '%';
+    }
+  }, 100);
 
   // Скрываем регулятор при загрузке
   manualGroup.style.display = 'none';

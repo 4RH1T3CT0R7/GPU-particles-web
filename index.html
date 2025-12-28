@@ -506,6 +506,50 @@
         </div>
       </div>
     </div>
+
+    <div class="section">
+      <div class="section-title">Audio Reactivity</div>
+      <div class="hint">Particles react to audio frequency bands: bass, mid, treble</div>
+      <div class="control-group">
+        <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
+          <input type="checkbox" id="audioEnabled" style="width:15px; height:15px; accent-color:#7ee0ff;">
+          Enable Audio Reactivity
+        </label>
+      </div>
+
+      <div class="control-group">
+        <label>Audio Source</label>
+        <div class="shape-buttons">
+          <button id="enableMic">Use Microphone</button>
+          <button id="selectAudioFile">Load Audio File</button>
+        </div>
+        <input type="file" id="audioFileInput" accept="audio/*" style="display:none;">
+        <audio id="audioElement" style="display:none;" controls></audio>
+      </div>
+
+      <div class="control-group">
+        <div class="pill-row">
+          <span class="value-pill">Bass: <strong id="bassValue">0%</strong></span>
+          <span class="value-pill">Mid: <strong id="midValue">0%</strong></span>
+          <span class="value-pill">Treble: <strong id="trebleValue">0%</strong></span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Bass Sensitivity <span class="value-pill"><strong id="bassSensitivityValue">1.0x</strong></span></label>
+        <input type="range" id="bassSensitivity" min="0" max="3" step="0.1" value="1.0">
+      </div>
+
+      <div class="control-group">
+        <label>Mid Sensitivity <span class="value-pill"><strong id="midSensitivityValue">1.0x</strong></span></label>
+        <input type="range" id="midSensitivity" min="0" max="3" step="0.1" value="1.0">
+      </div>
+
+      <div class="control-group">
+        <label>Treble Sensitivity <span class="value-pill"><strong id="trebleSensitivityValue">1.0x</strong></span></label>
+        <input type="range" id="trebleSensitivity" min="0" max="3" step="0.1" value="1.0">
+      </div>
+    </div>
   </div>
 
   <noscript>This visualization requires JavaScript.</noscript>
