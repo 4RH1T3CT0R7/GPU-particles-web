@@ -3,6 +3,7 @@
  */
 
 import { commonNoise } from './common.js';
+import { pbrFunctions } from './pbr.js';
 
 export const particleVS = `#version 300 es
 precision highp float;
@@ -50,9 +51,22 @@ in float v_energy;
 in vec3 v_world;
 uniform vec3 u_colors[6];
 uniform int u_colorCount;
-uniform vec3 u_lightPos;
+uniform vec3 u_cameraPos;
 uniform float u_time;
+uniform float u_roughness;
+uniform float u_metallic;
+uniform float u_pbrStrength;
+
+// Multiple light sources (max 8)
+uniform vec3 u_lightPositions[8];
+uniform vec3 u_lightColors[8];
+uniform float u_lightIntensities[8];
+uniform float u_lightRadii[8];
+uniform int u_lightCount;
+
 out vec4 o_col;
+
+${pbrFunctions}
 
 vec3 paletteSample(float h){
   float bands = float(max(1, u_colorCount));
@@ -73,42 +87,98 @@ void main(){
 
   float alpha = smoothstep(1.0, 0.0, r);
 
-  // Fresnel для ореола
-  float fresnel = pow(1.0 - clamp(dot(normalize(vec3(p, 0.4)), vec3(0,0,1)), 0.0, 1.0), 2.0);
+  // ====================================
+  // Particle Normal (spherical billboard)
+  // ====================================
+  vec3 normal = normalize(vec3(p, sqrt(max(0.0, 1.0 - r))));
 
-  // Мерцание
+  // ====================================
+  // View Direction
+  // ====================================
+  vec3 viewDir = normalize(u_cameraPos - v_world);
+
+  // ====================================
+  // Animated Effects (preserved from original)
+  // ====================================
   float sparkle = smoothstep(0.35, 0.0, r) * (0.5 + 0.5 * sin(u_time * 6.0 + v_hash * 50.0));
   float pulse = 0.6 + 0.4 * sin(u_time * 1.5 + v_energy * 3.0 + v_hash * 9.0);
 
-  // Базовый цвет из палитры - усиливаем яркость
+  // ====================================
+  // Material Properties (PBR)
+  // ====================================
+  // Базовый цвет (albedo) из палитры
   vec3 base = paletteSample(v_hash) * 1.4;
-
-  // Второй цвет для вариации
   vec3 alt = paletteSample(fract(v_hash + 0.5)) * 1.4;
+  vec3 albedo = mix(base, alt, 0.25 * pulse);
 
-  // Смешиваем цвета с пульсацией
-  vec3 color = mix(base, alt, 0.25 * pulse);
-  color *= 0.85 + 0.25 * pulse;
+  // Динамические материальные параметры на основе энергии и хеша
+  float roughness = mix(u_roughness, u_roughness * 0.3, v_energy);
+  roughness = clamp(roughness + v_hash * 0.2 - 0.1, 0.05, 0.95);
 
-  // Rim glow
-  color += alt * fresnel * 0.3;
+  float metallic = mix(u_metallic, u_metallic * 1.2, v_hash);
+  metallic = clamp(metallic, 0.0, 1.0);
 
-  // Освещение
-  vec3 lightDir = normalize(u_lightPos - v_world);
-  float light = 0.7 + 0.3 * max(0.0, lightDir.y);
+  float ao = 1.0; // Ambient occlusion (пока без расчета)
 
-  float depthFade = clamp(2.0 / (1.0 + 0.02 * v_depth * v_depth), 0.4, 1.0);
+  // ====================================
+  // PBR Lighting Calculation (Multiple Lights)
+  // ====================================
+  vec3 N = normalize(normal);
+  vec3 V = normalize(viewDir);
+  vec3 pbrColor = vec3(0.0);
+
+  // Calculate F0 for all lights
+  vec3 F0 = vec3(0.04);
+  F0 = mix(F0, albedo, metallic);
+
+  // Ambient lighting
+  vec3 ambient = vec3(0.03, 0.035, 0.04) * albedo * ao;
+  pbrColor += ambient;
+
+  // Calculate lighting from each light source
+  for (int i = 0; i < u_lightCount && i < 8; i++) {
+    vec3 L = normalize(u_lightPositions[i] - v_world);
+    float distance = length(u_lightPositions[i] - v_world);
+
+    // Attenuation with configurable radius
+    float attenuation = 1.0 / (1.0 + distance * distance / (u_lightRadii[i] * u_lightRadii[i]));
+    attenuation = clamp(attenuation, 0.0, 1.0);
+
+    vec3 radiance = u_lightColors[i] * u_lightIntensities[i] * attenuation;
+
+    // BRDF
+    vec3 brdf = cookTorranceBRDF(L, V, N, albedo, roughness, metallic);
+
+    pbrColor += brdf * radiance;
+  }
+
+  // ====================================
+  // Enhanced Fresnel (rim lighting)
+  // ====================================
+  float fresnel = enhancedFresnel(normal, viewDir, 3.0, 1.0, 0.0);
+  vec3 rimColor = alt * fresnel * 0.4;
+
+  // ====================================
+  // Artistic Effects (core, halo, sparkle)
+  // ====================================
   float energyGlow = 0.85 + 0.35 * v_energy;
-
-  // Свечение ядра
   float core = exp(-r * 3.0);
   float halo = exp(-r * 1.5);
 
-  color *= light * energyGlow;
+  // Смешиваем PBR и стилизацию
+  vec3 color = mix(albedo * energyGlow, pbrColor, u_pbrStrength);
+
+  // Добавляем художественные эффекты
+  color += rimColor;
   color *= alpha + core * 0.35 + sparkle * 0.2;
   color += base * halo * 0.15;
 
-  // Мягкий туман (уменьшен эффект)
+  // ====================================
+  // Atmospheric Effects
+  // ====================================
+  float depthFade = clamp(2.0 / (1.0 + 0.02 * v_depth * v_depth), 0.4, 1.0);
+
+  // Туман
   vec3 fogColor = vec3(0.01, 0.015, 0.035);
   float fog = clamp(exp(-v_depth * 0.06), 0.35, 1.0);
   color = mix(fogColor, color, fog);

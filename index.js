@@ -67,6 +67,14 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
   camera.aspect = canvas.width / canvas.height;
   updateCameraMatrix(camera);
 
+  // Initialize multiple dynamic light sources
+  const lights = [
+    { pos: [2, 3, 2], color: [1.0, 0.9, 0.8], intensity: 3.0, radius: 20.0 },      // Main warm light
+    { pos: [-3, 1, -2], color: [0.3, 0.5, 1.0], intensity: 2.5, radius: 15.0 },    // Blue accent
+    { pos: [0, -2, 3], color: [1.0, 0.3, 0.5], intensity: 2.0, radius: 12.0 },     // Magenta fill
+    { pos: [3, 2, -3], color: [0.5, 1.0, 0.3], intensity: 1.8, radius: 12.0 }      // Green rim
+  ];
+
   // Mouse state
   const mouse = { x: 0, y: 0, leftDown: false, rightDown: false, lastX: 0, lastY: 0 };
   const pointerWorld = [0, 0, 0];
@@ -402,7 +410,38 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     gl.uniform1f(gl.getUniformLocation(progParticles, 'u_time'), t);
     gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_colors'), colorManager.colorStops);
     gl.uniform1i(gl.getUniformLocation(progParticles, 'u_colorCount'), colorManager.colorStopCount);
-    gl.uniform3f(gl.getUniformLocation(progParticles, 'u_lightPos'), 2, 3, 2);
+    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_cameraPos'), camera.eye);
+    gl.uniform1f(gl.getUniformLocation(progParticles, 'u_roughness'), 0.4);
+    gl.uniform1f(gl.getUniformLocation(progParticles, 'u_metallic'), 0.3);
+    gl.uniform1f(gl.getUniformLocation(progParticles, 'u_pbrStrength'), 0.7);
+
+    // Animate lights and send to shader
+    const lightPositions = new Float32Array(8 * 3);
+    const lightColors = new Float32Array(8 * 3);
+    const lightIntensities = new Float32Array(8);
+    const lightRadii = new Float32Array(8);
+
+    for (let i = 0; i < lights.length; i++) {
+      // Gentle orbital animation
+      const angle = t * 0.3 + i * Math.PI * 0.5;
+      const offset = Math.sin(t * 0.5 + i) * 0.5;
+      lightPositions[i * 3 + 0] = lights[i].pos[0] * Math.cos(angle) - lights[i].pos[2] * Math.sin(angle);
+      lightPositions[i * 3 + 1] = lights[i].pos[1] + offset;
+      lightPositions[i * 3 + 2] = lights[i].pos[0] * Math.sin(angle) + lights[i].pos[2] * Math.cos(angle);
+
+      lightColors[i * 3 + 0] = lights[i].color[0];
+      lightColors[i * 3 + 1] = lights[i].color[1];
+      lightColors[i * 3 + 2] = lights[i].color[2];
+
+      lightIntensities[i] = lights[i].intensity * (0.9 + 0.1 * Math.sin(t * 2.0 + i * 1.5));
+      lightRadii[i] = lights[i].radius;
+    }
+
+    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_lightPositions'), lightPositions);
+    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_lightColors'), lightColors);
+    gl.uniform1fv(gl.getUniformLocation(progParticles, 'u_lightIntensities'), lightIntensities);
+    gl.uniform1fv(gl.getUniformLocation(progParticles, 'u_lightRadii'), lightRadii);
+    gl.uniform1i(gl.getUniformLocation(progParticles, 'u_lightCount'), lights.length);
 
     gl.bindVertexArray(simState.idxVAO);
     gl.drawArrays(gl.POINTS, 0, simState.N);
@@ -410,13 +449,15 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
 
     gl.disable(gl.BLEND);
 
-    // Blit to screen
+    // Blit to screen with HDR tone mapping
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, size.w, size.h);
     gl.useProgram(progPresent);
     bindTex(gl, progPresent, 'u_tex', renderTarget.tex, 0);
     gl.uniform2f(gl.getUniformLocation(progPresent, 'u_resolution'), size.w, size.h);
     gl.uniform1f(gl.getUniformLocation(progPresent, 'u_time'), t);
+    gl.uniform1f(gl.getUniformLocation(progPresent, 'u_exposure'), 0.2);
+    gl.uniform1f(gl.getUniformLocation(progPresent, 'u_bloomStrength'), 0.35);
     drawQuad(gl, quadVAO);
   }
 
