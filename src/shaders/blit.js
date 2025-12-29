@@ -57,10 +57,10 @@ void main(){
   vec2 uv = v_uv;
   vec2 texel = 1.0 / u_resolution;
 
-  // ====================================
-  // Sample HDR color
-  // ====================================
-  vec3 hdrColor = texture(u_tex, uv).rgb;
+  // Фоновый градиент
+  vec3 gradient = mix(vec3(0.03, 0.04, 0.09), vec3(0.06, 0.09, 0.15), uv.y);
+  float radial = 1.0 - length(uv - 0.5) * 1.2;
+  gradient += max(0.0, radial) * vec3(0.04, 0.03, 0.06);
 
   // ====================================
   // Enhanced Bloom with threshold
@@ -124,7 +124,7 @@ void main(){
   // Film Grain
   // ====================================
   float grain = hash(uv * u_time) * 0.01 - 0.005;
-  col += gradient * 0.5 + grain;
+  col += gradient * 0.6 + grain;
 
   o_col = vec4(col, 1.0);
 }
