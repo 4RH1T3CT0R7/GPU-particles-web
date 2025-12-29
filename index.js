@@ -945,7 +945,7 @@
         acc += dirP * base * wave * 2.5;
         vel = mix(vel, vel - dirP * base * 1.5 + swirl * base * 1.2, 0.6 * pulse);
       } else if (u_pointerMode == 6) {
-        // КВАЗАР: плоский диск + тонкие джеты из центра
+        // КВАЗАР: заполненный диск + джеты
         vec3 r = pos - u_pointerPos;
         float rLen = max(0.01, length(r));
 
@@ -960,64 +960,71 @@
         vec3 rhoDir = rho > 0.01 ? toAxis / rho : vec3(1.0, 0.0, 0.0);
         vec3 phi = normalize(cross(axis, rhoDir));
 
-        float q = u_pointerStrength * pressBoost * 0.4;
+        float q = u_pointerStrength * pressBoost * 0.5;
 
         // Размеры
-        float diskR = radius * 1.3;    // радиус диска
-        float coreR = radius * 0.08;   // ОЧЕНЬ маленькое ядро
-        float jetW = radius * 0.15;    // узкие джеты
+        float diskR = radius * 1.5;
+        float coreR = radius * 0.1;
+        float jetW = radius * 0.2;
+        float diskThick = radius * 0.08;
 
-        // === 1. ДИСК - ОСНОВНАЯ СТРУКТУРА ===
+        // Определение зон
+        float inDiskPlane = exp(-absH * absH / (diskThick * diskThick));
+        float nearAxis = exp(-rho * rho / (jetW * jetW));
+        float inCore = exp(-rLen * rLen / (coreR * coreR));
+        float inJet = nearAxis * (1.0 - inDiskPlane);
 
-        // Очень сильное сплющивание к плоскости h=0
-        // Чем дальше от оси, тем сильнее
-        float flattenStr = 10.0 * (1.0 + rho / diskR);
+        // === 1. ДИСК ===
+
+        // Сплющивание к h=0 (только вне джета)
+        float flattenStr = 8.0 * (1.0 - nearAxis * 0.9);
         acc -= axis * hSign * q * flattenStr;
 
-        // Вращение диска (кеплеровское)
-        float rot = 6.0 / (0.1 + rho);
-        acc += phi * q * rot;
+        // Орбитальная скорость вместо ускорения
+        // Целевая скорость вращения
+        float targetOrbitalSpeed = 1.5 / sqrt(0.1 + rho);
+        vec3 orbitalVel = phi * targetOrbitalSpeed;
 
-        // Слабое притяжение к центру в плоскости диска
-        float inDiskPlane = exp(-absH * absH / (0.1 * 0.1));
-        acc -= rhoDir * q * 2.0 * inDiskPlane / (0.3 + rho);
+        // Плавно подгоняем скорость к орбитальной (только в диске)
+        float diskBlend = inDiskPlane * (1.0 - inCore);
+        vec3 currentTangentVel = phi * dot(vel, phi);
+        vec3 velCorrection = (orbitalVel - currentTangentVel) * 0.1 * diskBlend;
+        vel += velCorrection;
 
-        // === 2. ДЖЕТЫ - ТОЛЬКО ИЗ ЯДРА ===
+        // Гасим радиальную скорость в диске (стабилизация орбит)
+        float radialVel = dot(vel, rhoDir);
+        vel -= rhoDir * radialVel * 0.05 * diskBlend;
 
-        // Выброс только из очень маленького ядра
-        float inCore = exp(-rLen * rLen / (coreR * coreR));
-        float eject = 20.0 * inCore;
+        // === 2. ДЖЕТЫ ===
+
+        // Выброс из ядра
+        float eject = 15.0 * inCore * inDiskPlane;
         acc += axis * hSign * q * eject;
 
-        // Частицы в джете (близко к оси И высоко) продолжают подъём
-        float nearAxis = exp(-rho * rho / (jetW * jetW));
-        float highUp = smoothstep(0.1, 0.4, absH / diskR);
-        float inJet = nearAxis * highUp;
-
-        // Продолжение подъёма в джете (слабеет с высотой)
-        float jetLift = 8.0 * inJet / (1.0 + absH);
+        // Подъём в джете
+        float jetLift = 10.0 * inJet;
         acc += axis * hSign * q * jetLift;
 
-        // Коллимация - сжатие джета к оси
-        float collimateFactor = smoothstep(jetW * 0.3, jetW * 1.5, rho);
-        acc -= rhoDir * q * 5.0 * inJet * collimateFactor;
+        // Коллимация
+        float spread = smoothstep(jetW * 0.3, jetW, rho);
+        acc -= rhoDir * q * 6.0 * inJet * spread;
 
         // Вращение в джете
-        acc += phi * q * 4.0 * inJet;
+        acc += phi * q * 3.0 * inJet;
 
         // === 3. ГРАНИЦЫ ===
-        float boundR = smoothstep(diskR * 0.9, diskR * 1.2, rho);
-        float boundH = smoothstep(diskR * 1.5, diskR * 2.0, absH);
-        acc -= rhoDir * q * 15.0 * boundR;
-        acc -= axis * hSign * q * 10.0 * boundH;
+        float boundR = smoothstep(diskR * 0.85, diskR, rho);
+        float boundH = smoothstep(diskR * 1.2, diskR * 1.8, absH);
+        acc -= rhoDir * q * 12.0 * boundR;
+        acc -= axis * hSign * q * 8.0 * boundH;
 
-        // Возврат далёких частиц
-        acc -= normalize(r) * q * 0.3 / (0.5 + rLen);
+        // Слабое притяжение к системе
+        acc -= normalize(r) * q * 0.2 / (0.5 + rLen);
 
         // Стабилизация
-        vel *= 0.99;
+        vel *= 0.995;
         float speed = length(vel);
-        if (speed > 3.0) vel = vel / speed * 3.0;
+        if (speed > 2.5) vel = vel / speed * 2.5;
       } else {
         // Магнитный поток - мощные дуговые силовые линии (ОЧЕНЬ УСИЛЕНО)
         vec3 axis = normalize(u_viewDir * 0.7 + vec3(0.0, 1.0, 0.5));
