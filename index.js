@@ -199,49 +199,50 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     }
   }
 
-  // Compute pointer world position using raycast (matches original)
+  // Compute pointer world position using raycast (fixed to match cursor position)
   function computePointerWorld() {
     const nx = mouse.x * 2 - 1;
     const ny = 1 - mouse.y * 2;
     const aspect = canvas.width / canvas.height;
     const fov = Math.PI / 4;
-    const depth = Math.max(0.35, camera.distance * 0.55);
+    const depth = camera.distance * 0.8;
 
-    // Forward direction from camera position
+    // Forward direction from camera to target
     const forward = [
-      -camera.eye[0] / camera.distance,
-      -camera.eye[1] / camera.distance,
-      -camera.eye[2] / camera.distance,
+      camera.target[0] - camera.eye[0],
+      camera.target[1] - camera.eye[1],
+      camera.target[2] - camera.eye[2],
     ];
+    const flen = Math.hypot(forward[0], forward[1], forward[2]) || 1;
+    forward[0] /= flen; forward[1] /= flen; forward[2] /= flen;
+
     viewDir[0] = forward[0];
     viewDir[1] = forward[1];
     viewDir[2] = forward[2];
 
-    // Right vector (cross product with up)
+    // Right vector (cross product of forward and world up)
+    const worldUp = [0, 1, 0];
     const right = [
-      forward[2],
-      0,
-      -forward[0],
+      forward[1] * worldUp[2] - forward[2] * worldUp[1],
+      forward[2] * worldUp[0] - forward[0] * worldUp[2],
+      forward[0] * worldUp[1] - forward[1] * worldUp[0],
     ];
     const rlen = Math.hypot(right[0], right[1], right[2]) || 1;
     right[0] /= rlen; right[1] /= rlen; right[2] /= rlen;
 
-    // Up vector
-    let up = [
+    // Up vector (cross product of right and forward)
+    const up = [
       right[1] * forward[2] - right[2] * forward[1],
       right[2] * forward[0] - right[0] * forward[2],
       right[0] * forward[1] - right[1] * forward[0],
     ];
-    const ulen = Math.hypot(up[0], up[1], up[2]) || 1;
-    up = up.map((v) => v / ulen);
 
     // Compute pointer position at intersection plane
-    const zoomScale = 1.0 + (camera.distance - 1.0) * 0.14;
-    const scale = Math.tan(fov / 2) * depth * (1.2 + zoomScale * 0.4);
+    const scale = Math.tan(fov / 2) * depth;
 
-    pointerWorld[0] = camera.target[0] + forward[0] * depth + (right[0] * nx * aspect + up[0] * ny) * scale;
-    pointerWorld[1] = camera.target[1] + forward[1] * depth + (right[1] * nx * aspect + up[1] * ny) * scale;
-    pointerWorld[2] = camera.target[2] + forward[2] * depth + (right[2] * nx * aspect + up[2] * ny) * scale;
+    pointerWorld[0] = camera.eye[0] + forward[0] * depth + (right[0] * nx * aspect + up[0] * ny) * scale;
+    pointerWorld[1] = camera.eye[1] + forward[1] * depth + (right[1] * nx * aspect + up[1] * ny) * scale;
+    pointerWorld[2] = camera.eye[2] + forward[2] * depth + (right[2] * nx * aspect + up[2] * ny) * scale;
   }
 
   // Mouse event handlers with camera control
