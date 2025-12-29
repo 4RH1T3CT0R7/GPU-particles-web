@@ -189,31 +189,56 @@
   }
 
   vec3 shape_helix(float t, float s){
-    float angle = t * 6.28318530718 * 4.0; // 4 turns
-    float height = (s * 2.0 - 1.0) * 1.2;
-    float radius = 0.5;
+    // Настоящая спираль с увеличивающимся радиусом
+    float totalTurns = 5.0; // 5 витков
+    float angle = s * 6.28318530718 * totalTurns;
+    float height = (s * 2.0 - 1.0) * 1.4;
+    // Радиус плавно увеличивается от центра к краям
+    float radius = 0.3 + s * 0.5;
+    // Добавляем волнистость для органичности
+    float wave = 0.08 * sin(angle * 2.0 + t * 6.28);
     return vec3(
-      radius * cos(angle),
+      (radius + wave) * cos(angle),
       height,
-      radius * sin(angle)
+      (radius + wave) * sin(angle)
     );
   }
 
   vec3 shape_octahedron(float t, float s){
-    // 8 треугольных граней
+    // Правильный октаэдр - 6 вершин, 8 треугольных граней
+    // Вершины: ±X, ±Y, ±Z
     float face = floor(t * 8.0);
     float u = fract(t * 8.0);
     float v = s;
-    vec3 p;
-    if (face < 1.0) p = mix(vec3(1,0,0), vec3(0,1,0), u) * (1.0-v) + vec3(0,0,1)*v;
-    else if (face < 2.0) p = mix(vec3(0,1,0), vec3(-1,0,0), u) * (1.0-v) + vec3(0,0,1)*v;
-    else if (face < 3.0) p = mix(vec3(-1,0,0), vec3(0,-1,0), u) * (1.0-v) + vec3(0,0,1)*v;
-    else if (face < 4.0) p = mix(vec3(0,-1,0), vec3(1,0,0), u) * (1.0-v) + vec3(0,0,1)*v;
-    else if (face < 5.0) p = mix(vec3(1,0,0), vec3(0,1,0), u) * (1.0-v) + vec3(0,0,-1)*v;
-    else if (face < 6.0) p = mix(vec3(0,1,0), vec3(-1,0,0), u) * (1.0-v) + vec3(0,0,-1)*v;
-    else if (face < 7.0) p = mix(vec3(-1,0,0), vec3(0,-1,0), u) * (1.0-v) + vec3(0,0,-1)*v;
-    else p = mix(vec3(0,-1,0), vec3(1,0,0), u) * (1.0-v) + vec3(0,0,-1)*v;
-    return normalize(p) * 0.7;
+
+    vec3 v0, v1, v2;
+
+    // Верхняя пирамида (вершина +Y)
+    if (face < 1.0) {
+      v0 = vec3(1,0,0); v1 = vec3(0,0,1); v2 = vec3(0,1,0);
+    } else if (face < 2.0) {
+      v0 = vec3(0,0,1); v1 = vec3(-1,0,0); v2 = vec3(0,1,0);
+    } else if (face < 3.0) {
+      v0 = vec3(-1,0,0); v1 = vec3(0,0,-1); v2 = vec3(0,1,0);
+    } else if (face < 4.0) {
+      v0 = vec3(0,0,-1); v1 = vec3(1,0,0); v2 = vec3(0,1,0);
+    }
+    // Нижняя пирамида (вершина -Y)
+    else if (face < 5.0) {
+      v0 = vec3(1,0,0); v1 = vec3(0,0,-1); v2 = vec3(0,-1,0);
+    } else if (face < 6.0) {
+      v0 = vec3(0,0,-1); v1 = vec3(-1,0,0); v2 = vec3(0,-1,0);
+    } else if (face < 7.0) {
+      v0 = vec3(-1,0,0); v1 = vec3(0,0,1); v2 = vec3(0,-1,0);
+    } else {
+      v0 = vec3(0,0,1); v1 = vec3(1,0,0); v2 = vec3(0,-1,0);
+    }
+
+    // Интерполяция внутри треугольника (барицентрические координаты)
+    float sqrtV = sqrt(v);
+    vec3 p = v0 * (1.0 - sqrtV) + mix(v1, v2, u) * sqrtV;
+
+    return normalize(p) * 0.75;
   }
 
   vec3 shape_wave(float t, float s){
@@ -248,62 +273,72 @@
     );
   }
 
-  // Эквалайзер - столбцы визуализации частот
+  // Эквалайзер - столбцы визуализации частот с чёткой плоскостью
   vec3 shape_equalizer(float t, float s, float bass, float mid, float treble, float time){
-    // Создаём сетку из столбцов 8x8
-    float cols = 8.0;
+    // Создаём плотную сетку из столбцов 16x16 для лучшей визуализации
+    float cols = 16.0;
+    float rows = 16.0;
     float colX = floor(t * cols) / cols;
-    float colZ = floor(s * cols) / cols;
+    float colZ = floor(s * rows) / rows;
     float localT = fract(t * cols);
-    float localS = fract(s * cols);
-    float colIdx = colX * cols;
+    float localS = fract(s * rows);
+    float colIdx = floor(t * cols);
 
-    // Позиция частицы внутри столбца
-    float x = (colX - 0.5 + localT / cols) * 2.2;
-    float z = (colZ - 0.5 + localS / cols) * 2.2;
+    // Позиция частицы на плоскости - КОМПАКТНАЯ сетка
+    float x = (t - 0.5) * 2.4;
+    float z = (s - 0.5) * 2.4;
 
-    // Если нет аудио - делаем демо-анимацию
+    // Если нет аудио - делаем красивую демо-анимацию с видимыми столбцами
     float totalEnergy = bass + mid + treble;
-    float demoMode = step(totalEnergy, 0.05);
+    bool hasAudio = totalEnergy > 0.02;
 
-    // Демо волны для каждой частотной полосы (усиленные для видимости)
-    float demoBass = 0.6 + 0.5 * sin(time * 1.2 + colIdx * 0.3);
-    float demoMid = 0.5 + 0.45 * sin(time * 1.8 + colIdx * 0.5 + 1.0);
-    float demoTreble = 0.4 + 0.4 * sin(time * 2.5 + colIdx * 0.7 + 2.0);
+    // Демо волны для каждой частотной полосы (СИЛЬНЫЕ для видимости)
+    float demoBass = 0.7 + 0.6 * sin(time * 1.5 + colIdx * 0.4 + colZ * rows * 0.3);
+    float demoMid = 0.6 + 0.5 * sin(time * 2.0 + colIdx * 0.6 + colZ * rows * 0.2 + 1.5);
+    float demoTreble = 0.5 + 0.45 * sin(time * 2.8 + colIdx * 0.8 + colZ * rows * 0.4 + 3.0);
 
     // Смешиваем реальное аудио с демо
-    float useBass = mix(bass, demoBass, demoMode);
-    float useMid = mix(mid, demoMid, demoMode);
-    float useTreble = mix(treble, demoTreble, demoMode);
+    float useBass = hasAudio ? bass * 1.5 : demoBass;
+    float useMid = hasAudio ? mid * 1.5 : demoMid;
+    float useTreble = hasAudio ? treble * 1.5 : demoTreble;
 
     // Определяем к какой частоте относится столбец
     float bandHeight = 0.0;
+    float columnPosition = t; // 0..1
 
-    // Бас - левые столбцы (0-2) - УСИЛЕНО для большей ритмичности
-    if (colIdx < 2.5) {
-      bandHeight = useBass * 2.5;
+    // Плавное распределение по частотам
+    if (columnPosition < 0.3) {
+      // Бас - левая треть - ОЧЕНЬ СИЛЬНО
+      bandHeight = useBass * 3.0;
     }
-    // Середина - центральные столбцы (3-5) - УСИЛЕНО
-    else if (colIdx < 5.5) {
-      bandHeight = useMid * 2.2;
+    else if (columnPosition < 0.7) {
+      // Середина - центральная треть - СИЛЬНО
+      bandHeight = useMid * 2.5;
     }
-    // Высокие - правые столбцы (6-7) - УСИЛЕНО
     else {
-      bandHeight = useTreble * 1.8;
+      // Высокие - правая треть - СРЕДНЕ
+      bandHeight = useTreble * 2.0;
     }
 
-    // Добавляем вариации по Z для глубины
-    float zVariation = 0.85 + 0.15 * sin(colZ * 12.0 + time * 0.5);
-    bandHeight *= zVariation;
+    // Добавляем волны по глубине для органичности
+    float zWave = 0.9 + 0.2 * sin(s * 6.28 * 3.0 + time * 0.8);
+    bandHeight *= zWave;
 
-    // Высота частицы внутри столбца
-    float particleInBar = localS;
-    float barTop = max(0.15, bandHeight); // Минимальная высота увеличена
-    float y = -0.9 + particleInBar * barTop * 2.2; // Больший диапазон Y
+    // ВСЕГДА есть базовая плоскость - частицы не могут улететь
+    float baseHeight = 0.25; // Минимальная высота плоскости
+    float finalHeight = baseHeight + bandHeight;
 
-    // Добавляем пульсацию верхушки (усилена)
-    float pulse = 0.08 * sin(time * 3.0 + colIdx + colZ * 5.0);
-    y += pulse * (1.0 - particleInBar);
+    // Высота частицы внутри столбца - распределяем равномерно
+    float particleHeight = localS; // 0..1 внутри столбца
+    float y = -1.0 + particleHeight * finalHeight * 2.5;
+
+    // Добавляем пульсацию верхушки столбцов
+    float pulse = 0.12 * sin(time * 4.0 + colIdx * 0.5 + colZ * rows * 0.3);
+    y += pulse * smoothstep(0.0, 1.0, particleHeight);
+
+    // Добавляем лёгкое волнообразное движение всей плоскости
+    float planeWave = 0.15 * sin(time * 1.2 + x * 1.5 + z * 1.8);
+    y += planeWave;
 
     return vec3(x, y, z);
   }
@@ -605,10 +640,11 @@
         acc += dirP * base * 1.5;
         vel += dirP * base * 0.45;
       } else if (u_pointerMode == 1) {
-        // Отталкивание и разгон (усилено)
-        acc -= dirP * base * 1.8;
-        acc += vec3(dirP.y, -dirP.x, 0.2) * base * 1.3;
-        vel *= 0.98;
+        // Отталкивание и разгон (ОЧЕНЬ УСИЛЕНО)
+        acc -= dirP * base * 4.5;
+        acc += vec3(dirP.y, -dirP.x, 0.3) * base * 2.8;
+        vel -= dirP * base * 1.2;
+        vel *= 0.97;
       } else if (u_pointerMode == 2 || u_pointerMode == 3) {
         // Вихревой закрут в обе стороны (усилено)
         float spin = (u_pointerMode == 2 ? -1.0 : 1.0);
@@ -618,49 +654,84 @@
         acc += dirP * base * (0.8 + 0.6 * pulseWave);
         vel = mix(vel, vel + tangent * base * 0.6, 0.35 + 0.2 * pulseWave);
       } else if (u_pointerMode == 4) {
-        // Импульсные всплески (усилено)
-        float pulsePhase = u_time * 4.2 + jitter * 9.0;
-        float carrier = 0.55 + 0.45 * sin(pulsePhase);
-        float burst = smoothstep(-0.1, 0.9, sin(pulsePhase * 0.7 + 1.2));
-        float pulse = 0.6 + carrier + (u_pointerPulse > 0.5 ? burst * 1.5 : carrier * 0.4);
-        vec3 swirl = normalize(vec3(-dirP.y, dirP.x, dirP.z * 0.4));
-        acc -= dirP * base * (1.5 + burst * 1.2);
-        acc += swirl * base * (1.3 + burst * 1.5);
-        vel = mix(vel, vel - dirP * base * 0.7 + swirl * base * 0.5, 0.4 * pulse);
+        // Импульсные всплески (ОЧЕНЬ УСИЛЕНО - реально пульсирует!)
+        float pulsePhase = u_time * 5.5 + jitter * 12.0;
+        float carrier = 0.7 + 0.6 * sin(pulsePhase);
+        float burst = smoothstep(0.0, 1.0, sin(pulsePhase * 0.6));
+        float strongBurst = pow(burst, 0.5); // Более острые пики
+        float pulse = 1.0 + carrier + (u_pointerPulse > 0.5 ? strongBurst * 3.5 : carrier * 0.8);
+        vec3 swirl = normalize(vec3(-dirP.y, dirP.x, dirP.z * 0.5));
+        // Волновое отталкивание с пульсацией
+        acc -= dirP * base * (2.5 + strongBurst * 4.5);
+        acc += swirl * base * (2.2 + strongBurst * 3.8);
+        // Добавляем радиальную волну
+        float wave = sin(distPointer * 8.0 - u_time * 6.0) * strongBurst;
+        acc += dirP * base * wave * 2.5;
+        vel = mix(vel, vel - dirP * base * 1.5 + swirl * base * 1.2, 0.6 * pulse);
       } else if (u_pointerMode == 6) {
-        // Квазар: аккреционный диск + двусторонние струи (усилено)
-        vec3 axis = normalize(u_viewDir * 0.45 + vec3(0.0, 1.0, 0.35));
+        // Квазар: аккреционный диск + мощные двусторонние струи (УСИЛЕНО)
+        vec3 axis = normalize(u_viewDir * 0.6 + vec3(0.0, 1.0, 0.4));
         vec3 r = pos - u_pointerPos;
-        float rLen = max(0.06, length(r));
+        float rLen = max(0.05, length(r));
         vec3 radial = r / rLen;
         float axial = clamp(dot(radial, axis), -1.0, 1.0);
         vec3 diskDir = normalize(radial - axis * axial + 0.0001);
         vec3 swirlDir = normalize(cross(axis, diskDir));
-        float diskWeight = exp(-pow(abs(axial), 0.7));
-        float jetWeight = smoothstep(0.35, 0.95, abs(axial));
-        float funnel = 1.4 / (1.0 + pow(rLen / radius, 1.4));
 
-        acc -= radial * base * (0.9 * diskWeight);
-        acc += axis * base * (1.8 * jetWeight * sign(axial));
-        acc += swirlDir * base * (2.2 * diskWeight + 0.8 * jetWeight);
-        acc += diskDir * base * (1.1 * diskWeight * funnel);
-        vel = mix(vel, vel + swirlDir * 0.8 + axis * jetWeight * 0.9, 0.4 * falloff);
+        // Более резкое разделение диска и струй
+        float diskWeight = exp(-pow(abs(axial), 0.5)) * (1.0 - abs(axial));
+        float jetWeight = pow(smoothstep(0.25, 0.98, abs(axial)), 1.5);
+        float funnel = 2.0 / (1.0 + pow(rLen / radius, 1.2));
+
+        // Сильное притяжение к диску
+        acc -= radial * base * (2.5 * diskWeight * funnel);
+        // Мощные струи в обе стороны
+        acc += axis * base * (4.5 * jetWeight * sign(axial));
+        // Быстрое вращение диска
+        acc += swirlDir * base * (5.5 * diskWeight + 1.2 * jetWeight);
+        // Дополнительная аккреция
+        acc += diskDir * base * (2.5 * diskWeight * funnel);
+
+        // Добавляем турбулентность на краях
+        float turbulence = sin(atan(r.y, r.x) * 8.0 + u_time * 4.0) * diskWeight;
+        acc += swirlDir * base * turbulence * 1.5;
+
+        vel = mix(vel, vel + swirlDir * 1.8 + axis * jetWeight * 2.2, 0.6 * falloff);
       } else {
-        // Магнитные дуги с лёгким свирлом (усилено)
-        vec3 axis = normalize(u_viewDir * 0.6 + vec3(0.0, 1.0, 0.4));
+        // Магнитный поток - мощные дуговые силовые линии (ОЧЕНЬ УСИЛЕНО)
+        vec3 axis = normalize(u_viewDir * 0.7 + vec3(0.0, 1.0, 0.5));
         vec3 r = pos - u_pointerPos;
-        float rLen = max(0.08, length(r));
+        float rLen = max(0.06, length(r));
         float r2 = rLen * rLen;
-        float r5 = r2 * r2 * rLen + 1e-5;
-        vec3 dipole = (3.0 * r * dot(axis, r) / r5) - (axis / max(1e-3, r2 * rLen));
-        dipole = clamp(dipole, -vec3(12.0), vec3(12.0));
-        vec3 swirlDir = normalize(cross(dipole, axis) + 0.35 * cross(dirP, axis));
-        float fluxFalloff = 1.0 / (1.0 + pow(rLen / (radius * 1.2), 2.0));
-        float repel = 0.6 + 0.7 * (1.0 - fluxFalloff);
-        acc += dipole * base * (1.4 * fluxFalloff);
-        acc += swirlDir * base * (2.0 * fluxFalloff);
-        acc -= dirP * base * repel;
-        vel = mix(vel, vel - dirP * base * 0.55 + dipole * 0.4, 0.45 * falloff);
+        float r3 = r2 * rLen;
+        float r5 = r2 * r3 + 1e-5;
+
+        // Дипольное магнитное поле (усилено)
+        vec3 dipole = (3.0 * r * dot(axis, r) / r5) - (axis / max(1e-3, r3));
+        dipole = clamp(dipole, -vec3(20.0), vec3(20.0));
+
+        // Силовые линии вращаются вокруг оси
+        vec3 swirlDir = normalize(cross(dipole, axis) + 0.5 * cross(dirP, axis));
+
+        // Более сильное затухание для ближних частиц
+        float fluxFalloff = 1.0 / (1.0 + pow(rLen / (radius * 1.5), 1.5));
+        float magneticStrength = pow(fluxFalloff, 0.7);
+
+        // Очень сильные магнитные силы
+        acc += dipole * base * (4.5 * magneticStrength);
+        // Быстрое вращение вокруг силовых линий
+        acc += swirlDir * base * (5.0 * magneticStrength);
+
+        // Полярное отталкивание/притяжение
+        float polarAlignment = dot(normalize(r), axis);
+        acc += axis * base * (2.5 * sign(polarAlignment) * magneticStrength);
+
+        // Спиральное движение вдоль силовых линий
+        float spiralPhase = atan(r.y, r.x) + u_time * 2.0;
+        vec3 spiralForce = vec3(cos(spiralPhase), sin(spiralPhase), 0.0);
+        acc += spiralForce * base * (1.8 * magneticStrength);
+
+        vel = mix(vel, vel + dipole * 1.2 + swirlDir * 1.5, 0.7 * falloff);
       }
     }
 
@@ -671,89 +742,106 @@
       acc -= pos / distCenter * (distCenter - roamRadius) * 0.6;
     }
 
-    // ==== AUDIO REACTIVITY (только в режиме эквалайзера) ====
-    // Применяем аудио эффекты только когда включен режим эквалайзера (shapeID == 12)
-    bool isEqualizerMode = (u_shapeA == 12 || u_shapeB == 12);
+    // ==== AUDIO REACTIVITY (работает во всех режимах) ====
+    // Применяем аудио эффекты во всех режимах, не только в эквалайзере
+    float audioTotalEnergy = u_audioBass + u_audioMid + u_audioTreble;
+    bool hasAudio = audioTotalEnergy > 0.01;
 
-    if (isEqualizerMode) {
-      float audioBoost = 1.0 + u_audioEnergy * 1.2;
+    if (hasAudio) {
+      // Усиление общей энергии
+      float audioBoost = 1.0 + u_audioEnergy * 0.8;
       acc *= audioBoost;
 
-      // Bass adds outward pulsing force (усилено)
-      float bassForce = u_audioBass * 4.5;
-      vec3 outward = normalize(pos - desired) + vec3(0.001);
+      // Bass adds outward pulsing force (работает везде)
+      float bassForce = u_audioBass * 3.5;
+      vec3 outward = normalize(pos) + vec3(0.001);
       acc += outward * bassForce;
-      // Дополнительная пульсация для басов
-      vel += outward * u_audioBass * 0.8;
+      vel += outward * u_audioBass * 0.6;
 
-      // Mid frequencies add swirling motion (усилено)
+      // Mid frequencies add swirling motion (работает везде)
       float midAngle = u_audioMid * 3.14159 + u_time;
       vec2 midSwirl = vec2(cos(midAngle), sin(midAngle));
-      acc += vec3(midSwirl * u_audioMid * 3.2, 0.0);
-      // Добавляем вращательный момент
+      acc += vec3(midSwirl * u_audioMid * 2.8, 0.0);
       vec3 midTangent = vec3(-midSwirl.y, midSwirl.x, sin(u_time * 2.0) * 0.5);
-      acc += midTangent * u_audioMid * 2.0;
+      acc += midTangent * u_audioMid * 1.8;
 
-      // Treble adds vertical lift and sparkle (усилено)
-      acc.y += u_audioTreble * 3.8;
-      acc += vec3(0.0, 0.0, sin(u_time * 5.0 + idHash * 6.28) * u_audioTreble * 2.5);
-      // Дополнительные искорки для высоких частот
+      // Treble adds vertical lift and sparkle (работает везде)
+      acc.y += u_audioTreble * 3.2;
+      acc += vec3(0.0, 0.0, sin(u_time * 5.0 + idHash * 6.28) * u_audioTreble * 2.2);
       vec3 sparkle = vec3(
         sin(u_time * 7.0 + idHash * 12.56),
         cos(u_time * 8.0 + layerHash * 9.42),
         sin(u_time * 6.0 + idHash * 15.7)
-      ) * u_audioTreble * 1.8;
+      ) * u_audioTreble * 1.5;
       acc += sparkle;
     }
 
     // ==== FREE FLIGHT TURBULENCE (режим свободного полёта) ====
-    // В режиме свободного полёта добавляем завихрения и движения
+    // В режиме свободного полёта добавляем мощные завихрения и движения
     float isFreeFlightMode = 1.0 - step(0.05, u_shapeStrength); // 1.0 когда shapeStrength ~= 0
 
     if (isFreeFlightMode > 0.5) {
-      // Вихревое движение с несколькими слоями частот
+      // УСИЛЕННЫЕ вихревые движения с несколькими слоями частот
       vec3 turbulence1 = vec3(
-        sin(u_time * 0.8 + pos.y * 2.0 + idHash * 6.28),
-        cos(u_time * 0.6 + pos.x * 1.8 + layerHash * 4.71),
-        sin(u_time * 0.7 + pos.z * 2.2 + idHash * 3.14)
-      ) * 1.5;
+        sin(u_time * 1.2 + pos.y * 3.0 + idHash * 6.28),
+        cos(u_time * 0.9 + pos.x * 2.5 + layerHash * 4.71),
+        sin(u_time * 1.1 + pos.z * 3.2 + idHash * 3.14)
+      ) * 2.8;
 
       vec3 turbulence2 = vec3(
-        cos(u_time * 1.2 + pos.z * 1.5 - layerHash * 5.0),
-        sin(u_time * 1.0 + pos.y * 1.3 + idHash * 7.5),
-        cos(u_time * 0.9 + pos.x * 1.7 - layerHash * 2.8)
-      ) * 1.2;
+        cos(u_time * 1.8 + pos.z * 2.2 - layerHash * 5.0),
+        sin(u_time * 1.5 + pos.y * 2.0 + idHash * 7.5),
+        cos(u_time * 1.3 + pos.x * 2.5 - layerHash * 2.8)
+      ) * 2.2;
 
-      // Спиральное движение
-      float spiralAngle = u_time * 0.5 + length(pos) * 1.5;
-      vec3 spiralFlow = vec3(
-        cos(spiralAngle) * pos.y - sin(spiralAngle) * pos.z,
-        sin(spiralAngle) * pos.x + cos(spiralAngle) * pos.z,
-        cos(spiralAngle) * pos.x - sin(spiralAngle) * pos.y
-      ) * 0.8;
+      // УСИЛЕННОЕ спиральное движение - несколько вихрей
+      float spiralAngle1 = u_time * 0.8 + length(pos) * 2.5;
+      float spiralAngle2 = u_time * 1.2 - length(pos) * 1.8;
+      vec3 spiralFlow1 = vec3(
+        cos(spiralAngle1) * pos.y - sin(spiralAngle1) * pos.z,
+        sin(spiralAngle1) * pos.x + cos(spiralAngle1) * pos.z,
+        cos(spiralAngle1) * pos.x - sin(spiralAngle1) * pos.y
+      ) * 1.8;
+      vec3 spiralFlow2 = vec3(
+        -sin(spiralAngle2) * pos.z,
+        cos(spiralAngle2) * pos.x,
+        sin(spiralAngle2) * pos.y
+      ) * 1.5;
 
-      // Curl noise для органического движения
-      vec3 curlFlow1 = curl(pos * 1.5 + u_time * 0.3) * 2.0;
-      vec3 curlFlow2 = curl(pos * 0.8 - u_time * 0.2 + vec2(5.7, 3.2)) * 1.5;
+      // УСИЛЕННЫЙ Curl noise для органического движения
+      vec2 curlFlow1_2d = curl(pos.xy * 2.2 + u_time * 0.5);
+      vec2 curlFlow2_2d = curl(pos.yz * 1.8 - u_time * 0.4 + vec2(5.7, 3.2));
+      vec2 curlFlow3_2d = curl(pos.xz * 2.5 + u_time * 0.3 + vec2(2.1, 8.4));
+      vec3 curlFlow1 = vec3(curlFlow1_2d, curlFlow2_2d.x) * 3.5;
+      vec3 curlFlow2 = vec3(curlFlow3_2d.x, curlFlow1_2d.y, curlFlow2_2d.y) * 2.8;
 
-      // Вертикальные волны
-      float vertWave = sin(u_time * 1.5 + pos.x * 2.0 + pos.z * 1.5) * 0.8;
+      // Мощные вертикальные волны
+      float vertWave = sin(u_time * 2.0 + pos.x * 2.5 + pos.z * 2.0) * 1.5;
+      float horizWave = cos(u_time * 1.8 + pos.y * 2.2) * 1.2;
 
-      // Объединяем все силы
-      acc += turbulence1 * 0.4;
-      acc += turbulence2 * 0.35;
-      acc += spiralFlow * 0.5;
-      acc += curlFlow1 * 0.6;
-      acc += curlFlow2 * 0.5;
+      // ОБЪЕДИНЯЕМ все силы с увеличенными коэффициентами
+      acc += turbulence1 * 0.7;
+      acc += turbulence2 * 0.65;
+      acc += spiralFlow1 * 0.9;
+      acc += spiralFlow2 * 0.75;
+      acc += curlFlow1 * 1.0;
+      acc += curlFlow2 * 0.85;
       acc.y += vertWave;
+      acc.x += horizWave;
 
-      // Дополнительное случайное движение для каждой частицы
+      // Дополнительное УСИЛЕННОЕ случайное движение
       vec3 randomDrift = vec3(
-        noise(id * 15.3 + u_time * 0.4),
-        noise(id * 23.7 - u_time * 0.3),
-        noise(id * 31.1 + u_time * 0.5)
-      ) * 1.2 - 0.6;
+        noise(id * 18.3 + u_time * 0.6),
+        noise(id * 27.7 - u_time * 0.5),
+        noise(id * 35.1 + u_time * 0.7)
+      ) * 2.2 - 1.1;
       acc += randomDrift;
+
+      // Центральный вихрь для общего направления
+      vec2 toCenter = -pos.xy;
+      float distToCenter = max(0.5, length(toCenter));
+      vec2 vortexForce = vec2(-toCenter.y, toCenter.x) / distToCenter;
+      acc += vec3(vortexForce * 1.5, sin(u_time + pos.z) * 0.8);
     }
 
     // Интеграция
@@ -2103,7 +2191,7 @@
       updateModeButtons();
 
       // Автоматически запрашиваем доступ к микрофону при первом включении эквалайзера
-      if (!audioEnabled) {
+      if (!audioEnabled && audioReactivityEnabled) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           await initAudio(stream);
@@ -2115,7 +2203,143 @@
     });
   }
 
-  // Audio control elements removed from UI - sensitivity is managed internally
+  // ==== AUDIO UI CONTROLS ====
+  const audioToggle = document.getElementById('audioToggle');
+  const useMicrophoneBtn = document.getElementById('useMicrophoneBtn');
+  const useAudioFileBtn = document.getElementById('useAudioFileBtn');
+  const audioFileInput = document.getElementById('audioFileInput');
+  const audioElement = document.getElementById('audioElement');
+  const audioFileControls = document.getElementById('audioFileControls');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const stopAudioBtn = document.getElementById('stopAudioBtn');
+  const audioStatusLabel = document.getElementById('audioStatusLabel');
+
+  let currentAudioSource = 'microphone'; // 'microphone' or 'file'
+  let isAudioPlaying = false;
+
+  // Audio toggle
+  if (audioToggle) {
+    audioToggle.addEventListener('change', async (e) => {
+      audioReactivityEnabled = e.target.checked;
+      if (audioReactivityEnabled && !audioEnabled) {
+        // Enable audio based on current source
+        if (currentAudioSource === 'microphone') {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            await initAudio(stream);
+            console.log('✓ Microphone activated');
+          } catch (err) {
+            console.error('Microphone access denied:', err);
+            audioReactivityEnabled = false;
+            audioToggle.checked = false;
+          }
+        }
+      }
+    });
+  }
+
+  // Microphone button
+  if (useMicrophoneBtn) {
+    useMicrophoneBtn.addEventListener('click', async () => {
+      currentAudioSource = 'microphone';
+      useMicrophoneBtn.classList.add('active');
+      useAudioFileBtn.classList.remove('active');
+      audioFileControls.style.display = 'none';
+
+      // Stop audio file if playing
+      if (audioElement && !audioElement.paused) {
+        audioElement.pause();
+        audioElement.currentTime = 0;
+      }
+
+      // Disconnect file source
+      if (audioSource) {
+        audioSource.disconnect();
+        audioSource = null;
+      }
+
+      // Enable microphone
+      if (audioReactivityEnabled) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          await initAudio(stream);
+          console.log('✓ Switched to microphone');
+        } catch (err) {
+          console.error('Microphone access denied:', err);
+        }
+      }
+    });
+  }
+
+  // Audio file button
+  if (useAudioFileBtn) {
+    useAudioFileBtn.addEventListener('click', () => {
+      audioFileInput.click();
+    });
+  }
+
+  // Audio file input
+  if (audioFileInput) {
+    audioFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      currentAudioSource = 'file';
+      useMicrophoneBtn.classList.remove('active');
+      useAudioFileBtn.classList.add('active');
+      audioFileControls.style.display = 'block';
+
+      // Load audio file
+      const url = URL.createObjectURL(file);
+      audioElement.src = url;
+
+      // Initialize audio from file
+      try {
+        await audioElement.load();
+        initAudioFromFile(audioElement);
+        audioStatusLabel.textContent = file.name;
+        playPauseBtn.textContent = '▶ Play';
+        isAudioPlaying = false;
+        audioReactivityEnabled = true;
+        if (audioToggle) audioToggle.checked = true;
+        console.log('✓ Audio file loaded:', file.name);
+      } catch (err) {
+        console.error('Failed to load audio file:', err);
+        audioStatusLabel.textContent = 'Ошибка загрузки';
+      }
+    });
+  }
+
+  // Play/Pause button
+  if (playPauseBtn) {
+    playPauseBtn.addEventListener('click', () => {
+      if (!audioElement.src) return;
+
+      if (audioElement.paused) {
+        audioElement.play();
+        playPauseBtn.textContent = '⏸ Pause';
+        isAudioPlaying = true;
+        audioReactivityEnabled = true;
+        if (audioToggle) audioToggle.checked = true;
+      } else {
+        audioElement.pause();
+        playPauseBtn.textContent = '▶ Play';
+        isAudioPlaying = false;
+      }
+    });
+  }
+
+  // Stop button
+  if (stopAudioBtn) {
+    stopAudioBtn.addEventListener('click', () => {
+      if (!audioElement.src) return;
+
+      audioElement.pause();
+      audioElement.currentTime = 0;
+      playPauseBtn.textContent = '▶ Play';
+      isAudioPlaying = false;
+    });
+  }
 
   // Скрываем регулятор при загрузке
   manualGroup.style.display = 'none';
@@ -2169,11 +2393,16 @@
       color_5_plus: 'цветов',
       // Audio reactivity
       audio_reactivity: 'Аудио-реактивность',
-      audio_hint: 'Частицы реагируют на частотные диапазоны: бас, середина, высокие',
+      audio_hint: 'Частицы реагируют на звук во всех режимах',
       enable_audio: 'Включить аудио-реактивность',
       audio_source: 'Источник звука',
       use_microphone: 'Микрофон',
       load_audio_file: 'Загрузить файл',
+      play: '▶ Играть',
+      pause: '⏸ Пауза',
+      stop: '■ Стоп',
+      status: 'Статус',
+      not_loaded: 'Не загружено',
       bass: 'Бас',
       mid: 'Середина',
       treble: 'Высокие',
@@ -2233,11 +2462,16 @@
       color_5_plus: 'colors',
       // Audio reactivity
       audio_reactivity: 'Audio Reactivity',
-      audio_hint: 'Particles react to frequency bands: bass, mid, treble',
+      audio_hint: 'Particles react to sound in all modes',
       enable_audio: 'Enable audio reactivity',
       audio_source: 'Audio source',
       use_microphone: 'Microphone',
       load_audio_file: 'Load file',
+      play: '▶ Play',
+      pause: '⏸ Pause',
+      stop: '■ Stop',
+      status: 'Status',
+      not_loaded: 'Not loaded',
       bass: 'Bass',
       mid: 'Mid',
       treble: 'Treble',

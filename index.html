@@ -604,6 +604,37 @@
       </div>
     </div>
 
+    <div class="section">
+      <div class="section-title" data-i18n="audio_reactivity">Аудио-реактивность</div>
+      <div class="hint" data-i18n="audio_hint">Частицы реагируют на звук во всех режимах</div>
+      <div class="control-group">
+        <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:600; color:#bdefff;">
+          <input type="checkbox" id="audioToggle" style="width:15px; height:15px; accent-color:#7ee0ff;">
+          <span data-i18n="enable_audio">Включить аудио-реактивность</span>
+        </label>
+      </div>
+
+      <div class="control-group">
+        <label data-i18n="audio_source">Источник звука</label>
+        <div class="shape-buttons">
+          <button id="useMicrophoneBtn" class="active" data-i18n="use_microphone">Микрофон</button>
+          <button id="useAudioFileBtn" data-i18n="load_audio_file">Загрузить файл</button>
+        </div>
+        <input type="file" id="audioFileInput" accept="audio/*" style="display:none;">
+        <audio id="audioElement" style="display:none;" loop></audio>
+      </div>
+
+      <div class="control-group" id="audioFileControls" style="display:none;">
+        <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+          <button id="playPauseBtn" style="flex:1;" data-i18n="play">▶ Play</button>
+          <button id="stopAudioBtn" style="flex:1;" data-i18n="stop">■ Stop</button>
+        </div>
+        <div class="pill-row" style="margin-top:8px;">
+          <span class="value-pill"><span data-i18n="status">Статус</span>: <strong id="audioStatusLabel">Не загружено</strong></span>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <noscript>This visualization requires JavaScript.</noscript>
