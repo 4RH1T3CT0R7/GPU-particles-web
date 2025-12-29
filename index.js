@@ -963,69 +963,71 @@
         float q = u_pointerStrength * pressBoost * 0.5;
 
         // Размеры
-        float diskR = radius * 1.4;
-        float coreR = radius * 0.08;
-        float diskThick = radius * 0.08;
+        float diskR = radius * 1.5;
+        float coreR = radius * 0.12;
+        float diskThick = radius * 0.25;
 
         // Зоны
         float inDiskPlane = exp(-absH * absH / (diskThick * diskThick));
         float inCore = exp(-rLen * rLen / (coreR * coreR));
 
-        // Джет - резко сужается
-        float jetRadius = radius * 0.6 / (1.0 + absH * 2.5);
+        // Джет - сужается
+        float jetRadius = radius * 0.5 / (1.0 + absH * 2.0);
         float inJetCone = exp(-rho * rho / (jetRadius * jetRadius));
         float inJet = inJetCone * (1.0 - inDiskPlane);
 
-        // === 1. ТОНКИЙ ПЛОТНЫЙ ДИСК ===
+        // === 1. ТОЛСТЫЙ ТОР (объёмный диск) ===
 
-        // ЭКСТРЕМАЛЬНОЕ сплющивание
-        float flattenForce = 25.0 * (1.0 - inJetCone * 0.99);
+        // Умеренное сплющивание (толстый тор!)
+        float flattenForce = 12.0 * (1.0 - inJetCone * 0.95);
         acc -= axis * hSign * q * flattenForce;
 
-        // ЭКСТРЕМАЛЬНОЕ вращение
-        float orbitalForce = 2.0 / (0.05 + rho * rho);
-        acc += phi * q * orbitalForce * 30.0 * (1.0 - inJet);
+        // Сильное вращение
+        float orbitalForce = 1.8 / (0.08 + rho * rho);
+        acc += phi * q * orbitalForce * 20.0 * (1.0 - inJet);
 
-        // Сильная аккреция к центру
-        float accretionForce = 0.5 / sqrt(0.05 + rho);
+        // Аккреция к центру
+        float accretionForce = 0.35 / sqrt(0.08 + rho);
         acc -= rhoDir * q * accretionForce * inDiskPlane;
 
-        // Без турбулентности - чистая структура
+        // Турбулентность для объёма
+        float noise = sin(rho * 4.0 + u_time) * cos(h * 5.0 - u_time * 0.8);
+        acc += vec3(noise * 0.5, noise * 0.4, noise * 0.5) * q * inDiskPlane;
 
-        // Очень сильная вязкость
-        vel *= mix(1.0, 0.98, inDiskPlane * (1.0 - inJet));
+        // Умеренная вязкость
+        vel *= mix(1.0, 0.985, inDiskPlane * (1.0 - inJet));
 
-        // === 2. ЯРКОЕ ЯДРО + СУЖАЮЩИЕСЯ ДЖЕТЫ ===
+        // === 2. СУПЕР-ДОМИНАНТНЫЕ ДЖЕТЫ ===
 
-        // СУПЕР-МОЩНЫЙ выброс из ядра
-        float coreEject = 100.0 * inCore;
+        // ЭКСТРЕМАЛЬНЫЙ выброс из ядра
+        float coreEject = 80.0 * inCore;
         acc += axis * hSign * q * coreEject;
 
-        // Очень сильный подъём в джете
-        float jetLift = 50.0 * inJetCone;
+        // МОЩНЕЙШИЙ подъём в джете
+        float jetLift = 60.0 * inJetCone;
         acc += axis * hSign * q * jetLift;
 
-        // МОЩНАЯ коллимация - резкое сужение
-        float collimatePower = 40.0 * (1.0 + absH * 4.0);
-        float edgeDist = smoothstep(jetRadius * 0.15, jetRadius, rho);
+        // Сильная коллимация
+        float collimatePower = 35.0 * (1.0 + absH * 3.5);
+        float edgeDist = smoothstep(jetRadius * 0.2, jetRadius, rho);
         acc -= rhoDir * q * collimatePower * inJetCone * edgeDist;
 
-        // Сильное вращение в джете
-        acc += phi * q * 12.0 * inJetCone;
+        // Вращение в джете
+        acc += phi * q * 10.0 * inJetCone;
 
         // === 3. ГРАНИЦЫ ===
         float boundR = smoothstep(diskR * 0.9, diskR, rho);
-        float boundH = smoothstep(diskR * 0.8, diskR * 1.2, absH);
-        acc -= rhoDir * q * 18.0 * boundR;
-        acc -= axis * hSign * q * 12.0 * boundH;
+        float boundH = smoothstep(diskR, diskR * 1.5, absH);
+        acc -= rhoDir * q * 14.0 * boundR;
+        acc -= axis * hSign * q * 10.0 * boundH;
 
-        // Сильное притяжение к центру
-        acc -= normalize(r) * q * 0.8 / (0.3 + rLen);
+        // Притяжение к центру
+        acc -= normalize(r) * q * 0.6 / (0.4 + rLen);
 
-        // Сильная стабилизация
-        vel *= 0.990;
+        // Умеренная стабилизация
+        vel *= 0.992;
         float speed = length(vel);
-        if (speed > 3.0) vel = vel / speed * 3.0;
+        if (speed > 3.5) vel = vel / speed * 3.5;
       } else {
         // Магнитный поток - мощные дуговые силовые линии (ОЧЕНЬ УСИЛЕНО)
         vec3 axis = normalize(u_viewDir * 0.7 + vec3(0.0, 1.0, 0.5));
