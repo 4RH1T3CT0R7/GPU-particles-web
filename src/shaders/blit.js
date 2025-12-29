@@ -18,9 +18,9 @@ void main(){
   vec3 base = texture(u_tex, uv).rgb;
 
   // Фоновый градиент
-  vec3 gradient = mix(vec3(0.02, 0.03, 0.07), vec3(0.05, 0.07, 0.12), uv.y);
+  vec3 gradient = mix(vec3(0.03, 0.04, 0.09), vec3(0.06, 0.09, 0.15), uv.y);
   float radial = 1.0 - length(uv - 0.5) * 1.2;
-  gradient += max(0.0, radial) * vec3(0.03, 0.02, 0.05);
+  gradient += max(0.0, radial) * vec3(0.04, 0.03, 0.06);
 
   // Bloom
   vec3 bloom = vec3(0.0);
@@ -49,7 +49,7 @@ void main(){
 
   // Шум и фон
   float grain = hash(uv * u_time) * 0.01 - 0.005;
-  col += gradient * 0.5 + grain;
+  col += gradient * 0.6 + grain;
 
   o_col = vec4(col, 1.0);
 }
