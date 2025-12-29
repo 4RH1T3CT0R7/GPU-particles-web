@@ -17,10 +17,10 @@ void main(){
   vec2 texel = 1.0 / u_resolution;
   vec3 base = texture(u_tex, uv).rgb;
 
-  // Фоновый градиент (more visible)
-  vec3 gradient = mix(vec3(0.04, 0.06, 0.14), vec3(0.10, 0.14, 0.24), uv.y);
+  // Фоновый градиент (dark background to match CSS)
+  vec3 gradient = mix(vec3(0.012, 0.043, 0.094), vec3(0.020, 0.071, 0.125), uv.y);
   float radial = 1.0 - length(uv - 0.5) * 1.2;
-  gradient += max(0.0, radial) * vec3(0.06, 0.04, 0.10);
+  gradient += max(0.0, radial) * vec3(0.015, 0.010, 0.025);
 
   // Bloom
   vec3 bloom = vec3(0.0);
@@ -47,9 +47,9 @@ void main(){
   // Гамма
   col = pow(col, vec3(0.95));
 
-  // Шум и фон (make background more visible)
+  // Шум и фон (dark background)
   float grain = hash(uv * u_time) * 0.01 - 0.005;
-  col += gradient * 1.2 + grain;
+  col += gradient * 0.8 + grain;
 
   o_col = vec4(col, 1.0);
 }
