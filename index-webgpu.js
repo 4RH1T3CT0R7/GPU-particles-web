@@ -189,6 +189,21 @@ import { DPR } from './src/config/constants.js';
     );
   }
 
+  // Update temporal accumulation params
+  function updateTemporalParams() {
+    const params = new Float32Array(4);
+    params[0] = 0.1; // alpha (blend factor)
+    params[1] = frameCount; // frameCount
+    params[2] = frameCount === 0 ? 1 : 0; // reset on first frame
+    params[3] = 0; // padding
+
+    device.queue.writeBuffer(
+      pipelines.temporal.paramsBuffer,
+      0,
+      params.buffer
+    );
+  }
+
   // Resize handler
   function resize() {
     const width = Math.floor(canvas.clientWidth * DPR);
@@ -262,12 +277,26 @@ import { DPR } from './src/config/constants.js';
 
   await setupRayTracing();
 
-  // Setup blit bind group
+  // Setup temporal accumulation bind group
+  const temporalBindGroup = device.createBindGroup({
+    label: 'Temporal Accumulation Bind Group',
+    layout: pipelines.temporal.bindGroupLayout,
+    entries: [
+      { binding: 0, resource: pipelines.rayTracing.outputTexture.createView() },       // current frame
+      { binding: 1, resource: pipelines.temporal.textures.history.createView() },      // history
+      { binding: 2, resource: pipelines.temporal.textures.output.createView() },       // output
+      { binding: 3, resource: { buffer: pipelines.temporal.paramsBuffer } }            // params
+    ]
+  });
+
+  console.log('✓ Temporal accumulation bind group created');
+
+  // Setup blit bind group (now uses temporal output)
   blitBindGroup = device.createBindGroup({
     label: 'Blit Bind Group',
     layout: pipelines.blit.pipeline.getBindGroupLayout(0),
     entries: [
-      { binding: 0, resource: pipelines.rayTracing.outputTexture.createView() },
+      { binding: 0, resource: pipelines.temporal.textures.output.createView() },
       { binding: 1, resource: pipelines.blit.sampler },
       { binding: 2, resource: { buffer: pipelines.blit.uniformsBuffer } }
     ]
@@ -286,6 +315,7 @@ import { DPR } from './src/config/constants.js';
     // Update params
     updateSimulationParams(time, deltaTime);
     updateRayTracingParams(time);
+    updateTemporalParams();
 
     // Create command encoder
     const commandEncoder = device.createCommandEncoder({
@@ -320,7 +350,27 @@ import { DPR } from './src/config/constants.js';
     );
     rayTracePass.end();
 
-    // 4. Blit ray traced output to canvas
+    // 4. Temporal accumulation pass (smooths path tracing noise)
+    const temporalPass = commandEncoder.beginComputePass({
+      label: 'Temporal Accumulation'
+    });
+    temporalPass.setPipeline(pipelines.temporal.pipeline);
+    temporalPass.setBindGroup(0, temporalBindGroup);
+    temporalPass.dispatchWorkgroups(
+      pipelines.temporal.workgroupCount.x,
+      pipelines.temporal.workgroupCount.y,
+      1
+    );
+    temporalPass.end();
+
+    // 5. Copy temporal output to history for next frame
+    commandEncoder.copyTextureToTexture(
+      { texture: pipelines.temporal.textures.output },
+      { texture: pipelines.temporal.textures.history },
+      [config.width, config.height]
+    );
+
+    // 6. Blit temporally accumulated output to canvas
     const textureView = presentation.context.getCurrentTexture().createView();
 
     const renderPass = commandEncoder.beginRenderPass({

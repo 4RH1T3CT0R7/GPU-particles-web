@@ -319,6 +319,70 @@ fn randomHemisphere(normal: vec3<f32>, seed: vec3<f32>) -> vec3<f32> {
 }
 
 // ============================================
+// Material Properties from Particle Data
+// ============================================
+
+struct Material {
+    albedo: vec3<f32>,
+    roughness: f32,
+    metallic: f32,
+    emissive: f32,
+}
+
+fn getMaterial(particleIdx: u32) -> Material {
+    var mat: Material;
+
+    // Generate material properties based on particle index
+    let hash = hash13(vec3<f32>(f32(particleIdx), f32(particleIdx * 7), f32(particleIdx * 13)));
+
+    // Varied albedo
+    let hue = hash;
+    mat.albedo = vec3<f32>(
+        0.6 + 0.3 * sin(hue * 6.28 + 0.0),
+        0.5 + 0.3 * sin(hue * 6.28 + 2.09),
+        0.5 + 0.3 * sin(hue * 6.28 + 4.18)
+    );
+
+    // Varied roughness (some particles shiny, some rough)
+    mat.roughness = 0.2 + 0.6 * hash13(vec3<f32>(f32(particleIdx * 3), 0.0, 0.0));
+
+    // Some particles more metallic
+    mat.metallic = hash13(vec3<f32>(f32(particleIdx * 5), 0.0, 0.0)) > 0.7 ? 0.8 : 0.1;
+
+    // Occasional emissive particles
+    mat.emissive = hash13(vec3<f32>(f32(particleIdx * 11), 0.0, 0.0)) > 0.95 ? 2.0 : 0.0;
+
+    return mat;
+}
+
+// ============================================
+// Importance sampling for specular reflections
+// ============================================
+
+fn importanceSampleGGX(normal: vec3<f32>, roughness: f32, seed: vec3<f32>) -> vec3<f32> {
+    let h1 = hash13(seed);
+    let h2 = hash13(seed + vec3<f32>(41.234, 71.543, 23.876));
+
+    let a = roughness * roughness;
+    let phi = 2.0 * 3.14159 * h1;
+    let cosTheta = sqrt((1.0 - h2) / (1.0 + (a * a - 1.0) * h2));
+    let sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+
+    let localDir = vec3<f32>(
+        cos(phi) * sinTheta,
+        sin(phi) * sinTheta,
+        cosTheta
+    );
+
+    // Transform to world space
+    let up = abs(normal.y) < 0.999 ? vec3<f32>(0.0, 1.0, 0.0) : vec3<f32>(1.0, 0.0, 0.0);
+    let tangent = normalize(cross(up, normal));
+    let bitangent = cross(normal, tangent);
+
+    return normalize(tangent * localDir.x + bitangent * localDir.y + normal * localDir.z);
+}
+
+// ============================================
 // Main Ray Tracing
 // ============================================
 
@@ -355,26 +419,63 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if (hit.hit) {
         let viewDir = -rayDir;
 
-        // Material properties (placeholder - should come from particle data)
-        let albedo = vec3<f32>(0.8, 0.6, 0.4);
-        let roughness = 0.5;
-        let metallic = 0.3;
+        // Get material properties from particle
+        let material = getMaterial(hit.particleIdx);
+
+        // Add emissive contribution
+        color += material.albedo * material.emissive;
 
         // Direct lighting with shadows
-        color = calculateDirectLighting(hit, viewDir, albedo, roughness, metallic);
+        color += calculateDirectLighting(hit, viewDir, material.albedo, material.roughness, material.metallic);
 
-        // Simple 1-bounce GI (optional, expensive)
-        // let seed = vec3<f32>(f32(pixelCoord.x), f32(pixelCoord.y), params.time);
-        // let bounceDir = randomHemisphere(hit.normal, seed);
-        // var bounceRay: Ray;
-        // bounceRay.origin = hit.position + hit.normal * 0.001;
-        // bounceRay.direction = bounceDir;
-        // let bounceHit = traceBVH(bounceRay);
-        // if (bounceHit.hit) {
-        //     color += albedo * 0.1; // Simplified indirect lighting
-        // }
+        // Path tracing: 1-bounce Global Illumination with importance sampling
+        let seed = vec3<f32>(f32(pixelCoord.x), f32(pixelCoord.y), params.time);
+
+        // Mix diffuse and specular sampling based on roughness
+        let useDiffuse = hash13(seed + vec3<f32>(99.9, 0.0, 0.0)) > material.metallic;
+        var bounceDir: vec3<f32>;
+
+        if (useDiffuse) {
+            // Diffuse bounce (cosine-weighted hemisphere)
+            bounceDir = randomHemisphere(hit.normal, seed);
+        } else {
+            // Specular bounce (importance sampled GGX)
+            let halfVector = importanceSampleGGX(hit.normal, material.roughness, seed);
+            bounceDir = reflect(rayDir, halfVector);
+
+            // Ensure bounce is above surface
+            if (dot(bounceDir, hit.normal) < 0.0) {
+                bounceDir = randomHemisphere(hit.normal, seed);
+            }
+        }
+
+        var bounceRay: Ray;
+        bounceRay.origin = hit.position + hit.normal * 0.001;
+        bounceRay.direction = bounceDir;
+        let bounceHit = traceBVH(bounceRay);
+
+        if (bounceHit.hit) {
+            // Get bounced surface material
+            let bounceMaterial = getMaterial(bounceHit.particleIdx);
+
+            // Indirect lighting contribution
+            let NdotL = max(dot(hit.normal, bounceDir), 0.0);
+            let brdf = material.albedo / 3.14159; // Lambertian BRDF
+            let indirectLight = brdf * NdotL * 2.0; // Hemisphere integral approximation
+
+            // Add emissive from bounced surface
+            let bounceEmissive = bounceMaterial.albedo * bounceMaterial.emissive;
+
+            // Combined indirect contribution
+            color += (indirectLight * bounceMaterial.albedo + bounceEmissive) * 0.4;
+        } else {
+            // Bounce ray hit sky - add ambient contribution
+            let NdotL = max(dot(hit.normal, bounceDir), 0.0);
+            let skyColor = mix(vec3<f32>(0.03, 0.04, 0.08), vec3<f32>(0.06, 0.08, 0.15), bounceDir.y * 0.5 + 0.5);
+            color += material.albedo * skyColor * NdotL * 0.3;
+        }
     } else {
-        // Sky/background
+        // Sky/background gradient
         let t = 0.5 * (rayDir.y + 1.0);
         color = mix(vec3<f32>(0.02, 0.03, 0.07), vec3<f32>(0.05, 0.07, 0.12), t);
     }
