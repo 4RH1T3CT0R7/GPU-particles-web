@@ -616,10 +616,10 @@ export const shapesGLSL =
     } else if (sid==11){ // фрактальный режим
       vec4 seed = u_fractalSeeds[seedSlot];
       vec3 f = fractalFlow(id, time, seed);
-      float shells = 0.4 + 0.35 * sin(time * 0.43 + seed.w);
-      p = applyRotations(f * (0.9 + shells), time * 0.45 + seed.w);
-      p.xy += curl(id * 8.5 + seed.xy * 2.7 + time * 0.35) * 0.22;
-      p.z += sin(angle * 0.6 + seed.z + time * 0.35) * 0.25;
+      float shells = 0.4 + 0.35 * sin(time * 0.3 + seed.w);
+      p = applyRotations(f * (0.9 + shells), time * 0.25 + seed.w);
+      p.xy += curl(id * 8.5 + seed.xy * 2.7 + time * 0.2) * 0.15;
+      p.z += sin(angle * 0.6 + seed.z + time * 0.2) * 0.18;
     } else if (sid==12){ // эквалайзер - плоскость с волнами от аудио
       p = shape_equalizer(id.x, id.y, u_audioBass, u_audioMid, u_audioTreble, time);
     } else { // polygon/star
