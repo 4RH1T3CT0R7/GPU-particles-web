@@ -3,6 +3,8 @@
   Fully modular version
 */
 
+//TODO FIX QUASAR
+
 // Import all modules
 import { DPR, SHAPE_NAMES_EN, SHAPE_NAMES_RU, FRACTAL_SHAPE_ID, EQUALIZER_SHAPE_ID_SIM, POINTER_MODES, MAX_COLOR_STOPS, colorPalettes } from './src/config/constants.js';
 import { initWebGL } from './src/core/webgl.js';
