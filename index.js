@@ -200,8 +200,8 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
 
   // Compute pointer world position using raycast (matches original)
   function computePointerWorld() {
-    const nx = (mouse.x / size.w) * 2 - 1;
-    const ny = 1 - (mouse.y / size.h) * 2;
+    const nx = mouse.x * 2 - 1;
+    const ny = 1 - mouse.y * 2;
     const aspect = size.w / size.h;
     const fov = Math.PI / 4;
     const depth = Math.max(0.35, camera.distance * 0.55);
@@ -262,8 +262,8 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
       mouse.lastY = y;
     }
 
-    mouse.x = (e.clientX - rect.left) * DPR;
-    mouse.y = (e.clientY - rect.top) * DPR;
+    mouse.x = x;
+    mouse.y = y;
   };
 
   canvas.addEventListener('mousemove', (e) => {
@@ -343,7 +343,7 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     computePointerWorld();
 
     // Lerp shape strength
-    const lerpSpeed = 3.0 * dt;
+    const lerpSpeed = 6.0 * dt;
     shapeState.shapeStrength += (shapeState.targetShapeStrength - shapeState.shapeStrength) * lerpSpeed;
 
     // Run simulation
@@ -387,12 +387,12 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     const renderTarget = renderPipeline.getRenderTarget();
     gl.bindFramebuffer(gl.FRAMEBUFFER, renderTarget.fbo);
     gl.viewport(0, 0, renderTarget.width, renderTarget.height);
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(0.01, 0.02, 0.06, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.useProgram(progParticles);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
     bindTex(gl, progParticles, 'u_pos', simState.posTex[simState.simRead], 0);
     gl.uniform2f(gl.getUniformLocation(progParticles, 'u_texSize'), simState.texSize, simState.texSize);
