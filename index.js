@@ -256,26 +256,40 @@
     float colZ = floor(s * cols) / cols;
     float localT = fract(t * cols);
     float localS = fract(s * cols);
+    float colIdx = colX * cols;
 
     // Позиция частицы внутри столбца
     float x = (colX - 0.5 + localT / cols) * 2.2;
     float z = (colZ - 0.5 + localS / cols) * 2.2;
 
-    // Определяем к какой частоте относится столбец (по X)
-    float freqBand = colX * cols;
+    // Если нет аудио - делаем демо-анимацию
+    float totalEnergy = bass + mid + treble;
+    float demoMode = step(totalEnergy, 0.05);
+
+    // Демо волны для каждой частотной полосы
+    float demoBass = 0.5 + 0.4 * sin(time * 1.2 + colIdx * 0.3);
+    float demoMid = 0.4 + 0.35 * sin(time * 1.8 + colIdx * 0.5 + 1.0);
+    float demoTreble = 0.3 + 0.3 * sin(time * 2.5 + colIdx * 0.7 + 2.0);
+
+    // Смешиваем реальное аудио с демо
+    float useBass = mix(bass, demoBass, demoMode);
+    float useMid = mix(mid, demoMid, demoMode);
+    float useTreble = mix(treble, demoTreble, demoMode);
+
+    // Определяем к какой частоте относится столбец
     float bandHeight = 0.0;
 
     // Бас - левые столбцы (0-2)
-    if (freqBand < 2.5) {
-      bandHeight = bass * 1.8;
+    if (colIdx < 2.5) {
+      bandHeight = useBass * 1.8;
     }
     // Середина - центральные столбцы (3-5)
-    else if (freqBand < 5.5) {
-      bandHeight = mid * 1.5;
+    else if (colIdx < 5.5) {
+      bandHeight = useMid * 1.5;
     }
     // Высокие - правые столбцы (6-7)
     else {
-      bandHeight = treble * 1.2;
+      bandHeight = useTreble * 1.2;
     }
 
     // Добавляем вариации по Z для глубины
@@ -284,15 +298,12 @@
 
     // Высота частицы внутри столбца
     float particleInBar = localS;
+    float barTop = max(0.1, bandHeight);
+    float y = -0.8 + particleInBar * barTop * 2.0;
 
-    // Частица видна только если она ниже высоты столбца
-    float barTop = bandHeight;
-    float y = -0.8 + particleInBar * 1.6;
-
-    // Если частица выше столбца - прижимаем к верхушке
-    if (particleInBar > barTop) {
-      y = -0.8 + barTop * 1.6;
-    }
+    // Добавляем пульсацию верхушки
+    float pulse = 0.05 * sin(time * 3.0 + colIdx + colZ * 5.0);
+    y += pulse * (1.0 - particleInBar);
 
     return vec3(x, y, z);
   }
@@ -334,63 +345,65 @@
   vec3 fractalFlow(vec2 id, float time, vec4 seed){
     vec2 p = id * 2.0 - 1.0;
 
-    // Параметрический фрактал с seed-ами
-    float seedScale = 1.2 + seed.x * 0.5;
-    float seedOffset = seed.y * 0.3;
-    vec2 c = p * seedScale + vec2(-0.5 + seedOffset, seed.z * 0.2);
+    // Классический Мандельброт с центром в интересной области
+    float zoom = 1.0 + seed.x * 0.3;
+    vec2 center = vec2(-0.5 + seed.y * 0.2, seed.z * 0.15);
+    vec2 c = p * zoom + center;
     vec2 z = vec2(0.0);
-    float iter = 0.0;
-    float maxIter = 32.0;
+    float maxIter = 48.0;
     float smoothIter = 0.0;
+    bool escaped = false;
 
-    for(int i = 0; i < 32; i++) {
+    for(int i = 0; i < 48; i++) {
       float zLen = dot(z, z);
-      if (zLen > 16.0) {
-        // Smooth iteration count для плавных переходов
-        smoothIter = float(i) - log2(log2(zLen));
+      if (zLen > 4.0) {
+        smoothIter = float(i) - log2(log2(zLen) / log2(4.0));
+        escaped = true;
         break;
       }
-      // Вариативная итерация с seed
-      float zx = z.x*z.x - z.y*z.y;
-      float zy = 2.0*z.x*z.y;
-      z = vec2(zx, zy) + c;
-      iter += 1.0;
+      z = vec2(z.x*z.x - z.y*z.y, 2.0*z.x*z.y) + c;
+      smoothIter = float(i);
     }
 
-    // Нормализуем результат итерации
-    float fractalVal = smoothIter > 0.0 ? smoothIter / maxIter : iter / maxIter;
+    // Нормализуем с учётом скорости побега
+    float fractalVal = smoothIter / maxIter;
     fractalVal = clamp(fractalVal, 0.0, 1.0);
 
-    // Создаём 3D форму на основе фрактала
+    // Если точка внутри множества, создаём особый эффект
+    if (!escaped) {
+      fractalVal = 0.5 + 0.5 * sin(length(z) * 10.0 + time);
+    }
+
+    // 3D спиральная структура на основе фрактала
     float baseAngle = atan(p.y, p.x);
-    float distFromCenter = length(p);
+    float dist = length(p);
 
-    // Множественные спиральные ветви
-    float arms = 3.0 + floor(seed.x * 3.0);
-    float armAngle = baseAngle * arms + time * 0.4 + seed.w;
-    float armModulation = 0.5 + 0.5 * sin(armAngle);
+    // Ветви спирали
+    float arms = 5.0;
+    float spiral = baseAngle * arms + fractalVal * 6.28 + time * 0.3;
+    float wave = 0.5 + 0.5 * sin(spiral);
 
-    // Радиус зависит от фрактального значения
-    float radius = (0.2 + fractalVal * 0.8) * (0.6 + 0.4 * armModulation);
+    // Радиус варьируется с фрактальным значением
+    float r = (0.3 + fractalVal * 0.7) * (0.7 + 0.3 * wave);
 
-    // 3D форма с ветвящейся структурой
-    float spiralZ = sin(baseAngle * arms + distFromCenter * 4.0 + time * 0.6) * 0.4;
-    float height = (fractalVal - 0.5) * 1.6 + spiralZ * fractalVal;
+    // Высота из фрактальных данных
+    float h = (fractalVal - 0.5) * 1.8;
+    h += sin(spiral * 0.5) * 0.3 * fractalVal;
 
+    // Финальная позиция с вращением
+    float rotAngle = baseAngle + time * 0.2 + seed.w;
     vec3 pos = vec3(
-      cos(baseAngle + time * 0.15) * radius * (0.7 + 0.3 * fractalVal),
-      height,
-      sin(baseAngle + time * 0.15) * radius * (0.7 + 0.3 * fractalVal)
+      cos(rotAngle) * r,
+      h,
+      sin(rotAngle) * r
     );
 
-    // Добавляем фрактальные детали
-    float detail = sin(fractalVal * 18.0 + seed.x * 5.0 + time * 0.7) * 0.15;
-    float detail2 = cos(fractalVal * 12.0 + seed.y * 4.0 - time * 0.5) * 0.1;
-    pos.x += detail * fractalVal;
-    pos.z += detail2 * fractalVal;
-    pos.y += sin(distFromCenter * 8.0 + time) * 0.1 * (1.0 - fractalVal);
+    // Детали движения
+    pos.x += sin(fractalVal * 12.0 + time * 0.8) * 0.12 * fractalVal;
+    pos.z += cos(fractalVal * 10.0 - time * 0.6) * 0.1 * fractalVal;
+    pos.y += sin(dist * 6.0 + time * 0.5) * 0.08;
 
-    return pos * 0.9;
+    return pos;
   }
 
   vec3 targetFor(int sid, vec2 id, float time, int seedSlot){
@@ -802,7 +815,7 @@
     h = clamp(h, 0.0, 0.9999);
     float scaled = h * bands;
     int i0 = int(floor(scaled));
-    int i1 = int(min(float(i0 + 1), bands - 1.0));
+    int i1 = min(i0 + 1, int(bands) - 1);
     float t = fract(scaled);
     vec3 c0 = u_colors[i0];
     vec3 c1 = u_colors[i1];
@@ -815,48 +828,46 @@
     if (r > 1.0) discard;
 
     float alpha = smoothstep(1.0, 0.0, r);
-    float softEdge = smoothstep(1.0, 0.2, r);
 
     // Fresnel для ореола
-    float fresnel = pow(1.0 - clamp(dot(normalize(vec3(p, 0.35)), vec3(0,0,1)), 0.0, 1.0), 2.0);
+    float fresnel = pow(1.0 - clamp(dot(normalize(vec3(p, 0.4)), vec3(0,0,1)), 0.0, 1.0), 2.0);
 
     // Мерцание
-    float sparkle = smoothstep(0.3, 0.0, r) * (0.6 + 0.4 * sin(u_time * 7.0 + v_hash * 60.0));
-    float pulse = 0.5 + 0.5 * sin(u_time * 1.8 + v_energy * 3.5 + v_hash * 11.0);
+    float sparkle = smoothstep(0.35, 0.0, r) * (0.5 + 0.5 * sin(u_time * 6.0 + v_hash * 50.0));
+    float pulse = 0.6 + 0.4 * sin(u_time * 1.5 + v_energy * 3.0 + v_hash * 9.0);
 
-    // Базовый цвет из палитры - используем v_hash для вариации
-    vec3 base = paletteSample(fract(v_hash + u_time * 0.03));
+    // Базовый цвет из палитры - усиливаем яркость
+    vec3 base = paletteSample(v_hash) * 1.4;
 
-    // Цвет с вариациями
-    vec3 color = base * (1.0 + 0.3 * pulse);
+    // Второй цвет для вариации
+    vec3 alt = paletteSample(fract(v_hash + 0.5)) * 1.4;
 
-    // Rim color
-    vec3 rimColor = paletteSample(fract(v_hash + 0.33));
-    color += rimColor * fresnel * 0.5;
+    // Смешиваем цвета с пульсацией
+    vec3 color = mix(base, alt, 0.25 * pulse);
+    color *= 0.85 + 0.25 * pulse;
+
+    // Rim glow
+    color += alt * fresnel * 0.3;
 
     // Освещение
     vec3 lightDir = normalize(u_lightPos - v_world);
-    float light = 0.6 + 0.4 * max(0.0, lightDir.y);
+    float light = 0.7 + 0.3 * max(0.0, lightDir.y);
 
-    float depthFade = clamp(2.0 / (1.0 + 0.02 * v_depth * v_depth), 0.25, 1.0);
-    float energyGlow = 0.7 + 0.5 * v_energy;
+    float depthFade = clamp(2.0 / (1.0 + 0.02 * v_depth * v_depth), 0.4, 1.0);
+    float energyGlow = 0.85 + 0.35 * v_energy;
 
-    // Эффекты свечения
-    float core = exp(-r * 3.5);
-    float halo = exp(-r * 1.2);
+    // Свечение ядра
+    float core = exp(-r * 3.0);
+    float halo = exp(-r * 1.5);
 
     color *= light * energyGlow;
-    color *= (alpha + core * 0.5 + sparkle * 0.3);
-    color += base * halo * 0.25;
+    color *= alpha + core * 0.35 + sparkle * 0.2;
+    color += base * halo * 0.15;
 
-    // Туман для глубины
-    vec3 fogColor = vec3(0.02, 0.03, 0.06);
-    float fog = clamp(exp(-v_depth * 0.1), 0.2, 1.0);
+    // Мягкий туман (уменьшен эффект)
+    vec3 fogColor = vec3(0.01, 0.015, 0.035);
+    float fog = clamp(exp(-v_depth * 0.06), 0.35, 1.0);
     color = mix(fogColor, color, fog);
-
-    // Тональное отображение
-    color = color / (1.0 + color * 0.3);
-    color *= 1.4;
 
     o_col = vec4(color * depthFade, alpha * 0.9);
   }
@@ -1417,10 +1428,10 @@
   const colorStopsBase = new Float32Array(MAX_COLOR_STOPS * 3);
 
   const randomFractalSeed = () => [
-    Math.random() * 2.6 + 0.4,
-    Math.random() * 2.2 + 0.3,
-    Math.random() * 1.6 + 0.2,
-    Math.random() * Math.PI * 2,
+    Math.random() * 0.8 + 0.3,  // zoom factor: 0.3-1.1
+    Math.random() * 0.6 - 0.3,  // center X offset: -0.3 to 0.3
+    Math.random() * 0.6 - 0.3,  // center Y offset: -0.3 to 0.3
+    Math.random() * Math.PI * 2,  // rotation phase
   ];
 
   const fractalState = {
@@ -2025,90 +2036,31 @@
   // Equalizer mode - particles form a plane and oscillate with audio
   const EQUALIZER_SHAPE_ID = 12;
   if (modeEqualizerBtn) {
-    modeEqualizerBtn.addEventListener('click', () => {
+    modeEqualizerBtn.addEventListener('click', async () => {
       shapeMode = 'equalizer';
-      targetShapeStrength = 1.2;
+      targetShapeStrength = 1.3;
+      shapeStrength = 1.0; // Быстрый старт
       shapeA = EQUALIZER_SHAPE_ID;
       shapeB = EQUALIZER_SHAPE_ID;
       morph = 0.0;
       isMorphing = false;
-      // Enable audio reactivity automatically in equalizer mode
       audioReactivityEnabled = true;
       updateModeButtons();
+
+      // Автоматически запрашиваем доступ к микрофону при первом включении эквалайзера
+      if (!audioEnabled) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          await initAudio(stream);
+          console.log('✓ Microphone activated for equalizer');
+        } catch (err) {
+          console.error('Microphone access denied:', err);
+        }
+      }
     });
   }
 
-  // ==== AUDIO CONTROLS ====
-  const useMicrophoneBtn = document.getElementById('useMicrophone');
-  const selectAudioFileBtn = document.getElementById('selectAudioFile');
-  const audioFileInput = document.getElementById('audioFileInput');
-  const audioElement = document.getElementById('audioElement');
-  const bassValueLabel = document.getElementById('bassValue');
-  const midValueLabel = document.getElementById('midValue');
-  const trebleValueLabel = document.getElementById('trebleValue');
-  const bassSensitivityInput = document.getElementById('bassSensitivity');
-  const midSensitivityInput = document.getElementById('midSensitivity');
-  const trebleSensitivityInput = document.getElementById('trebleSensitivity');
-  const bassSensitivityValue = document.getElementById('bassSensitivityValue');
-  const midSensitivityValue = document.getElementById('midSensitivityValue');
-  const trebleSensitivityValue = document.getElementById('trebleSensitivityValue');
-
-  useMicrophoneBtn.addEventListener('click', async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      await initAudio(stream);
-      audioReactivityEnabled = true;
-      useMicrophoneBtn.classList.add('active');
-      selectAudioFileBtn.classList.remove('active');
-      console.log('✓ Microphone activated');
-    } catch (err) {
-      console.error('Microphone access denied:', err);
-      alert('Не удалось получить доступ к микрофону');
-    }
-  });
-
-  selectAudioFileBtn.addEventListener('click', () => {
-    audioFileInput.click();
-  });
-
-  audioFileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      audioElement.src = url;
-      audioElement.style.display = 'block';
-      audioElement.play();
-      initAudioFromFile(audioElement);
-      audioReactivityEnabled = true;
-      selectAudioFileBtn.classList.add('active');
-      useMicrophoneBtn.classList.remove('active');
-      console.log('✓ Audio file loaded:', file.name);
-    }
-  });
-
-  bassSensitivityInput.addEventListener('input', (e) => {
-    audioSensitivity.bass = parseFloat(e.target.value);
-    bassSensitivityValue.textContent = audioSensitivity.bass.toFixed(1) + 'x';
-  });
-
-  midSensitivityInput.addEventListener('input', (e) => {
-    audioSensitivity.mid = parseFloat(e.target.value);
-    midSensitivityValue.textContent = audioSensitivity.mid.toFixed(1) + 'x';
-  });
-
-  trebleSensitivityInput.addEventListener('input', (e) => {
-    audioSensitivity.treble = parseFloat(e.target.value);
-    trebleSensitivityValue.textContent = audioSensitivity.treble.toFixed(1) + 'x';
-  });
-
-  // Update audio value labels
-  setInterval(() => {
-    if (bassValueLabel && midValueLabel && trebleValueLabel) {
-      bassValueLabel.textContent = Math.round(audioState.smoothBass * 100) + '%';
-      midValueLabel.textContent = Math.round(audioState.smoothMid * 100) + '%';
-      trebleValueLabel.textContent = Math.round(audioState.smoothTreble * 100) + '%';
-    }
-  }, 100);
+  // Audio control elements removed from UI - sensitivity is managed internally
 
   // Скрываем регулятор при загрузке
   manualGroup.style.display = 'none';
