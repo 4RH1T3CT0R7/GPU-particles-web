@@ -966,7 +966,7 @@
         float diskR = radius * 1.5;
         float coreR = radius * 0.15;
         float jetW = radius * 0.25;
-        float diskThick = radius * 0.15;
+        float diskThick = radius * 0.10;
 
         // Определение зон
         float inDiskPlane = exp(-absH * absH / (diskThick * diskThick));
@@ -976,25 +976,30 @@
 
         // === 1. ДИСК С АККРЕЦИЕЙ ===
 
-        // Сплющивание к h=0 (всегда активно, сильнее вне джета)
-        float flattenStr = 6.0 * (1.0 - nearAxis * 0.9);
+        // Сплющивание к h=0 (мощное, для чёткой поверхности)
+        float flattenStr = 8.5 * (1.0 - nearAxis * 0.9);
         acc -= axis * hSign * q * flattenStr;
 
         // Орбитальное ускорение (сильное вращение)
         float orbitalForce = 1.0 / (0.1 + rho * rho);
         acc += phi * q * orbitalForce * 15.0;
 
-        // Лёгкая аккреция: медленный поток к центру (только в диске)
-        float accretionStr = 0.3 / sqrt(0.1 + rho);
+        // Центробежный баланс (предотвращает коллапс в кольцо)
+        float tangentSpeed = length(cross(vel, axis));
+        float centrifugal = tangentSpeed * tangentSpeed / max(0.1, rho);
+        acc += rhoDir * centrifugal * 0.15 * inDiskPlane;
+
+        // Лёгкая аккреция: медленный поток к центру
+        float accretionStr = 0.25 / sqrt(0.1 + rho);
         acc -= rhoDir * q * accretionStr * inDiskPlane;
 
-        // Лёгкая турбулентность (только в диске)
-        float turbulence = sin(rho * 12.0 + u_time * 1.5) * cos(h * 15.0 - u_time * 2.0);
-        vec3 turbVec = vec3(turbulence * 0.2, sin(u_time + rho * 8.0) * 0.15, cos(u_time * 1.2 + h * 10.0) * 0.2);
-        acc += turbVec * q * 0.4 * inDiskPlane;
+        // Минимальная турбулентность (для структуры)
+        float turbulence = sin(rho * 10.0 + u_time * 1.2) * cos(h * 12.0 - u_time * 1.8);
+        vec3 turbVec = vec3(turbulence * 0.15, sin(u_time + rho * 6.0) * 0.1, cos(u_time + h * 8.0) * 0.15);
+        acc += turbVec * q * 0.25 * inDiskPlane;
 
         // Вязкость в диске
-        vel *= mix(1.0, 0.985, inDiskPlane * (1.0 - inCore));
+        vel *= mix(1.0, 0.988, inDiskPlane * (1.0 - inCore));
 
         // === 2. ДЖЕТЫ ===
 
