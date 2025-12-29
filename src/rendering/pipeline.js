@@ -11,10 +11,11 @@ export function createRenderPipeline(gl) {
   let renderH = 1;
 
   const makeRenderTarget = (w, h) => {
+    // HDR render target with RGBA16F for PBR values > 1.0
     return createTex(gl, w, h, {
-      internalFormat: gl.RGBA8,
+      internalFormat: gl.RGBA16F,
       srcFormat: gl.RGBA,
-      type: gl.UNSIGNED_BYTE,
+      type: gl.HALF_FLOAT,
       min: gl.LINEAR,
       mag: gl.LINEAR
     });

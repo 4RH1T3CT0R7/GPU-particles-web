@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>GPU Particle Shapes - WebGPU Ray Tracing</title>
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+    :root {
+      color-scheme: dark;
+      --glass: rgba(10, 15, 25, 0.58);
+      --glass-strong: rgba(14, 24, 43, 0.9);
+      --text: #e9f1ff;
+      --muted: rgba(223, 237, 255, 0.8);
+      --accent: linear-gradient(135deg, #7af5ff 0%, #8ba6ff 35%, #e196ff 100%);
+      --panel-shadow: 0 26px 64px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      --card-border: rgba(114, 201, 255, 0.22);
+      --chip-bg: rgba(255, 255, 255, 0.04);
+      --preview-gradient: linear-gradient(90deg, #7dd8ff, #c9a5ff);
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 20%, rgba(120, 255, 255, 0.09), transparent 30%),
+        radial-gradient(circle at 82% 24%, rgba(255, 170, 250, 0.1), transparent 32%),
+        radial-gradient(circle at 50% 70%, rgba(120, 170, 255, 0.08), transparent 32%),
+        linear-gradient(180deg, #050913 0%, #050a16 35%, #03060d 70%, #03040a 100%);
+      color: var(--text);
+      font-family: "Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      letter-spacing: 0.015em;
+      -webkit-font-smoothing: antialiased;
+    }
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+    #info {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: linear-gradient(165deg, rgba(12, 20, 35, 0.92), rgba(8, 14, 28, 0.88));
+      border: 1px solid rgba(106, 243, 255, 0.18);
+      border-radius: 18px;
+      padding: 20px 24px;
+      max-width: 400px;
+      box-shadow: 0 26px 64px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(12px);
+    }
+    h1 {
+      margin: 0 0 12px 0;
+      font-size: 24px;
+      font-weight: 600;
+      background: var(--accent);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(122, 245, 255, 0.12);
+      border: 1px solid rgba(122, 245, 255, 0.25);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+    }
+    .feature {
+      margin: 8px 0;
+      font-size: 14px;
+      color: var(--muted);
+      padding-left: 20px;
+      position: relative;
+    }
+    .feature::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #7af5ff;
+      font-weight: 700;
+    }
+    .note {
+      margin-top: 16px;
+      padding: 12px;
+      background: rgba(255, 200, 100, 0.08);
+      border-left: 3px solid rgba(255, 200, 100, 0.5);
+      border-radius: 6px;
+      font-size: 13px;
+      color: rgba(255, 220, 150, 0.9);
+    }
+    a {
+      color: #7af5ff;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    a:hover {
+      opacity: 0.7;
+    }
+    #fallback {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255, 80, 80, 0.15);
+      border: 2px solid rgba(255, 80, 80, 0.4);
+      border-radius: 12px;
+      padding: 32px;
+      max-width: 500px;
+      text-align: center;
+    }
+    #fallback.show {
+      display: block;
+    }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+
+    <div id="info">
+      <h1>WebGPU Ray Tracing</h1>
+      <div class="badge">Experimental Build</div>
+
+      <div class="feature">Cook-Torrance PBR Shading</div>
+      <div class="feature">Ray Traced Shadows</div>
+      <div class="feature">BVH Acceleration Structure</div>
+      <div class="feature">Multiple Dynamic Lights</div>
+      <div class="feature">Compute-Based Simulation</div>
+      <div class="feature">HDR + ACES Tone Mapping</div>
+
+      <div class="note">
+        <strong>Note:</strong> This version requires WebGPU support.
+        If unavailable, it will fallback to <a href="/index.html">WebGL2 version</a>.
+      </div>
+    </div>
+
+    <div id="fallback">
+      <h2>❌ WebGPU Not Available</h2>
+      <p>Your browser doesn't support WebGPU or it's not enabled.</p>
+      <p><a href="/index.html">← Switch to WebGL2 Version</a></p>
+    </div>
+
+    <script type="module" src="/index-webgpu.js"></script>
+  </body>
+</html>
