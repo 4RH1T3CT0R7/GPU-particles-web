@@ -444,11 +444,182 @@
       position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
       opacity: 0.72; font-size: 14px; letter-spacing: 0.08em;
     }
+
+    /* Mobile Menu Toggle Button */
+    #menuToggle {
+      display: none;
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 1000;
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(165deg, rgba(12, 20, 35, 0.95), rgba(8, 14, 28, 0.92));
+      border: 1.5px solid rgba(106, 243, 255, 0.4);
+      border-radius: 12px;
+      cursor: pointer;
+      padding: 0;
+      backdrop-filter: blur(24px) saturate(180%);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(106, 243, 255, 0.15);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    #menuToggle:active {
+      transform: scale(0.95);
+    }
+
+    #menuToggle span {
+      display: block;
+      width: 24px;
+      height: 2.5px;
+      background: linear-gradient(90deg, #7af5ff, #a8b8ff);
+      border-radius: 2px;
+      transition: all 0.3s ease;
+      box-shadow: 0 0 8px rgba(106, 243, 255, 0.6);
+    }
+
+    #menuToggle.active span:nth-child(1) {
+      transform: rotate(45deg) translate(7px, 7px);
+    }
+
+    #menuToggle.active span:nth-child(2) {
+      opacity: 0;
+      transform: scale(0);
+    }
+
+    #menuToggle.active span:nth-child(3) {
+      transform: rotate(-45deg) translate(7px, -7px);
+    }
+
+    /* Mobile Responsive Styles */
+    @media (max-width: 768px) {
+      #menuToggle {
+        display: flex;
+      }
+
+      #controls {
+        transform: translateX(-100%);
+        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        max-width: 85vw;
+        left: 0;
+        top: 0;
+        max-height: 100vh;
+        border-radius: 0 18px 18px 0;
+        padding: 80px 16px 20px;
+      }
+
+      #controls.active {
+        transform: translateX(0);
+        box-shadow: 0 0 60px rgba(0, 0, 0, 0.8), 8px 0 40px rgba(106, 243, 255, 0.15);
+      }
+
+      #controls h3 {
+        font-size: 14px;
+      }
+
+      .subtitle {
+        font-size: 10.5px;
+      }
+
+      .section-title {
+        font-size: 10px;
+      }
+
+      .control-group label {
+        font-size: 10px;
+      }
+
+      button {
+        font-size: 11px;
+        padding: 10px 12px;
+      }
+
+      select {
+        font-size: 11px;
+        padding: 9px 12px;
+      }
+
+      .value-pill {
+        font-size: 10px;
+        padding: 5px 10px;
+      }
+
+      .hint {
+        font-size: 10px;
+      }
+
+      .chip {
+        font-size: 10px;
+        padding: 6px 8px;
+      }
+
+      .badge {
+        font-size: 10px;
+        padding: 6px 8px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      #controls {
+        max-width: 90vw;
+        padding: 80px 14px 18px;
+      }
+
+      .shape-buttons {
+        grid-template-columns: 1fr;
+      }
+
+      button {
+        font-size: 10.5px;
+        padding: 9px 10px;
+      }
+    }
+
+    /* Overlay for mobile menu */
+    #menuOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 5;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #menuOverlay.active {
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      #menuOverlay {
+        display: block;
+        pointer-events: none;
+      }
+
+      #menuOverlay.active {
+        pointer-events: all;
+      }
+    }
   </style>
   <meta name="description" content="Fluid GPU particle cloud morphing between mathematical shapes with trails and glow." />
 </head>
 <body>
   <canvas id="gl"></canvas>
+
+  <!-- Mobile Menu Toggle Button -->
+  <button id="menuToggle" aria-label="Toggle menu">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <!-- Mobile Menu Overlay -->
+  <div id="menuOverlay"></div>
 
   <div id="controls">
     <div class="panel-header">

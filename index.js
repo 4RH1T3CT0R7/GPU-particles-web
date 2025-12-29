@@ -2927,5 +2927,68 @@
   // Initialize with Russian
   switchLanguage('ru');
 
+  // ==========================================
+  // Mobile Menu Toggle
+  // ==========================================
+  const menuToggle = document.getElementById('menuToggle');
+  const menuOverlay = document.getElementById('menuOverlay');
+  const controls = document.getElementById('controls');
+
+  function toggleMenu() {
+    const isActive = controls.classList.toggle('active');
+    menuToggle.classList.toggle('active', isActive);
+    menuOverlay.classList.toggle('active', isActive);
+
+    // Prevent body scroll when menu is open on mobile
+    if (window.innerWidth <= 768) {
+      document.body.style.overflow = isActive ? 'hidden' : '';
+    }
+  }
+
+  function closeMenu() {
+    controls.classList.remove('active');
+    menuToggle.classList.remove('active');
+    menuOverlay.classList.remove('active');
+    if (window.innerWidth <= 768) {
+      document.body.style.overflow = '';
+    }
+  }
+
+  // Toggle menu on button click
+  menuToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleMenu();
+  });
+
+  // Close menu when clicking overlay
+  menuOverlay.addEventListener('click', closeMenu);
+
+  // Close menu when clicking on shape buttons, mode buttons, or other action buttons on mobile
+  if (window.innerWidth <= 768) {
+    const actionButtons = document.querySelectorAll('.shape-buttons button, #resetFlow, #scatterFlow');
+    actionButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Close menu after a short delay to allow user to see the action
+        setTimeout(closeMenu, 300);
+      });
+    });
+  }
+
+  // Handle window resize
+  let resizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      if (window.innerWidth > 768) {
+        // Desktop mode - ensure menu is visible and reset styles
+        controls.classList.remove('active');
+        menuToggle.classList.remove('active');
+        menuOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+      }
+    }, 250);
+  });
+
   console.log('✓ UI инициализирован успешно!');
+  console.log('✓ Мобильное меню настроено!');
 })();
