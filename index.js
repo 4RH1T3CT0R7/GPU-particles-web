@@ -742,37 +742,38 @@
       acc -= pos / distCenter * (distCenter - roamRadius) * 0.6;
     }
 
-    // ==== AUDIO REACTIVITY (работает во всех режимах) ====
-    // Применяем аудио эффекты во всех режимах, не только в эквалайзере
-    float audioTotalEnergy = u_audioBass + u_audioMid + u_audioTreble;
-    bool hasAudio = audioTotalEnergy > 0.01;
+    // ==== AUDIO REACTIVITY (ТОЛЬКО в режиме эквалайзера) ====
+    // Применяем аудио эффекты ТОЛЬКО когда включен режим эквалайзера (shapeID == 12)
+    bool isEqualizerMode = (u_shapeA == 12 || u_shapeB == 12);
 
-    if (hasAudio) {
-      // Усиление общей энергии
-      float audioBoost = 1.0 + u_audioEnergy * 0.8;
+    if (isEqualizerMode) {
+      float audioBoost = 1.0 + u_audioEnergy * 1.2;
       acc *= audioBoost;
 
-      // Bass adds outward pulsing force (работает везде)
-      float bassForce = u_audioBass * 3.5;
-      vec3 outward = normalize(pos) + vec3(0.001);
+      // Bass adds outward pulsing force (усилено)
+      float bassForce = u_audioBass * 4.5;
+      vec3 outward = normalize(pos - desired) + vec3(0.001);
       acc += outward * bassForce;
-      vel += outward * u_audioBass * 0.6;
+      // Дополнительная пульсация для басов
+      vel += outward * u_audioBass * 0.8;
 
-      // Mid frequencies add swirling motion (работает везде)
+      // Mid frequencies add swirling motion (усилено)
       float midAngle = u_audioMid * 3.14159 + u_time;
       vec2 midSwirl = vec2(cos(midAngle), sin(midAngle));
-      acc += vec3(midSwirl * u_audioMid * 2.8, 0.0);
+      acc += vec3(midSwirl * u_audioMid * 3.2, 0.0);
+      // Добавляем вращательный момент
       vec3 midTangent = vec3(-midSwirl.y, midSwirl.x, sin(u_time * 2.0) * 0.5);
-      acc += midTangent * u_audioMid * 1.8;
+      acc += midTangent * u_audioMid * 2.0;
 
-      // Treble adds vertical lift and sparkle (работает везде)
-      acc.y += u_audioTreble * 3.2;
-      acc += vec3(0.0, 0.0, sin(u_time * 5.0 + idHash * 6.28) * u_audioTreble * 2.2);
+      // Treble adds vertical lift and sparkle (усилено)
+      acc.y += u_audioTreble * 3.8;
+      acc += vec3(0.0, 0.0, sin(u_time * 5.0 + idHash * 6.28) * u_audioTreble * 2.5);
+      // Дополнительные искорки для высоких частот
       vec3 sparkle = vec3(
         sin(u_time * 7.0 + idHash * 12.56),
         cos(u_time * 8.0 + layerHash * 9.42),
         sin(u_time * 6.0 + idHash * 15.7)
-      ) * u_audioTreble * 1.5;
+      ) * u_audioTreble * 1.8;
       acc += sparkle;
     }
 
@@ -2393,7 +2394,7 @@
       color_5_plus: 'цветов',
       // Audio reactivity
       audio_reactivity: 'Аудио-реактивность',
-      audio_hint: 'Частицы реагируют на звук во всех режимах',
+      audio_hint: 'Работает только в режиме Эквалайзер',
       enable_audio: 'Включить аудио-реактивность',
       audio_source: 'Источник звука',
       use_microphone: 'Микрофон',
@@ -2462,7 +2463,7 @@
       color_5_plus: 'colors',
       // Audio reactivity
       audio_reactivity: 'Audio Reactivity',
-      audio_hint: 'Particles react to sound in all modes',
+      audio_hint: 'Works only in Equalizer mode',
       enable_audio: 'Enable audio reactivity',
       audio_source: 'Audio source',
       use_microphone: 'Microphone',
