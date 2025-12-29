@@ -132,18 +132,19 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     if (shapeState.shapeMode === 'fractals') {
       shapeState.shapeA = FRACTAL_SHAPE_ID;
       shapeState.shapeB = FRACTAL_SHAPE_ID;
-      // Keep high attraction for fractals (use fixed value to prevent feedback loop)
-      shapeState.targetShapeStrength = 1.25;
+      // Reduced attraction for fractals to prevent jerking
+      shapeState.targetShapeStrength = 0.85;
 
-      // Smooth easing with hold at start and end
-      const hold = 0.15;
+      // Smoother easing with longer hold periods
+      const hold = 0.25;
       const phase = fractalState.timer / fractalState.duration;
       const clampedPhase = Math.min(1.0, phase);
       const eased = (() => {
         if (clampedPhase < hold) return 0.0;
         if (clampedPhase > 1.0 - hold) return 1.0;
         const u = (clampedPhase - hold) / (1.0 - 2.0 * hold);
-        return 0.5 - 0.5 * Math.cos(Math.PI * u);
+        // Cubic easing for smoother transitions
+        return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
       })();
       shapeState.morph = eased;
 
@@ -158,7 +159,7 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
           Math.random() * 0.6 - 0.3,
           Math.random() * Math.PI * 2
         ];
-        fractalState.duration = 14.0 + Math.random() * 8.0;
+        fractalState.duration = 16.0 + Math.random() * 10.0;
         // Change palette on fractal transition
         colorManager.currentPaletteIndex = (colorManager.currentPaletteIndex + 1) % colorPalettes.length;
         colorManager.rebuildColorStops(colorPalettes[colorManager.currentPaletteIndex]);

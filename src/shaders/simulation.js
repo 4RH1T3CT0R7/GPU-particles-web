@@ -106,21 +106,25 @@ void main(){
   float dist = max(0.005, length(toShape));
   vec3 dirToShape = toShape / dist;
 
-  float springStrength = 15.0 + 10.0 * calmFactor;
-  float dampingFactor = exp(-dist * 0.4);
+  // Stronger spring force and better damping
+  float springStrength = 25.0 + 15.0 * calmFactor;
+  float dampingFactor = exp(-dist * 0.3);
   vec3 shapeForce = toShape * springStrength * shapeWeight * dampingFactor;
 
-  float closeRange = smoothstep(0.5, 0.0, dist);
-  shapeForce += dirToShape * 6.0 * shapeWeight * closeRange;
+  // Enhanced close range attraction
+  float closeRange = smoothstep(0.6, 0.0, dist);
+  shapeForce += dirToShape * 12.0 * shapeWeight * closeRange;
 
-  float nearTarget = smoothstep(0.15, 0.0, dist);
-  shapeForce += dirToShape * 3.0 * shapeWeight * nearTarget;
-  vel *= mix(1.0, 0.85, nearTarget * shapeWeight);
+  // Stronger near target force
+  float nearTarget = smoothstep(0.2, 0.0, dist);
+  shapeForce += dirToShape * 8.0 * shapeWeight * nearTarget;
+  vel *= mix(1.0, 0.82, nearTarget * shapeWeight);
 
-  float cohesion = smoothstep(0.0, 0.55, shapeWeight);
-  acc = mix(acc, shapeForce * 2.2, cohesion * 0.92);
-  acc += shapeForce * 0.6;
-  vel *= mix(0.96, 0.87, cohesion * calmFactor);
+  // Improved cohesion
+  float cohesion = smoothstep(0.0, 0.6, shapeWeight);
+  acc = mix(acc, shapeForce * 2.8, cohesion * 0.95);
+  acc += shapeForce * 1.2;
+  vel *= mix(0.96, 0.85, cohesion * calmFactor);
 
   // ==== POINTER INTERACTION ====
   if (u_pointerActive > 0.5) {
