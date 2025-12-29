@@ -132,8 +132,8 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     if (shapeState.shapeMode === 'fractals') {
       shapeState.shapeA = FRACTAL_SHAPE_ID;
       shapeState.shapeB = FRACTAL_SHAPE_ID;
-      // Keep high attraction for fractals
-      shapeState.targetShapeStrength = Math.max(1.25, shapeState.shapeStrength * 1.3);
+      // Keep high attraction for fractals (use fixed value to prevent feedback loop)
+      shapeState.targetShapeStrength = 1.25;
 
       // Smooth easing with hold at start and end
       const hold = 0.15;
@@ -202,7 +202,7 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
   function computePointerWorld() {
     const nx = mouse.x * 2 - 1;
     const ny = 1 - mouse.y * 2;
-    const aspect = size.w / size.h;
+    const aspect = canvas.width / canvas.height;
     const fov = Math.PI / 4;
     const depth = Math.max(0.35, camera.distance * 0.55);
 
@@ -343,8 +343,7 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     computePointerWorld();
 
     // Lerp shape strength
-    const lerpSpeed = 6.0 * dt;
-    shapeState.shapeStrength += (shapeState.targetShapeStrength - shapeState.shapeStrength) * lerpSpeed;
+    shapeState.shapeStrength += (shapeState.targetShapeStrength - shapeState.shapeStrength) * 0.1;
 
     // Run simulation
     gl.useProgram(progSim);
@@ -387,7 +386,7 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     const renderTarget = renderPipeline.getRenderTarget();
     gl.bindFramebuffer(gl.FRAMEBUFFER, renderTarget.fbo);
     gl.viewport(0, 0, renderTarget.width, renderTarget.height);
-    gl.clearColor(0.01, 0.02, 0.06, 1.0);
+    gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.useProgram(progParticles);
