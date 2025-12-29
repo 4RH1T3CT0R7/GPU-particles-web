@@ -945,82 +945,74 @@
         acc += dirP * base * wave * 2.5;
         vel = mix(vel, vel - dirP * base * 1.5 + swirl * base * 1.2, 0.6 * pulse);
       } else if (u_pointerMode == 6) {
-        // КВАЗАР: тороидальный вихрь - непрерывный поток частиц
+        // КВАЗАР: плоский диск + тонкие джеты из центра
         vec3 r = pos - u_pointerPos;
         float rLen = max(0.01, length(r));
 
-        // Ось квазара
         vec3 axis = vec3(0.0, 1.0, 0.0);
 
         // Цилиндрические координаты
-        float h = dot(r, axis);                    // высота (со знаком)
+        float h = dot(r, axis);
         float absH = abs(h);
         float hSign = sign(h + 0.0001);
         vec3 toAxis = r - axis * h;
-        float rho = length(toAxis);                // расстояние от оси
+        float rho = length(toAxis);
         vec3 rhoDir = rho > 0.01 ? toAxis / rho : vec3(1.0, 0.0, 0.0);
-        vec3 phi = normalize(cross(axis, rhoDir)); // тангенциальное направление
+        vec3 phi = normalize(cross(axis, rhoDir));
 
-        float q = u_pointerStrength * pressBoost * 0.5;
+        float q = u_pointerStrength * pressBoost * 0.4;
 
-        // Масштабы
-        float R = radius * 1.0;      // характерный радиус тора
-        float jetW = radius * 0.3;   // ширина джета
-        float diskH = radius * 0.15; // толщина диска
+        // Размеры
+        float diskR = radius * 1.3;    // радиус диска
+        float coreR = radius * 0.08;   // ОЧЕНЬ маленькое ядро
+        float jetW = radius * 0.15;    // узкие джеты
 
-        // === ТОРОИДАЛЬНЫЙ ПОТОК ===
-        // Идея: частицы текут по замкнутым петлям вокруг тора
-        // Внутри (rho < R): вверх, Снаружи (rho > R): вниз
-        // Наверху: наружу, Внизу (диск): внутрь
+        // === 1. ДИСК - ОСНОВНАЯ СТРУКТУРА ===
 
-        // Нормализованные координаты
-        float rhoNorm = rho / R;
-        float hNorm = absH / R;
+        // Очень сильное сплющивание к плоскости h=0
+        // Чем дальше от оси, тем сильнее
+        float flattenStr = 10.0 * (1.0 + rho / diskR);
+        acc -= axis * hSign * q * flattenStr;
 
-        // Вертикальная компонента потока: вверх в центре, вниз снаружи
-        float vertFlow = (1.0 - rhoNorm) * 2.0 - 0.5;
-        vertFlow = clamp(vertFlow, -1.0, 1.0);
+        // Вращение диска (кеплеровское)
+        float rot = 6.0 / (0.1 + rho);
+        acc += phi * q * rot;
 
-        // Радиальная компонента: наружу наверху, внутрь внизу
-        float radFlow = hNorm * 1.5 - 0.3;
-        radFlow = clamp(radFlow, -1.0, 1.0);
+        // Слабое притяжение к центру в плоскости диска
+        float inDiskPlane = exp(-absH * absH / (0.1 * 0.1));
+        acc -= rhoDir * q * 2.0 * inDiskPlane / (0.3 + rho);
 
-        // Сила потока (сильнее ближе к центру системы)
-        float flowStr = 6.0 / (0.3 + rLen);
+        // === 2. ДЖЕТЫ - ТОЛЬКО ИЗ ЯДРА ===
 
-        // Применяем тороидальный поток
-        acc += axis * hSign * q * vertFlow * flowStr;
-        acc += rhoDir * q * radFlow * flowStr * 0.7;
+        // Выброс только из очень маленького ядра
+        float inCore = exp(-rLen * rLen / (coreR * coreR));
+        float eject = 20.0 * inCore;
+        acc += axis * hSign * q * eject;
 
-        // === ВРАЩЕНИЕ (азимутальное) ===
-        // Быстрее в центре, медленнее снаружи (кеплеровское)
-        float rotSpeed = 5.0 / (0.2 + rho);
-        acc += phi * q * rotSpeed;
+        // Частицы в джете (близко к оси И высоко) продолжают подъём
+        float nearAxis = exp(-rho * rho / (jetW * jetW));
+        float highUp = smoothstep(0.1, 0.4, absH / diskR);
+        float inJet = nearAxis * highUp;
 
-        // === СПЛЮЩИВАНИЕ В ДИСК ===
-        // Частицы вне центральной области стремятся к плоскости
-        float awayFromDisk = smoothstep(diskH, diskH * 4.0, absH);
-        float awayFromAxis = smoothstep(jetW, jetW * 2.0, rho);
-        float flatten = 5.0 * awayFromDisk * awayFromAxis;
-        acc -= axis * hSign * q * flatten;
+        // Продолжение подъёма в джете (слабеет с высотой)
+        float jetLift = 8.0 * inJet / (1.0 + absH);
+        acc += axis * hSign * q * jetLift;
 
-        // === КОЛЛИМАЦИЯ ДЖЕТОВ ===
-        // Частицы в джетах (высоко и близко к оси) сжимаются к оси
-        float inJetRegion = (1.0 - awayFromAxis) * awayFromDisk;
-        float collimate = 3.0 * inJetRegion * smoothstep(jetW * 0.5, jetW * 1.5, rho);
-        acc -= rhoDir * q * collimate;
+        // Коллимация - сжатие джета к оси
+        float collimateFactor = smoothstep(jetW * 0.3, jetW * 1.5, rho);
+        acc -= rhoDir * q * 5.0 * inJet * collimateFactor;
 
-        // === УДЕРЖАНИЕ В СИСТЕМЕ ===
-        // Мягкое притяжение к центру
-        acc -= normalize(r) * q * 0.5 / (0.5 + rLen);
+        // Вращение в джете
+        acc += phi * q * 4.0 * inJet;
 
-        // Границы
-        float maxR = R * 2.0;
-        float maxH = R * 2.5;
-        float boundR = smoothstep(maxR * 0.8, maxR, rho);
-        float boundH = smoothstep(maxH * 0.8, maxH, absH);
-        acc -= rhoDir * q * 8.0 * boundR;
-        acc -= axis * hSign * q * 8.0 * boundH;
+        // === 3. ГРАНИЦЫ ===
+        float boundR = smoothstep(diskR * 0.9, diskR * 1.2, rho);
+        float boundH = smoothstep(diskR * 1.5, diskR * 2.0, absH);
+        acc -= rhoDir * q * 15.0 * boundR;
+        acc -= axis * hSign * q * 10.0 * boundH;
+
+        // Возврат далёких частиц
+        acc -= normalize(r) * q * 0.3 / (0.5 + rLen);
 
         // Стабилизация
         vel *= 0.99;
