@@ -962,14 +962,14 @@
         vec3 diskDir = toAxisVec / diskDist;
         vec3 tangent = normalize(cross(axis, diskDir));
 
-        float qBase = u_pointerStrength * pressBoost * 2.0;
+        float qBase = u_pointerStrength * pressBoost * 1.0;  // Уменьшена базовая сила
 
-        // Размеры квазара
-        float coreRadius = radius * 0.15;      // Маленькое ядро для выброса
-        float jetRadius = radius * 0.35;       // Ширина струй
-        float diskThick = radius * 0.15;       // Тонкий диск
-        float diskRadius = radius * 1.5;       // Радиус диска
-        float jetHeight = radius * 3.5;        // Высота струй
+        // Размеры квазара (увеличены для более свободного расположения)
+        float coreRadius = radius * 0.2;       // Ядро для выброса
+        float jetRadius = radius * 0.4;        // Ширина струй
+        float diskThick = radius * 0.2;        // Толщина диска
+        float diskRadius = radius * 2.0;       // Радиус диска (больше)
+        float jetHeight = radius * 2.5;        // Высота струй (меньше для быстрого возврата)
 
         // === ОПРЕДЕЛЕНИЕ ЗОН ===
         // В плоскости диска (гауссиан по высоте)
@@ -979,67 +979,71 @@
         // Близость к оси
         float nearAxis = smoothstep(jetRadius, jetRadius * 0.1, diskDist);
         // В ядре (очень близко к центру И в плоскости диска)
-        float inCore = smoothstep(coreRadius * 2.0, coreRadius * 0.3, rLen) * inDisk;
+        float inCore = smoothstep(coreRadius * 2.5, coreRadius * 0.4, rLen) * inDisk;
         // В зоне струи (близко к оси И выше диска)
         float inJet = nearAxis * aboveDisk;
-        // На вершине струи
-        float atJetTop = smoothstep(jetHeight * 0.6, jetHeight * 0.9, absHeight);
+        // На вершине струи (раньше начинается возврат)
+        float atJetTop = smoothstep(jetHeight * 0.4, jetHeight * 0.7, absHeight);
         // Во внешней зоне
-        float inOuter = smoothstep(diskRadius * 0.5, diskRadius * 0.9, diskDist);
+        float inOuter = smoothstep(diskRadius * 0.4, diskRadius * 0.7, diskDist);
 
         // === ПРИТЯЖЕНИЕ К ЦЕНТРУ (в плоскости диска) ===
-        // Сильное притяжение для формирования диска
+        // Мягкое притяжение для формирования диска
         vec3 toCenterInDisk = -diskDir * (1.0 - nearAxis);
-        acc += toCenterInDisk * qBase * (8.0 * inDisk / (0.3 + diskDist));
+        acc += toCenterInDisk * qBase * (4.0 * inDisk / (0.4 + diskDist));
 
-        // Слабое общее притяжение
-        acc -= radial * qBase * (3.0 / (1.0 + rLen * rLen));
+        // Очень слабое общее притяжение
+        acc -= radial * qBase * (1.5 / (1.0 + rLen * rLen));
 
         // === АККРЕЦИОННЫЙ ДИСК ===
-        // Сильное сплющивание к плоскости (НЕ для частиц в струях)
-        float flattenForce = 20.0 * (1.0 - inDisk) * (1.0 - inJet);
+        // Сплющивание к плоскости (НЕ для частиц в струях)
+        float flattenForce = 12.0 * (1.0 - inDisk) * (1.0 - inJet);
         acc -= axis * heightSign * qBase * flattenForce;
 
         // Вращение диска (кеплеровское - быстрее к центру)
         float diskRotation = inDisk * (1.0 - inCore);
-        acc += tangent * qBase * (8.0 * diskRotation / (0.15 + diskDist));
+        acc += tangent * qBase * (5.0 * diskRotation / (0.2 + diskDist));
 
         // === ВЫБРОС ИЗ ЯДРА ===
-        // Только частицы в ядре И в плоскости диска выбрасываются вертикально
-        float ejectStrength = 30.0 * inCore;
+        // Умеренный выброс - не слишком сильный
+        float ejectStrength = 15.0 * inCore;
         acc += axis * heightSign * qBase * ejectStrength;
-        // Быстрое вращение в ядре
-        acc += tangent * qBase * (12.0 * inCore);
+        // Вращение в ядре
+        acc += tangent * qBase * (6.0 * inCore);
 
         // === ВЕРТИКАЛЬНЫЕ СТРУИ ===
-        // Подъёмная сила ТОЛЬКО для частиц уже в струе (выше диска)
-        float liftProfile = 1.0 - smoothstep(diskThick, jetHeight, absHeight) * 0.6;
-        float jetLift = 15.0 * inJet * liftProfile;
+        // Подъёмная сила ослабевает быстрее к вершине
+        float liftProfile = 1.0 - smoothstep(diskThick, jetHeight * 0.6, absHeight);
+        float jetLift = 8.0 * inJet * liftProfile;
         acc += axis * heightSign * qBase * jetLift;
 
-        // Коллимация - удержание частиц в узком столбе
-        float collimate = smoothstep(jetRadius * 0.15, jetRadius * 0.7, diskDist);
-        acc -= diskDir * qBase * (15.0 * inJet * collimate);
+        // Коллимация - удержание частиц в столбе
+        float collimate = smoothstep(jetRadius * 0.2, jetRadius * 0.8, diskDist);
+        acc -= diskDir * qBase * (6.0 * inJet * collimate);
 
         // Спиральное вращение в струе
-        float spiralPhase = u_time * 3.0 + absHeight * 3.0;
-        acc += tangent * qBase * (2.5 * inJet * sin(spiralPhase));
+        float spiralPhase = u_time * 2.5 + absHeight * 2.5;
+        acc += tangent * qBase * (1.5 * inJet * sin(spiralPhase));
 
-        // === ФОНТАННЫЙ ВОЗВРАТ ===
-        // На вершине струи - расширение наружу
+        // === ФОНТАННЫЙ ВОЗВРАТ (усилен) ===
+        // На вершине струи - расширение наружу (раньше и сильнее)
         acc += diskDir * qBase * (12.0 * atJetTop * nearAxis);
 
-        // Падение вниз по внешнему краю
-        acc -= axis * heightSign * qBase * (6.0 * inOuter * aboveDisk);
+        // Сильное падение вниз по внешнему краю
+        acc -= axis * heightSign * qBase * (8.0 * inOuter * aboveDisk);
 
-        // Притяжение к диску на внешнем крае
-        acc -= diskDir * qBase * (4.0 * inOuter * inDisk);
+        // Притяжение обратно к диску
+        acc -= diskDir * qBase * (5.0 * inOuter * inDisk);
 
-        // === ГРАНИЦЫ ===
-        float radialBound = smoothstep(diskRadius * 0.85, diskRadius * 1.2, diskDist);
-        float heightBound = smoothstep(jetHeight * 0.9, jetHeight * 1.1, absHeight);
-        acc -= diskDir * qBase * (25.0 * radialBound);
-        acc -= axis * heightSign * qBase * (25.0 * heightBound);
+        // Дополнительная сила возврата для частиц далеко от центра и высоко
+        float farFromCenter = smoothstep(diskRadius * 0.3, diskRadius * 0.8, diskDist);
+        acc -= radial * qBase * (4.0 * farFromCenter * aboveDisk);
+
+        // === ГРАНИЦЫ (мягче) ===
+        float radialBound = smoothstep(diskRadius * 0.9, diskRadius * 1.3, diskDist);
+        float heightBound = smoothstep(jetHeight * 0.85, jetHeight * 1.1, absHeight);
+        acc -= diskDir * qBase * (15.0 * radialBound);
+        acc -= axis * heightSign * qBase * (15.0 * heightBound);
 
         // === СТАБИЛИЗАЦИЯ ===
         vel *= 0.99;
