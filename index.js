@@ -976,25 +976,25 @@
 
         // === 1. ДИСК С АККРЕЦИЕЙ ===
 
-        // Сплющивание к h=0 (более мягкое)
-        float flattenStr = 4.0 * (1.0 - nearAxis * 0.8);
-        acc -= axis * hSign * q * flattenStr * inDiskPlane;
+        // Сплющивание к h=0 (всегда активно, сильнее вне джета)
+        float flattenStr = 6.0 * (1.0 - nearAxis * 0.9);
+        acc -= axis * hSign * q * flattenStr;
 
-        // Орбитальное ускорение (вместо прямого контроля скорости)
+        // Орбитальное ускорение (сильное вращение)
         float orbitalForce = 1.0 / (0.1 + rho * rho);
-        acc += phi * q * orbitalForce * 8.0 * inDiskPlane;
+        acc += phi * q * orbitalForce * 15.0;
 
-        // Аккреция: постоянный поток к центру
-        float accretionStr = 0.8 / sqrt(0.1 + rho);
+        // Лёгкая аккреция: медленный поток к центру (только в диске)
+        float accretionStr = 0.3 / sqrt(0.1 + rho);
         acc -= rhoDir * q * accretionStr * inDiskPlane;
 
-        // Турбулентность в диске (шум)
-        float turbulence = sin(rho * 15.0 + u_time * 2.0) * cos(h * 20.0 - u_time * 3.0);
-        vec3 turbVec = vec3(turbulence * 0.3, sin(u_time + rho * 10.0) * 0.2, cos(u_time * 1.5 + h * 12.0) * 0.3);
-        acc += turbVec * q * 0.8 * inDiskPlane;
+        // Лёгкая турбулентность (только в диске)
+        float turbulence = sin(rho * 12.0 + u_time * 1.5) * cos(h * 15.0 - u_time * 2.0);
+        vec3 turbVec = vec3(turbulence * 0.2, sin(u_time + rho * 8.0) * 0.15, cos(u_time * 1.2 + h * 10.0) * 0.2);
+        acc += turbVec * q * 0.4 * inDiskPlane;
 
-        // Вязкость в диске (мягкое гашение)
-        vel *= mix(1.0, 0.98, inDiskPlane * (1.0 - inCore));
+        // Вязкость в диске
+        vel *= mix(1.0, 0.985, inDiskPlane * (1.0 - inCore));
 
         // === 2. ДЖЕТЫ ===
 
