@@ -29,9 +29,10 @@ export function createSimulationState(gl, simSize = 256) {
     // Create textures
     posTex = [makeSimTex(), makeSimTex()];
     velTex = [makeSimTex(), makeSimTex()];
+    // FBO[0] writes to texture set 1, FBO[1] writes to texture set 0 (matches original)
     simFBO = [
-      createFBO(gl, [posTex[0], velTex[0]]),
-      createFBO(gl, [posTex[1], velTex[1]])
+      createFBO(gl, [posTex[1], velTex[1]]),
+      createFBO(gl, [posTex[0], velTex[0]])
     ];
 
     // Create particle indices
@@ -132,11 +133,11 @@ export function createFractalState() {
 
 export function createPointerState() {
   return {
-    enabled: false,
+    enabled: true,  // Enable by default
     mode: 'attract',
     strength: 1.0,
     radius: 0.5,
-    pulse: false,
+    pulse: true,    // Enable pulse by default
     x: 0,
     y: 0,
     pressing: false

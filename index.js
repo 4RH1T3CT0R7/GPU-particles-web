@@ -93,17 +93,21 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
   resize();
   window.addEventListener('resize', resize);
 
-  // Initialize particles (run init shader)
+  // Initialize particles (run init shader) - writes to both FBOs like original
   function reinitializeParticles(pattern = 0.0) {
-    gl.useProgram(progInit);
-    gl.uniform1f(gl.getUniformLocation(progInit, 'u_seed'), Math.random() * 1000);
-    gl.uniform1f(gl.getUniformLocation(progInit, 'u_pattern'), pattern);
-
-    const write = 1 - simState.simRead;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, simState.simFBO[write]);
     gl.viewport(0, 0, simState.texSize, simState.texSize);
-    drawQuad(gl, quadVAO);
-    simState.swapBuffers();
+    gl.useProgram(progInit);
+
+    // Initialize both FBOs to ensure consistent state
+    for (let i = 0; i < 2; i++) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, simState.simFBO[i]);
+      gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+      gl.uniform1f(gl.getUniformLocation(progInit, 'u_seed'), Math.random() * 1000);
+      gl.uniform1f(gl.getUniformLocation(progInit, 'u_pattern'), pattern);
+      drawQuad(gl, quadVAO);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    simState.simRead = 0;
     console.log('✓ Particles initialized');
   }
 
@@ -128,9 +132,25 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     if (shapeState.shapeMode === 'fractals') {
       shapeState.shapeA = FRACTAL_SHAPE_ID;
       shapeState.shapeB = FRACTAL_SHAPE_ID;
+      // Keep high attraction for fractals
+      shapeState.targetShapeStrength = Math.max(1.25, shapeState.shapeStrength * 1.3);
+
+      // Smooth easing with hold at start and end
+      const hold = 0.15;
+      const phase = fractalState.timer / fractalState.duration;
+      const clampedPhase = Math.min(1.0, phase);
+      const eased = (() => {
+        if (clampedPhase < hold) return 0.0;
+        if (clampedPhase > 1.0 - hold) return 1.0;
+        const u = (clampedPhase - hold) / (1.0 - 2.0 * hold);
+        return 0.5 - 0.5 * Math.cos(Math.PI * u);
+      })();
+      shapeState.morph = eased;
 
       fractalState.timer += dt;
       if (fractalState.timer >= fractalState.duration) {
+        fractalState.timer = 0.0;
+        fractalState.morph = 0.0;
         fractalState.seedA = fractalState.seedB;
         fractalState.seedB = [
           Math.random() * 0.8 + 0.3,
@@ -138,88 +158,89 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
           Math.random() * 0.6 - 0.3,
           Math.random() * Math.PI * 2
         ];
-        fractalState.timer = 0;
-        fractalState.morph = 0;
+        fractalState.duration = 14.0 + Math.random() * 8.0;
+        // Change palette on fractal transition
+        colorManager.currentPaletteIndex = (colorManager.currentPaletteIndex + 1) % colorPalettes.length;
+        colorManager.rebuildColorStops(colorPalettes[colorManager.currentPaletteIndex]);
       }
-
-      fractalState.morph = Math.min(1, fractalState.timer / fractalState.duration);
-      shapeState.morph = fractalState.morph;
       return;
     }
 
-    if (!shapeState.autoMorph) return;
+    if (!shapeState.autoMorph) {
+      shapeState.morph = 0.0;
+      shapeState.shapeB = shapeState.shapeA;
+      shapeState.isMorphing = false;
+      return;
+    }
 
-    shapeState.nextSwitch -= dt;
-    if (shapeState.nextSwitch <= 0) {
-      const oldB = shapeState.shapeB;
-      const shapes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-      let newShape;
-      do {
-        newShape = shapes[Math.floor(Math.random() * shapes.length)];
-      } while (newShape === oldB);
+    const SHAPE_COUNT = 11; // Total number of shapes (0-10)
+    const duration = shapeState.controlMode === 'custom' ? shapeState.customTransition : shapeState.transitionSpeed;
 
-      shapeState.shapeA = oldB;
-      shapeState.shapeB = newShape;
+    if (t > shapeState.nextSwitch) {
+      shapeState.shapeA = shapeState.shapeB;
+      shapeState.shapeB = (shapeState.shapeB + 1) % SHAPE_COUNT; // Sequential transition
       shapeState.morph = 0.0;
       shapeState.isMorphing = true;
-      shapeState.nextSwitch = shapeState.controlMode === 'preset' ? shapeState.transitionSpeed : shapeState.customTransition;
+      shapeState.nextSwitch = t + duration + 2.0;
+      // Change palette on shape change
+      colorManager.currentPaletteIndex = (colorManager.currentPaletteIndex + 1) % colorPalettes.length;
+      colorManager.rebuildColorStops(colorPalettes[colorManager.currentPaletteIndex]);
+      console.log(`Auto-morph: shape ${shapeState.shapeA} -> ${shapeState.shapeB}`);
     }
 
     if (shapeState.isMorphing) {
-      shapeState.morph += dt / 3.0;
+      shapeState.morph += dt / duration;
       if (shapeState.morph >= 1.0) {
         shapeState.morph = 1.0;
         shapeState.isMorphing = false;
+        shapeState.nextSwitch = t + duration;
       }
     }
   }
 
-  // Compute pointer world position using raycast
+  // Compute pointer world position using raycast (matches original)
   function computePointerWorld() {
     const nx = (mouse.x / size.w) * 2 - 1;
-    const ny = -((mouse.y / size.h) * 2 - 1);
+    const ny = 1 - (mouse.y / size.h) * 2;
     const aspect = size.w / size.h;
+    const fov = Math.PI / 4;
+    const depth = Math.max(0.35, camera.distance * 0.55);
 
-    // Forward direction from camera to target
-    let forward = [
-      camera.target[0] - camera.eye[0],
-      camera.target[1] - camera.eye[1],
-      camera.target[2] - camera.eye[2]
+    // Forward direction from camera position
+    const forward = [
+      -camera.eye[0] / camera.distance,
+      -camera.eye[1] / camera.distance,
+      -camera.eye[2] / camera.distance,
     ];
-    const flen = Math.hypot(forward[0], forward[1], forward[2]) || 1;
-    forward = forward.map(v => v / flen);
+    viewDir[0] = forward[0];
+    viewDir[1] = forward[1];
+    viewDir[2] = forward[2];
 
-    // Right vector
-    let right = [
-      forward[1] * 0 - forward[2] * 1,
-      forward[2] * 0 - forward[0] * 0,
-      forward[0] * 1 - forward[1] * 0
+    // Right vector (cross product with up)
+    const right = [
+      forward[2],
+      0,
+      -forward[0],
     ];
     const rlen = Math.hypot(right[0], right[1], right[2]) || 1;
-    right = right.map(v => v / rlen);
+    right[0] /= rlen; right[1] /= rlen; right[2] /= rlen;
 
     // Up vector
     let up = [
       right[1] * forward[2] - right[2] * forward[1],
       right[2] * forward[0] - right[0] * forward[2],
-      right[0] * forward[1] - right[1] * forward[0]
+      right[0] * forward[1] - right[1] * forward[0],
     ];
     const ulen = Math.hypot(up[0], up[1], up[2]) || 1;
-    up = up.map(v => v / ulen);
+    up = up.map((v) => v / ulen);
 
     // Compute pointer position at intersection plane
-    const fov = camera.fov * Math.PI / 180;
-    const depth = camera.distance || 3.5;
     const zoomScale = 1.0 + (camera.distance - 1.0) * 0.14;
     const scale = Math.tan(fov / 2) * depth * (1.2 + zoomScale * 0.4);
 
     pointerWorld[0] = camera.target[0] + forward[0] * depth + (right[0] * nx * aspect + up[0] * ny) * scale;
     pointerWorld[1] = camera.target[1] + forward[1] * depth + (right[1] * nx * aspect + up[1] * ny) * scale;
     pointerWorld[2] = camera.target[2] + forward[2] * depth + (right[2] * nx * aspect + up[2] * ny) * scale;
-
-    viewDir[0] = forward[0];
-    viewDir[1] = forward[1];
-    viewDir[2] = forward[2];
   }
 
   // Mouse event handlers with camera control
@@ -350,11 +371,14 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_audioTreble'), audioState.treble);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_audioEnergy'), audioState.energy);
 
-    bindTex(gl, progSim, 'u_pos', simState.posTex[simState.simRead], 0);
-    bindTex(gl, progSim, 'u_vel', simState.velTex[simState.simRead], 1);
+    // Read from current textures, write to alternate FBO (which writes to other texture set)
+    const read = simState.simRead;
+    bindTex(gl, progSim, 'u_pos', simState.posTex[read], 0);
+    bindTex(gl, progSim, 'u_vel', simState.velTex[read], 1);
 
-    const write = 1 - simState.simRead;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, simState.simFBO[write]);
+    // FBO[read] writes to the opposite texture set (see FBO creation)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, simState.simFBO[read]);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
     gl.viewport(0, 0, simState.texSize, simState.texSize);
     drawQuad(gl, quadVAO);
     simState.swapBuffers();
