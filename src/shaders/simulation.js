@@ -283,7 +283,7 @@ void main(){
       vec3 spiralForce = vec3(cos(spiralPhase), sin(spiralPhase), 0.0);
       acc += spiralForce * base * (1.8 * magneticStrength);
 
-      vel = mix(vel, vel + dipole * 1.2 + swirlDir * 1.5, 0.7 * falloff);
+      vel = mix(vel, vel + dipole * 1.2 + swirlDir * 1.5, 0.7 * magneticStrength);
     }
   }
 

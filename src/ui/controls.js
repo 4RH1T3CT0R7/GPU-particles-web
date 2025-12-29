@@ -41,9 +41,24 @@ export function initUIControls(context) {
 
   // Mode buttons
   const modeButtons = {
-    'mode-shapes': () => { shapeState.shapeMode = 'shapes'; shapeState.targetShapeStrength = 0.95; },
-    'mode-free': () => { shapeState.shapeMode = 'free'; shapeState.targetShapeStrength = 0.0; },
-    'mode-fractal': () => { shapeState.shapeMode = 'fractals'; shapeState.targetShapeStrength = 0.95; },
+    'mode-shapes': () => {
+      shapeState.shapeMode = 'shapes';
+      shapeState.targetShapeStrength = 0.95;
+      // Disable audio reactivity when leaving equalizer mode
+      audioAnalyzer.setReactivityEnabled(false);
+    },
+    'mode-free': () => {
+      shapeState.shapeMode = 'free';
+      shapeState.targetShapeStrength = 0.0;
+      // Disable audio reactivity when leaving equalizer mode
+      audioAnalyzer.setReactivityEnabled(false);
+    },
+    'mode-fractal': () => {
+      shapeState.shapeMode = 'fractals';
+      shapeState.targetShapeStrength = 0.95;
+      // Disable audio reactivity when leaving equalizer mode
+      audioAnalyzer.setReactivityEnabled(false);
+    },
     'mode-equalizer': async () => {
       shapeState.shapeMode = 'equalizer';
       shapeState.targetShapeStrength = 1.3;
@@ -383,6 +398,17 @@ export function initUIControls(context) {
       i18n.switchLanguage(newLang);
       i18n.updateCursorModeLabel(pointerState.mode);
     });
+  }
+
+  // Initialize palette label with first palette name
+  if (paletteLabel) {
+    paletteLabel.textContent = colorPalettes[0].name;
+  }
+  if (palettePreview) {
+    const palette = colorPalettes[0];
+    const gradA = `rgb(${palette.a.map(v => Math.round(v * 80)).join(',')})`;
+    const gradB = `rgb(${palette.b.map(v => Math.round(v * 80)).join(',')})`;
+    palettePreview.style.setProperty('--preview-gradient', `linear-gradient(90deg, ${gradA}, ${gradB})`);
   }
 
   // Initialize button states
