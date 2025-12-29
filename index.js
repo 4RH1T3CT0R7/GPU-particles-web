@@ -963,82 +963,71 @@
         float q = u_pointerStrength * pressBoost * 0.5;
 
         // Размеры
-        float diskR = radius * 2.0;
-        float coreR = radius * 0.25;
-        float jetW = radius * 0.4;
-        float diskThick = radius * 0.4;
+        float diskR = radius * 1.5;
+        float coreR = radius * 0.12;
+        float diskThick = radius * 0.2;
 
-        // Определение зон
+        // Зоны
         float inDiskPlane = exp(-absH * absH / (diskThick * diskThick));
-        float nearAxis = exp(-rho * rho / (jetW * jetW));
         float inCore = exp(-rLen * rLen / (coreR * coreR));
-        float inJet = nearAxis * (1.0 - inDiskPlane);
 
-        // Вращающаяся спиральная структура (разрушает кольцо)
-        float spiralAngle = atan(toAxis.y, toAxis.x) + rho * 2.0 - u_time * 0.5;
-        float spiralWave = sin(spiralAngle * 3.0) * 0.5 + 0.5;
+        // Джет - сужающийся конус
+        float jetRadius = radius * (0.15 + absH * 0.5);
+        float inJetCone = exp(-rho * rho / (jetRadius * jetRadius));
+        float inJet = inJetCone * (1.0 - inDiskPlane);
 
-        // === 1. РАЗРЕЖЕННЫЙ ДИСК СО СПИРАЛЯМИ ===
+        // === 1. ТОЛСТЫЙ ТОР (аккреционный диск) ===
 
-        // СЛАБОЕ сплющивание только вдали от оси
-        float flattenStr = 2.0 * (1.0 - nearAxis);
-        acc -= axis * hSign * q * flattenStr * (1.0 - inDiskPlane);
+        // Сильное сплющивание к плоскости диска
+        float flattenForce = 10.0 * (1.0 - inJetCone * 0.95);
+        acc -= axis * hSign * q * flattenForce;
 
-        // Слабое вращение (базовое)
-        float orbitalForce = 0.8 / (0.3 + rho * rho);
-        acc += phi * q * orbitalForce * 4.0;
+        // Сильное орбитальное вращение
+        float orbitalForce = 1.2 / (0.1 + rho * rho);
+        acc += phi * q * orbitalForce * 12.0;
 
-        // Спиральные рукава (асимметрия!)
-        vec3 spiralForce = mix(
-          normalize(rhoDir * (-1.0) + phi * 2.0),
-          normalize(rhoDir * (-0.5) + phi * 1.0),
-          spiralWave
-        );
-        acc += spiralForce * q * 1.2 * inDiskPlane;
+        // Медленная аккреция внутрь (создаёт спираль)
+        float accretionForce = 0.4 / sqrt(0.1 + rho);
+        acc -= rhoDir * q * accretionForce;
 
-        // Умеренная турбулентность
-        float turb = sin(rho * 5.0 + u_time + spiralAngle) * cos(h * 3.0);
-        acc += vec3(turb * 0.4, turb * 0.3, turb * 0.4) * q;
+        // Легкая турбулентность для живости
+        float noise = sin(rho * 6.0 + u_time * 2.0) * cos(h * 8.0 - u_time);
+        acc += vec3(noise * 0.3, noise * 0.2, noise * 0.3) * q * inDiskPlane;
 
-        // === 2. ДОМИНАНТНЫЕ ДЖЕТЫ (главная особенность) ===
+        // Вязкость в диске
+        vel *= mix(1.0, 0.99, inDiskPlane);
 
-        // ОЧЕНЬ МОЩНЫЙ выброс из ядра
-        float ejectStr = 50.0 * inCore;
-        acc += axis * hSign * q * ejectStr;
+        // === 2. СУЖАЮЩИЕСЯ ДЖЕТЫ (как на референсе) ===
 
-        // ЭКСТРЕМАЛЬНЫЙ подъём в джете
-        float jetLift = 25.0 * inJet;
+        // Мощный выброс из ядра
+        float coreEject = 40.0 * inCore;
+        acc += axis * hSign * q * coreEject;
+
+        // Сильный подъём в джете (зависит от высоты)
+        float jetLift = 30.0 * inJetCone / (1.0 + absH * 0.5);
         acc += axis * hSign * q * jetLift;
 
-        // Сильная коллимация
-        float spread = smoothstep(jetW * 0.5, jetW * 2.0, rho);
-        acc -= rhoDir * q * 15.0 * inJet * spread;
+        // Коллимация - сужение джета с высотой
+        float collimatePower = 20.0 * (1.0 + absH * 2.0);
+        float edgeDist = smoothstep(jetRadius * 0.3, jetRadius, rho);
+        acc -= rhoDir * q * collimatePower * inJetCone * edgeDist;
 
         // Вращение в джете
-        acc += phi * q * 6.0 * inJet;
+        acc += phi * q * 8.0 * inJetCone;
 
-        // Дополнительный "разброс" из ядра (создаёт облако)
-        float scatter = inCore * (1.0 - nearAxis);
-        vec3 scatterDir = normalize(r + vec3(
-          sin(u_time * 2.0 + rho * 10.0),
-          cos(u_time * 1.5 + h * 8.0),
-          sin(u_time * 1.8 + rho * 6.0)
-        ) * 0.5);
-        acc += scatterDir * q * 8.0 * scatter;
+        // === 3. ГРАНИЦЫ ===
+        float boundR = smoothstep(diskR * 0.85, diskR, rho);
+        float boundH = smoothstep(diskR, diskR * 1.5, absH);
+        acc -= rhoDir * q * 12.0 * boundR;
+        acc -= axis * hSign * q * 8.0 * boundH;
 
-        // === 3. ГРАНИЦЫ (мягкие) ===
-        float boundR = smoothstep(diskR * 0.9, diskR * 1.2, rho);
-        float boundH = smoothstep(diskR * 1.2, diskR * 2.0, absH);
-        acc -= rhoDir * q * 8.0 * boundR;
-        acc -= axis * hSign * q * 6.0 * boundH;
+        // Притяжение к системе
+        acc -= normalize(r) * q * 0.4 / (0.5 + rLen);
 
-        // Слабое притяжение к системе
-        acc -= normalize(r) * q * 0.3 / (0.5 + rLen);
-
-        // Минимальное гашение (свободное движение)
-        vel *= 0.997;
+        // Стабилизация
+        vel *= 0.994;
         float speed = length(vel);
-        if (speed > 4.0) vel = vel / speed * 4.0;
+        if (speed > 3.5) vel = vel / speed * 3.5;
       } else {
         // Магнитный поток - мощные дуговые силовые линии (ОЧЕНЬ УСИЛЕНО)
         vec3 axis = normalize(u_viewDir * 0.7 + vec3(0.0, 1.0, 0.5));
