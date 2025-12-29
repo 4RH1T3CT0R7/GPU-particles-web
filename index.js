@@ -963,10 +963,10 @@
         float q = u_pointerStrength * pressBoost * 0.5;
 
         // Размеры
-        float diskR = radius * 1.5;
-        float coreR = radius * 0.15;
-        float jetW = radius * 0.25;
-        float diskThick = radius * 0.10;
+        float diskR = radius * 1.8;
+        float coreR = radius * 0.2;
+        float jetW = radius * 0.3;
+        float diskThick = radius * 0.3;
 
         // Определение зон
         float inDiskPlane = exp(-absH * absH / (diskThick * diskThick));
@@ -974,49 +974,56 @@
         float inCore = exp(-rLen * rLen / (coreR * coreR));
         float inJet = nearAxis * (1.0 - inDiskPlane);
 
-        // === 1. ДИСК С АККРЕЦИЕЙ ===
+        // === 1. ХАОТИЧНЫЙ АККРЕЦИОННЫЙ ПОТОК ===
 
-        // Сплющивание к h=0 (мощное, для чёткой поверхности)
-        float flattenStr = 8.5 * (1.0 - nearAxis * 0.9);
-        acc -= axis * hSign * q * flattenStr;
+        // Мягкое сплющивание (объёмная структура)
+        float flattenStr = 3.5 * (1.0 - nearAxis * 0.95);
+        acc -= axis * hSign * q * flattenStr * smoothstep(0.3, 0.0, inDiskPlane);
 
-        // Орбитальное ускорение (сильное вращение)
-        float orbitalForce = 1.0 / (0.1 + rho * rho);
-        acc += phi * q * orbitalForce * 15.0;
+        // Умеренное вращение (не создаёт стабильных орбит)
+        float orbitalForce = 1.0 / (0.2 + rho * rho);
+        acc += phi * q * orbitalForce * 6.0;
 
-        // Центробежный баланс (предотвращает коллапс в кольцо)
-        float tangentSpeed = length(cross(vel, axis));
-        float centrifugal = tangentSpeed * tangentSpeed / max(0.1, rho);
-        acc += rhoDir * centrifugal * 0.15 * inDiskPlane;
+        // Хаотичная аккреция со спиральным потоком
+        float spiralStr = 0.6 / sqrt(0.2 + rho);
+        vec3 spiralDir = normalize(rhoDir * (-2.0) + phi * 1.5);
+        acc += spiralDir * q * spiralStr;
 
-        // Лёгкая аккреция: медленный поток к центру
-        float accretionStr = 0.25 / sqrt(0.1 + rho);
-        acc -= rhoDir * q * accretionStr * inDiskPlane;
+        // МОЩНАЯ турбулентность (разрушает кольцо, создаёт объём)
+        float t1 = sin(rho * 8.0 + u_time * 2.0 + h * 5.0);
+        float t2 = cos(rho * 6.0 - u_time * 1.5 + h * 7.0);
+        float t3 = sin(rho * 4.0 + u_time * 1.8 - h * 6.0);
+        vec3 chaos = vec3(
+          t1 * cos(u_time * 0.8 + rho * 3.0),
+          t2 * sin(u_time * 1.1 + h * 4.0),
+          t3 * cos(u_time * 0.9 - rho * 2.0)
+        );
+        acc += chaos * q * 1.8;
 
-        // Минимальная турбулентность (для структуры)
-        float turbulence = sin(rho * 10.0 + u_time * 1.2) * cos(h * 12.0 - u_time * 1.8);
-        vec3 turbVec = vec3(turbulence * 0.15, sin(u_time + rho * 6.0) * 0.1, cos(u_time + h * 8.0) * 0.15);
-        acc += turbVec * q * 0.25 * inDiskPlane;
+        // Случайные "толчки" (предотвращают оседание в кольцо)
+        float kickPhase = fract(sin(dot(pos.xy, vec2(12.9898, 78.233))) * 43758.5453);
+        float kick = sin(u_time * 3.0 + kickPhase * 100.0);
+        acc += vec3(kick * 0.3, kick * 0.4, kick * 0.3) * q;
 
-        // Вязкость в диске
-        vel *= mix(1.0, 0.988, inDiskPlane * (1.0 - inCore));
+        // Лёгкое гашение
+        vel *= 0.995;
 
-        // === 2. ДЖЕТЫ ===
+        // === 2. МОЩНЫЕ ДЖЕТЫ ===
 
-        // Выброс из ядра
-        float ejectStr = 20.0 * inCore;
+        // Сильный выброс из ядра
+        float ejectStr = 35.0 * inCore;
         acc += axis * hSign * q * ejectStr;
 
-        // Подъём в джете
-        float jetLift = 12.0 * inJet;
+        // Мощный подъём в джете
+        float jetLift = 18.0 * inJet;
         acc += axis * hSign * q * jetLift;
 
-        // Коллимация
-        float spread = smoothstep(jetW * 0.3, jetW * 1.2, rho);
-        acc -= rhoDir * q * 8.0 * inJet * spread;
+        // Коллимация (фокусировка джета)
+        float spread = smoothstep(jetW * 0.4, jetW * 1.5, rho);
+        acc -= rhoDir * q * 12.0 * inJet * spread;
 
         // Вращение в джете
-        acc += phi * q * 4.0 * inJet;
+        acc += phi * q * 5.0 * inJet;
 
         // === 3. ГРАНИЦЫ ===
         float boundR = smoothstep(diskR * 0.8, diskR, rho);
