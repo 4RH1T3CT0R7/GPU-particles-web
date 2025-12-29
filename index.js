@@ -266,10 +266,10 @@
     float totalEnergy = bass + mid + treble;
     float demoMode = step(totalEnergy, 0.05);
 
-    // Демо волны для каждой частотной полосы
-    float demoBass = 0.5 + 0.4 * sin(time * 1.2 + colIdx * 0.3);
-    float demoMid = 0.4 + 0.35 * sin(time * 1.8 + colIdx * 0.5 + 1.0);
-    float demoTreble = 0.3 + 0.3 * sin(time * 2.5 + colIdx * 0.7 + 2.0);
+    // Демо волны для каждой частотной полосы (усиленные для видимости)
+    float demoBass = 0.6 + 0.5 * sin(time * 1.2 + colIdx * 0.3);
+    float demoMid = 0.5 + 0.45 * sin(time * 1.8 + colIdx * 0.5 + 1.0);
+    float demoTreble = 0.4 + 0.4 * sin(time * 2.5 + colIdx * 0.7 + 2.0);
 
     // Смешиваем реальное аудио с демо
     float useBass = mix(bass, demoBass, demoMode);
@@ -279,17 +279,17 @@
     // Определяем к какой частоте относится столбец
     float bandHeight = 0.0;
 
-    // Бас - левые столбцы (0-2)
+    // Бас - левые столбцы (0-2) - УСИЛЕНО для большей ритмичности
     if (colIdx < 2.5) {
-      bandHeight = useBass * 1.8;
+      bandHeight = useBass * 2.5;
     }
-    // Середина - центральные столбцы (3-5)
+    // Середина - центральные столбцы (3-5) - УСИЛЕНО
     else if (colIdx < 5.5) {
-      bandHeight = useMid * 1.5;
+      bandHeight = useMid * 2.2;
     }
-    // Высокие - правые столбцы (6-7)
+    // Высокие - правые столбцы (6-7) - УСИЛЕНО
     else {
-      bandHeight = useTreble * 1.2;
+      bandHeight = useTreble * 1.8;
     }
 
     // Добавляем вариации по Z для глубины
@@ -298,11 +298,11 @@
 
     // Высота частицы внутри столбца
     float particleInBar = localS;
-    float barTop = max(0.1, bandHeight);
-    float y = -0.8 + particleInBar * barTop * 2.0;
+    float barTop = max(0.15, bandHeight); // Минимальная высота увеличена
+    float y = -0.9 + particleInBar * barTop * 2.2; // Больший диапазон Y
 
-    // Добавляем пульсацию верхушки
-    float pulse = 0.05 * sin(time * 3.0 + colIdx + colZ * 5.0);
+    // Добавляем пульсацию верхушки (усилена)
+    float pulse = 0.08 * sin(time * 3.0 + colIdx + colZ * 5.0);
     y += pulse * (1.0 - particleInBar);
 
     return vec3(x, y, z);
@@ -601,34 +601,34 @@
 
       float pulseWave = 0.65 + 0.35 * sin(u_time * 3.5 + jitter * 7.0);
       if (u_pointerMode == 0) {
-        // Притяжение/захват (уменьшено)
-        acc += dirP * base * 0.8;
-        vel += dirP * base * 0.25;
+        // Притяжение/захват (усилено для заметности)
+        acc += dirP * base * 1.5;
+        vel += dirP * base * 0.45;
       } else if (u_pointerMode == 1) {
-        // Отталкивание и разгон (уменьшено)
-        acc -= dirP * base * 1.1;
-        acc += vec3(dirP.y, -dirP.x, 0.2) * base * 0.9;
-        vel *= 0.985;
+        // Отталкивание и разгон (усилено)
+        acc -= dirP * base * 1.8;
+        acc += vec3(dirP.y, -dirP.x, 0.2) * base * 1.3;
+        vel *= 0.98;
       } else if (u_pointerMode == 2 || u_pointerMode == 3) {
-        // Вихревой закрут в обе стороны (уменьшено)
+        // Вихревой закрут в обе стороны (усилено)
         float spin = (u_pointerMode == 2 ? -1.0 : 1.0);
         vec3 tangent = vec3(dirP.y * spin, -dirP.x * spin, dirP.z * 0.35 * spin);
         float spiralBoost = 1.2 + pulseWave * 0.8;
-        acc += tangent * base * (1.8 * spiralBoost);
-        acc += dirP * base * (0.5 + 0.4 * pulseWave);
-        vel = mix(vel, vel + tangent * base * 0.4, 0.25 + 0.15 * pulseWave);
+        acc += tangent * base * (2.5 * spiralBoost);
+        acc += dirP * base * (0.8 + 0.6 * pulseWave);
+        vel = mix(vel, vel + tangent * base * 0.6, 0.35 + 0.2 * pulseWave);
       } else if (u_pointerMode == 4) {
-        // Импульсные всплески (уменьшено)
+        // Импульсные всплески (усилено)
         float pulsePhase = u_time * 4.2 + jitter * 9.0;
         float carrier = 0.55 + 0.45 * sin(pulsePhase);
         float burst = smoothstep(-0.1, 0.9, sin(pulsePhase * 0.7 + 1.2));
-        float pulse = 0.6 + carrier + (u_pointerPulse > 0.5 ? burst * 1.0 : carrier * 0.25);
+        float pulse = 0.6 + carrier + (u_pointerPulse > 0.5 ? burst * 1.5 : carrier * 0.4);
         vec3 swirl = normalize(vec3(-dirP.y, dirP.x, dirP.z * 0.4));
-        acc -= dirP * base * (1.0 + burst * 0.7);
-        acc += swirl * base * (0.8 + burst * 1.0);
-        vel = mix(vel, vel - dirP * base * 0.5 + swirl * base * 0.35, 0.3 * pulse);
+        acc -= dirP * base * (1.5 + burst * 1.2);
+        acc += swirl * base * (1.3 + burst * 1.5);
+        vel = mix(vel, vel - dirP * base * 0.7 + swirl * base * 0.5, 0.4 * pulse);
       } else if (u_pointerMode == 6) {
-        // Квазар: аккреционный диск + двусторонние струи (уменьшено)
+        // Квазар: аккреционный диск + двусторонние струи (усилено)
         vec3 axis = normalize(u_viewDir * 0.45 + vec3(0.0, 1.0, 0.35));
         vec3 r = pos - u_pointerPos;
         float rLen = max(0.06, length(r));
@@ -640,27 +640,27 @@
         float jetWeight = smoothstep(0.35, 0.95, abs(axial));
         float funnel = 1.4 / (1.0 + pow(rLen / radius, 1.4));
 
-        acc -= radial * base * (0.5 * diskWeight);
-        acc += axis * base * (1.1 * jetWeight * sign(axial));
-        acc += swirlDir * base * (1.4 * diskWeight + 0.5 * jetWeight);
-        acc += diskDir * base * (0.7 * diskWeight * funnel);
-        vel = mix(vel, vel + swirlDir * 0.5 + axis * jetWeight * 0.6, 0.25 * falloff);
+        acc -= radial * base * (0.9 * diskWeight);
+        acc += axis * base * (1.8 * jetWeight * sign(axial));
+        acc += swirlDir * base * (2.2 * diskWeight + 0.8 * jetWeight);
+        acc += diskDir * base * (1.1 * diskWeight * funnel);
+        vel = mix(vel, vel + swirlDir * 0.8 + axis * jetWeight * 0.9, 0.4 * falloff);
       } else {
-        // Магнитные дуги с лёгким свирлом (уменьшено)
+        // Магнитные дуги с лёгким свирлом (усилено)
         vec3 axis = normalize(u_viewDir * 0.6 + vec3(0.0, 1.0, 0.4));
         vec3 r = pos - u_pointerPos;
         float rLen = max(0.08, length(r));
         float r2 = rLen * rLen;
         float r5 = r2 * r2 * rLen + 1e-5;
         vec3 dipole = (3.0 * r * dot(axis, r) / r5) - (axis / max(1e-3, r2 * rLen));
-        dipole = clamp(dipole, -vec3(8.0), vec3(8.0));
+        dipole = clamp(dipole, -vec3(12.0), vec3(12.0));
         vec3 swirlDir = normalize(cross(dipole, axis) + 0.35 * cross(dirP, axis));
         float fluxFalloff = 1.0 / (1.0 + pow(rLen / (radius * 1.2), 2.0));
-        float repel = 0.4 + 0.5 * (1.0 - fluxFalloff);
-        acc += dipole * base * (0.8 * fluxFalloff);
-        acc += swirlDir * base * (1.3 * fluxFalloff);
+        float repel = 0.6 + 0.7 * (1.0 - fluxFalloff);
+        acc += dipole * base * (1.4 * fluxFalloff);
+        acc += swirlDir * base * (2.0 * fluxFalloff);
         acc -= dirP * base * repel;
-        vel = mix(vel, vel - dirP * base * 0.35 + dipole * 0.25, 0.3 * falloff);
+        vel = mix(vel, vel - dirP * base * 0.55 + dipole * 0.4, 0.45 * falloff);
       }
     }
 
@@ -671,35 +671,90 @@
       acc -= pos / distCenter * (distCenter - roamRadius) * 0.6;
     }
 
-    // ==== AUDIO REACTIVITY (усиленная) ====
-    float audioBoost = 1.0 + u_audioEnergy * 1.2;
-    acc *= audioBoost;
+    // ==== AUDIO REACTIVITY (только в режиме эквалайзера) ====
+    // Применяем аудио эффекты только когда включен режим эквалайзера (shapeID == 12)
+    bool isEqualizerMode = (u_shapeA == 12 || u_shapeB == 12);
 
-    // Bass adds outward pulsing force (усилено)
-    float bassForce = u_audioBass * 4.5;
-    vec3 outward = normalize(pos - desired) + vec3(0.001);
-    acc += outward * bassForce;
-    // Дополнительная пульсация для басов
-    vel += outward * u_audioBass * 0.8;
+    if (isEqualizerMode) {
+      float audioBoost = 1.0 + u_audioEnergy * 1.2;
+      acc *= audioBoost;
 
-    // Mid frequencies add swirling motion (усилено)
-    float midAngle = u_audioMid * 3.14159 + u_time;
-    vec2 midSwirl = vec2(cos(midAngle), sin(midAngle));
-    acc += vec3(midSwirl * u_audioMid * 3.2, 0.0);
-    // Добавляем вращательный момент
-    vec3 midTangent = vec3(-midSwirl.y, midSwirl.x, sin(u_time * 2.0) * 0.5);
-    acc += midTangent * u_audioMid * 2.0;
+      // Bass adds outward pulsing force (усилено)
+      float bassForce = u_audioBass * 4.5;
+      vec3 outward = normalize(pos - desired) + vec3(0.001);
+      acc += outward * bassForce;
+      // Дополнительная пульсация для басов
+      vel += outward * u_audioBass * 0.8;
 
-    // Treble adds vertical lift and sparkle (усилено)
-    acc.y += u_audioTreble * 3.8;
-    acc += vec3(0.0, 0.0, sin(u_time * 5.0 + idHash * 6.28) * u_audioTreble * 2.5);
-    // Дополнительные искорки для высоких частот
-    vec3 sparkle = vec3(
-      sin(u_time * 7.0 + idHash * 12.56),
-      cos(u_time * 8.0 + layerHash * 9.42),
-      sin(u_time * 6.0 + idHash * 15.7)
-    ) * u_audioTreble * 1.8;
-    acc += sparkle;
+      // Mid frequencies add swirling motion (усилено)
+      float midAngle = u_audioMid * 3.14159 + u_time;
+      vec2 midSwirl = vec2(cos(midAngle), sin(midAngle));
+      acc += vec3(midSwirl * u_audioMid * 3.2, 0.0);
+      // Добавляем вращательный момент
+      vec3 midTangent = vec3(-midSwirl.y, midSwirl.x, sin(u_time * 2.0) * 0.5);
+      acc += midTangent * u_audioMid * 2.0;
+
+      // Treble adds vertical lift and sparkle (усилено)
+      acc.y += u_audioTreble * 3.8;
+      acc += vec3(0.0, 0.0, sin(u_time * 5.0 + idHash * 6.28) * u_audioTreble * 2.5);
+      // Дополнительные искорки для высоких частот
+      vec3 sparkle = vec3(
+        sin(u_time * 7.0 + idHash * 12.56),
+        cos(u_time * 8.0 + layerHash * 9.42),
+        sin(u_time * 6.0 + idHash * 15.7)
+      ) * u_audioTreble * 1.8;
+      acc += sparkle;
+    }
+
+    // ==== FREE FLIGHT TURBULENCE (режим свободного полёта) ====
+    // В режиме свободного полёта добавляем завихрения и движения
+    float isFreeFlightMode = 1.0 - step(0.05, u_shapeStrength); // 1.0 когда shapeStrength ~= 0
+
+    if (isFreeFlightMode > 0.5) {
+      // Вихревое движение с несколькими слоями частот
+      vec3 turbulence1 = vec3(
+        sin(u_time * 0.8 + pos.y * 2.0 + idHash * 6.28),
+        cos(u_time * 0.6 + pos.x * 1.8 + layerHash * 4.71),
+        sin(u_time * 0.7 + pos.z * 2.2 + idHash * 3.14)
+      ) * 1.5;
+
+      vec3 turbulence2 = vec3(
+        cos(u_time * 1.2 + pos.z * 1.5 - layerHash * 5.0),
+        sin(u_time * 1.0 + pos.y * 1.3 + idHash * 7.5),
+        cos(u_time * 0.9 + pos.x * 1.7 - layerHash * 2.8)
+      ) * 1.2;
+
+      // Спиральное движение
+      float spiralAngle = u_time * 0.5 + length(pos) * 1.5;
+      vec3 spiralFlow = vec3(
+        cos(spiralAngle) * pos.y - sin(spiralAngle) * pos.z,
+        sin(spiralAngle) * pos.x + cos(spiralAngle) * pos.z,
+        cos(spiralAngle) * pos.x - sin(spiralAngle) * pos.y
+      ) * 0.8;
+
+      // Curl noise для органического движения
+      vec3 curlFlow1 = curl(pos * 1.5 + u_time * 0.3) * 2.0;
+      vec3 curlFlow2 = curl(pos * 0.8 - u_time * 0.2 + vec2(5.7, 3.2)) * 1.5;
+
+      // Вертикальные волны
+      float vertWave = sin(u_time * 1.5 + pos.x * 2.0 + pos.z * 1.5) * 0.8;
+
+      // Объединяем все силы
+      acc += turbulence1 * 0.4;
+      acc += turbulence2 * 0.35;
+      acc += spiralFlow * 0.5;
+      acc += curlFlow1 * 0.6;
+      acc += curlFlow2 * 0.5;
+      acc.y += vertWave;
+
+      // Дополнительное случайное движение для каждой частицы
+      vec3 randomDrift = vec3(
+        noise(id * 15.3 + u_time * 0.4),
+        noise(id * 23.7 - u_time * 0.3),
+        noise(id * 31.1 + u_time * 0.5)
+      ) * 1.2 - 0.6;
+      acc += randomDrift;
+    }
 
     // Интеграция
     float simDt = u_dt * u_speedMultiplier;
@@ -1171,8 +1226,8 @@
   const pointerState = {
     active: true,
     mode: 'attract',
-    strength: 1.1,
-    radius: 1.0,
+    strength: 1.8,  // Увеличена сила для большей заметности
+    radius: 1.4,    // Увеличен радиус воздействия
     pulse: true,
   };
 
