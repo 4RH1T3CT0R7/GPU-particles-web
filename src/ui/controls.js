@@ -44,14 +44,31 @@ export function initUIControls(context) {
     'mode-shapes': () => { shapeState.shapeMode = 'shapes'; shapeState.targetShapeStrength = 0.95; },
     'mode-free': () => { shapeState.shapeMode = 'free'; shapeState.targetShapeStrength = 0.0; },
     'mode-fractal': () => { shapeState.shapeMode = 'fractals'; shapeState.targetShapeStrength = 0.95; },
-    'mode-equalizer': () => { shapeState.shapeMode = 'equalizer'; shapeState.targetShapeStrength = 0.95; }
+    'mode-equalizer': async () => {
+      shapeState.shapeMode = 'equalizer';
+      shapeState.targetShapeStrength = 1.3;
+      audioAnalyzer.setReactivityEnabled(true);
+
+      // Auto-request microphone access when entering equalizer mode
+      if (!audioAnalyzer.isEnabled()) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          await audioAnalyzer.initAudio(stream);
+          console.log('✓ Microphone activated for equalizer');
+          const audioToggle = document.getElementById('audioToggle');
+          if (audioToggle) audioToggle.checked = true;
+        } catch (err) {
+          console.error('Microphone access denied:', err);
+        }
+      }
+    }
   };
 
   Object.entries(modeButtons).forEach(([id, handler]) => {
     const btn = document.getElementById(id);
     if (btn) {
-      btn.addEventListener('click', () => {
-        handler();
+      btn.addEventListener('click', async () => {
+        await handler();
         updateModeButtons();
       });
     }
@@ -219,6 +236,7 @@ export function initUIControls(context) {
     cursorPulse.addEventListener('change', (e) => {
       pointerState.pulse = e.target.checked;
     });
+    cursorPulse.checked = true;
     pointerState.pulse = true;
   }
 

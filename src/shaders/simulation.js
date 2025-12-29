@@ -167,10 +167,12 @@ void main(){
       acc += dirP * base * wave * 2.5;
       vel = mix(vel, vel - dirP * base * 1.5 + swirl * base * 1.2, 0.6 * pulse);
     } else if (u_pointerMode == 6) {
-      // Quasar
+      // QUASAR: accretion disk + jets
       vec3 r = pos - u_pointerPos;
       float rLen = max(0.01, length(r));
       vec3 axis = vec3(0.0, 1.0, 0.0);
+
+      // Cylindrical coordinates
       float h = dot(r, axis);
       float absH = abs(h);
       float hSign = sign(h + 0.0001);
@@ -180,39 +182,75 @@ void main(){
       vec3 phi = normalize(cross(axis, rhoDir));
 
       float q = u_pointerStrength * pressBoost * 0.5;
+
+      // Sizes
       float diskR = radius * 1.5;
       float coreR = radius * 0.12;
       float diskThick = radius * 0.25;
 
+      // Zones
       float inDiskPlane = exp(-absH * absH / (diskThick * diskThick));
       float inCore = exp(-rLen * rLen / (coreR * coreR));
 
+      // Jet - narrows
       float jetRadius = radius * 0.5 / (1.0 + absH * 2.0);
       float inJetCone = exp(-rho * rho / (jetRadius * jetRadius));
       float inJet = inJetCone * (1.0 - inDiskPlane);
 
-      // Disk forces
+      // === 1. THICK TORUS (volumetric disk) ===
+
+      // Moderate flattening (thick torus!)
       float flattenForce = 12.0 * (1.0 - inJetCone * 0.95);
       acc -= axis * hSign * q * flattenForce;
 
+      // Strong rotation
       float orbitalForce = 1.8 / (0.08 + rho * rho);
       acc += phi * q * orbitalForce * 20.0 * (1.0 - inJet);
 
+      // Accretion to center
       float accretionForce = 0.35 / sqrt(0.08 + rho);
       acc -= rhoDir * q * accretionForce * inDiskPlane;
 
-      // Jet forces
+      // Turbulence for volume
+      float noiseVal = sin(rho * 4.0 + u_time) * cos(h * 5.0 - u_time * 0.8);
+      acc += vec3(noiseVal * 0.5, noiseVal * 0.4, noiseVal * 0.5) * q * inDiskPlane;
+
+      // Moderate viscosity
+      vel *= mix(1.0, 0.985, inDiskPlane * (1.0 - inJet));
+
+      // === 2. SUPER-DOMINANT JETS ===
+
+      // EXTREME ejection from core
       float coreEject = 80.0 * inCore;
       acc += axis * hSign * q * coreEject;
 
+      // POWERFUL jet lift
       float jetLift = 60.0 * inJetCone;
       acc += axis * hSign * q * jetLift;
 
+      // Strong collimation
+      float collimatePower = 35.0 * (1.0 + absH * 3.5);
+      float edgeDist = smoothstep(jetRadius * 0.2, jetRadius, rho);
+      acc -= rhoDir * q * collimatePower * inJetCone * edgeDist;
+
+      // Rotation in jet
+      acc += phi * q * 10.0 * inJetCone;
+
+      // === 3. BOUNDARIES ===
+      float boundR = smoothstep(diskR * 0.9, diskR, rho);
+      float boundH = smoothstep(diskR, diskR * 1.5, absH);
+      acc -= rhoDir * q * 14.0 * boundR;
+      acc -= axis * hSign * q * 10.0 * boundH;
+
+      // Attraction to center
+      acc -= normalize(r) * q * 0.6 / (0.4 + rLen);
+
+      // Moderate stabilization
       vel *= 0.992;
       float speed = length(vel);
       if (speed > 3.5) vel = vel / speed * 3.5;
     } else {
-      // Magnet
+      // Magnetic flow - powerful arc field lines
       vec3 axis = normalize(u_viewDir * 0.7 + vec3(0.0, 1.0, 0.5));
       vec3 r = pos - u_pointerPos;
       float rLen = max(0.06, length(r));
@@ -220,16 +258,30 @@ void main(){
       float r3 = r2 * rLen;
       float r5 = r2 * r3 + 1e-5;
 
+      // Dipole magnetic field (enhanced)
       vec3 dipole = (3.0 * r * dot(axis, r) / r5) - (axis / max(1e-3, r3));
       dipole = clamp(dipole, -vec3(20.0), vec3(20.0));
 
+      // Field lines rotate around axis
       vec3 swirlDir = normalize(cross(dipole, axis) + 0.5 * cross(dirP, axis));
 
+      // Stronger falloff for closer particles
       float fluxFalloff = 1.0 / (1.0 + pow(rLen / (radius * 1.5), 1.5));
       float magneticStrength = pow(fluxFalloff, 0.7);
 
+      // Very strong magnetic forces
       acc += dipole * base * (4.5 * magneticStrength);
+      // Fast rotation around field lines
       acc += swirlDir * base * (5.0 * magneticStrength);
+
+      // Polar repulsion/attraction
+      float polarAlignment = dot(normalize(r), axis);
+      acc += axis * base * (2.5 * sign(polarAlignment) * magneticStrength);
+
+      // Spiral movement along field lines
+      float spiralPhase = atan(r.y, r.x) + u_time * 2.0;
+      vec3 spiralForce = vec3(cos(spiralPhase), sin(spiralPhase), 0.0);
+      acc += spiralForce * base * (1.8 * magneticStrength);
 
       vel = mix(vel, vel + dipole * 1.2 + swirlDir * 1.5, 0.7 * falloff);
     }
