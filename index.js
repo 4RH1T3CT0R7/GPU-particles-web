@@ -18,6 +18,7 @@ import { createCamera, updateCameraMatrix } from './src/camera/controls.js';
 import { createAudioAnalyzer } from './src/audio/analyzer.js';
 import { createI18n } from './src/ui/i18n.js';
 import { initMobileMenu } from './src/ui/mobile.js';
+import { initUIControls } from './src/ui/controls.js';
 import { createSimulationState, createShapeState, createFractalState, createPointerState } from './src/simulation/state.js';
 import { createRenderPipeline, createColorManager } from './src/rendering/pipeline.js';
 
@@ -220,9 +221,19 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
   initMobileMenu();
   i18n.switchLanguage('ru');
 
+  // Initialize UI controls
+  const uiControls = initUIControls({
+    shapeState,
+    pointerState,
+    colorManager,
+    simState,
+    i18n,
+    audioAnalyzer,
+    reinitializeParticles
+  });
+
   // Main render loop
   let last = performance.now();
-  let speedMultiplier = 1.0;
 
   function loop(now) {
     requestAnimationFrame(loop);
@@ -247,7 +258,7 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     gl.useProgram(progSim);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_dt'), dt);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_time'), t);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_speedMultiplier'), speedMultiplier);
+    gl.uniform1f(gl.getUniformLocation(progSim, 'u_speedMultiplier'), uiControls.getSpeedMultiplier());
     gl.uniform1i(gl.getUniformLocation(progSim, 'u_shapeA'), shapeState.shapeA);
     gl.uniform1i(gl.getUniformLocation(progSim, 'u_shapeB'), shapeState.shapeB);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_morph'), shapeState.morph);
