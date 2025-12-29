@@ -253,7 +253,7 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
       // Rotate camera when right mouse button is pressed
       const dx = (x - mouse.lastX) * Math.PI * 1.5;
       const dy = (y - mouse.lastY) * Math.PI * 1.5;
-      camera.angle.y += dx;
+      camera.angle.y -= dx;  // Fix inverted horizontal camera movement
       camera.angle.x += dy;
       // Clamp vertical angle to prevent camera flip
       camera.angle.x = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, camera.angle.x));
