@@ -964,56 +964,56 @@
 
         // Размеры
         float diskR = radius * 1.5;
-        float coreR = radius * 0.12;
-        float diskThick = radius * 0.2;
+        float coreR = radius * 0.15;
+        float diskThick = radius * 0.18;
 
         // Зоны
         float inDiskPlane = exp(-absH * absH / (diskThick * diskThick));
         float inCore = exp(-rLen * rLen / (coreR * coreR));
 
-        // Джет - сужающийся конус
-        float jetRadius = radius * (0.15 + absH * 0.5);
+        // Джет - СУЖАЕТСЯ с высотой (широкий → тонкий)
+        float jetRadius = radius * 0.5 / (1.0 + absH * 1.5);
         float inJetCone = exp(-rho * rho / (jetRadius * jetRadius));
         float inJet = inJetCone * (1.0 - inDiskPlane);
 
-        // === 1. ТОЛСТЫЙ ТОР (аккреционный диск) ===
+        // === 1. МОЩНЫЙ ТОЛСТЫЙ ДИСК ===
 
-        // Сильное сплющивание к плоскости диска
-        float flattenForce = 10.0 * (1.0 - inJetCone * 0.95);
+        // ОЧЕНЬ сильное сплющивание (вне джета)
+        float flattenForce = 15.0 * (1.0 - inJetCone * 0.98);
         acc -= axis * hSign * q * flattenForce;
 
-        // Сильное орбитальное вращение
-        float orbitalForce = 1.2 / (0.1 + rho * rho);
-        acc += phi * q * orbitalForce * 12.0;
+        // ОЧЕНЬ сильное вращение в диске
+        float orbitalForce = 1.5 / (0.1 + rho * rho);
+        acc += phi * q * orbitalForce * 18.0 * (1.0 - inJet);
 
-        // Медленная аккреция внутрь (создаёт спираль)
-        float accretionForce = 0.4 / sqrt(0.1 + rho);
-        acc -= rhoDir * q * accretionForce;
+        // Медленная аккреция
+        float accretionForce = 0.3 / sqrt(0.1 + rho);
+        acc -= rhoDir * q * accretionForce * inDiskPlane;
 
-        // Легкая турбулентность для живости
-        float noise = sin(rho * 6.0 + u_time * 2.0) * cos(h * 8.0 - u_time);
-        acc += vec3(noise * 0.3, noise * 0.2, noise * 0.3) * q * inDiskPlane;
+        // Минимальная турбулентность
+        float noise = sin(rho * 5.0 + u_time * 1.5) * cos(h * 6.0);
+        acc += vec3(noise * 0.2, noise * 0.15, noise * 0.2) * q * inDiskPlane;
 
-        // Вязкость в диске
-        vel *= mix(1.0, 0.99, inDiskPlane);
+        // Сильная вязкость - держит в диске
+        vel *= mix(1.0, 0.985, inDiskPlane * (1.0 - inJet));
 
-        // === 2. СУЖАЮЩИЕСЯ ДЖЕТЫ (как на референсе) ===
+        // === 2. СУЖАЮЩИЕСЯ ДЖЕТЫ ===
 
-        // Мощный выброс из ядра
-        float coreEject = 40.0 * inCore;
+        // ЭКСТРЕМАЛЬНЫЙ выброс из ядра
+        float coreEject = 60.0 * inCore;
         acc += axis * hSign * q * coreEject;
 
-        // Сильный подъём в джете (зависит от высоты)
-        float jetLift = 30.0 * inJetCone / (1.0 + absH * 0.5);
+        // Мощный подъём в джете
+        float jetLift = 35.0 * inJetCone;
         acc += axis * hSign * q * jetLift;
 
-        // Коллимация - сужение джета с высотой
-        float collimatePower = 20.0 * (1.0 + absH * 2.0);
-        float edgeDist = smoothstep(jetRadius * 0.3, jetRadius, rho);
+        // Сильная коллимация (сужение)
+        float collimatePower = 25.0 * (1.0 + absH * 3.0);
+        float edgeDist = smoothstep(jetRadius * 0.2, jetRadius, rho);
         acc -= rhoDir * q * collimatePower * inJetCone * edgeDist;
 
         // Вращение в джете
-        acc += phi * q * 8.0 * inJetCone;
+        acc += phi * q * 10.0 * inJetCone;
 
         // === 3. ГРАНИЦЫ ===
         float boundR = smoothstep(diskR * 0.85, diskR, rho);
