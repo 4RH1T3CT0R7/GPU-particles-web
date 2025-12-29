@@ -253,4 +253,79 @@ vec3 applyRotations(vec3 p, float time){
 }
 
 mat2 rot2(float a){ return mat2(cos(a), -sin(a), sin(a), cos(a)); }
+
+// Main shape dispatcher function
+vec3 targetFor(int shapeId, vec2 id, float time, int slot){
+  float t = id.x;
+  float s = id.y;
+  vec3 pos;
+
+  if (shapeId == 0) {
+    // Cube
+    pos = shape_cube(t, s);
+  } else if (shapeId == 1) {
+    // Sphere
+    pos = shape_sphere(t, s);
+  } else if (shapeId == 2) {
+    // Torus
+    pos = shape_torus(t, s);
+  } else if (shapeId == 3) {
+    // Helix
+    pos = shape_helix(t, s);
+  } else if (shapeId == 4) {
+    // Octahedron
+    pos = shape_octahedron(t, s);
+  } else if (shapeId == 5) {
+    // Superformula
+    float angle = t * 6.28318530718;
+    float m = 6.0 + sin(time * 0.3) * 2.0;
+    float n1 = 2.0 + sin(time * 0.4) * 1.0;
+    float n2 = 18.0 + sin(time * 0.5) * 8.0;
+    float n3 = 18.0 + cos(time * 0.6) * 8.0;
+    vec2 p2d = shape_superformula(angle, m, n1, n2, n3);
+    float z = (s - 0.5) * 0.8;
+    pos = vec3(p2d * 0.7, z);
+  } else if (shapeId == 6) {
+    // Rose
+    float angle = t * 6.28318530718;
+    float k = 3.0 + sin(time * 0.25) * 2.0;
+    vec2 p2d = shape_rose(angle, k);
+    float z = (s - 0.5) * 0.8;
+    pos = vec3(p2d * 0.8, z);
+  } else if (shapeId == 7) {
+    // Wave
+    pos = shape_wave(t, s);
+  } else if (shapeId == 8) {
+    // Ribbon
+    pos = shape_ribbon(t, s);
+  } else if (shapeId == 9) {
+    // Icosahedron
+    pos = shape_icosahedron(t, s);
+  } else if (shapeId == 10) {
+    // Polygon
+    float angle = t * 6.28318530718;
+    float n = 5.0 + sin(time * 0.2) * 2.0;
+    vec2 p2d = shape_polygon(angle, n);
+    float z = (s - 0.5) * 0.8;
+    pos = vec3(p2d * 0.7, z);
+  } else if (shapeId == 11) {
+    // Fractal - return a placeholder that will be overridden
+    // The actual fractal shape is computed inline in simulation.js
+    pos = vec3(0.0);
+  } else if (shapeId == 12) {
+    // Equalizer - will use audio data from simulation context
+    // For now return basic shape, audio reactivity is in simulation.js
+    pos = shape_equalizer(t, s, 0.0, 0.0, 0.0, time);
+  } else {
+    // Default to sphere
+    pos = shape_sphere(t, s);
+  }
+
+  // Apply gentle rotation for most shapes
+  if (shapeId != 12 && shapeId != 11) {
+    pos = applyRotations(pos, time);
+  }
+
+  return pos;
+}
 `;
