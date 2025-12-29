@@ -965,27 +965,36 @@
         vec3 diskDir = diskPlane / diskDist;
         vec3 tangent = normalize(cross(axis, diskDir));
 
-        // Увеличенный радиус влияния и более плавное затухание
-        float influence = exp(-rLen / (radius * 2.8));
+        // КВАЗАР: собственный расчёт силы БЕЗ общего falloff (он уже есть в base)
+        // Широкое влияние для формирования структуры
+        float quasarRadius = radius * 4.0;
+        float influence = smoothstep(quasarRadius, 0.0, rLen);
+        // Базовая сила квазара - без двойного затухания
+        float qBase = u_pointerStrength * pressBoost * 0.8;
+
+        // === ГЛОБАЛЬНОЕ ПРИТЯЖЕНИЕ К КВАЗАРУ ===
+        // Сначала притягиваем ВСЕ частицы к центру квазара
+        float globalPull = influence * 3.0;
+        acc -= radial * qBase * globalPull;
 
         // === ЦЕНТРАЛЬНАЯ ПЛАЗМЕННАЯ СФЕРА ===
-        float coreRadius = radius * 0.4;
-        float inCore = smoothstep(coreRadius * 1.5, coreRadius * 0.4, rLen);
+        float coreRadius = radius * 0.5;
+        float inCore = smoothstep(coreRadius * 1.5, coreRadius * 0.3, rLen);
 
         // Сфера притягивает к поверхности, а не к центру
         float surfaceDist = abs(rLen - coreRadius);
-        float onSurface = exp(-surfaceDist * surfaceDist / (coreRadius * coreRadius * 0.2));
+        float onSurface = exp(-surfaceDist * surfaceDist / (coreRadius * coreRadius * 0.15));
 
         // Притяжение к сферической поверхности (усилено)
         float toSurface = (rLen < coreRadius) ? 1.0 : -1.0;
-        acc += radial * base * (6.0 * onSurface * toSurface);
+        acc += radial * qBase * (8.0 * onSurface * toSurface);
 
         // Хаотичное движение плазмы на поверхности сферы
         float plasmaPhase1 = u_time * 3.0 + rLen * 8.0;
         float plasmaPhase2 = u_time * 2.5 - axialComponent * 6.0;
         vec3 plasmaFlow = tangent * sin(plasmaPhase1) +
                           cross(radial, tangent) * cos(plasmaPhase2) * 0.7;
-        acc += plasmaFlow * base * (4.5 * inCore);
+        acc += plasmaFlow * qBase * (5.0 * inCore);
 
         // Пульсация ядра
         float corePulse = 1.0 + 0.2 * sin(u_time * 4.0) + 0.15 * sin(u_time * 7.0);
@@ -993,9 +1002,9 @@
 
         // === ВИХРИ НАД И ПОД СФЕРОЙ (тороидальные завихрения) ===
         float vortexZone = smoothstep(0.3, 0.7, absAxial) * smoothstep(1.0, 0.75, absAxial);
-        float vortexRadius = radius * 0.6;
-        float vortexDist = smoothstep(vortexRadius * 2.0, vortexRadius * 0.5, rLen);
-        float vortexStrength = vortexZone * vortexDist * influence;
+        float vortexRadius = radius * 0.8;
+        float vortexDist = smoothstep(vortexRadius * 2.5, vortexRadius * 0.4, rLen);
+        float vortexStrength = vortexZone * vortexDist;
 
         // Тороидальное вращение - вокруг оси + закрутка внутрь/наружу
         float toroidalAngle = atan(diskDist, absAxial * rLen);
@@ -1004,69 +1013,69 @@
           axis * axialSign * sin(toroidalAngle + u_time * 2.0) * 0.5 -
           diskDir * sin(toroidalAngle * 2.0) * 0.3
         );
-        acc += toroidalDir * base * (5.0 * vortexStrength);
+        acc += toroidalDir * qBase * (6.0 * vortexStrength);
 
         // Втягивание в вихрь по спирали
         float spiralPull = sin(atan(diskPlane.z, diskPlane.x) * 4.0 + u_time * 3.0);
-        acc -= diskDir * base * (1.5 * vortexStrength * (0.5 + 0.5 * spiralPull));
+        acc -= diskDir * qBase * (2.0 * vortexStrength * (0.5 + 0.5 * spiralPull));
 
         // Удержание в тороидальной зоне
         float idealVortexHeight = radius * 0.5;
         float heightDiff = abs(absAxial * rLen) - idealVortexHeight;
-        acc -= axis * axialSign * base * (2.0 * vortexStrength * sign(heightDiff) * smoothstep(0.0, 0.3, abs(heightDiff)));
+        acc -= axis * axialSign * qBase * (2.5 * vortexStrength * sign(heightDiff) * smoothstep(0.0, 0.3, abs(heightDiff)));
 
         // === АККРЕЦИОННЫЙ ДИСК (плоскость) ===
-        float diskThickness = 0.2;
+        float diskThickness = 0.25;
         float inDiskPlane = exp(-pow(absAxial / diskThickness, 2.0));
-        float diskInner = radius * 0.45;
-        float diskOuter = radius * 2.2;
-        float diskRange = smoothstep(diskOuter, diskInner, diskDist) * smoothstep(diskInner * 0.4, diskInner, diskDist);
-        float diskStrength = inDiskPlane * diskRange * influence * (1.0 - inCore);
+        float diskInner = radius * 0.55;
+        float diskOuter = radius * 3.0;
+        float diskRange = smoothstep(diskOuter, diskInner, diskDist) * smoothstep(diskInner * 0.3, diskInner, diskDist);
+        float diskStrength = inDiskPlane * diskRange * (1.0 - inCore);
 
         // Притягивание к плоскости диска (усилено)
-        acc -= axis * axialSign * base * (6.0 * diskStrength);
+        acc -= axis * axialSign * qBase * (8.0 * diskStrength);
 
         // ВРАЩЕНИЕ диска (кеплеровское - быстрее ближе к центру, усилено)
-        float omega = 8.0 / (1.0 + diskDist * 2.0);
-        acc += tangent * base * (omega * diskStrength);
+        float omega = 10.0 / (1.0 + diskDist * 1.5);
+        acc += tangent * qBase * (omega * diskStrength);
 
         // Медленный спиральный дрейф к центру
-        acc -= diskDir * base * (1.5 * diskStrength);
+        acc -= diskDir * qBase * (2.0 * diskStrength);
 
         // Турбулентность и волны в диске (усилены)
         float turbAngle = atan(diskPlane.z, diskPlane.x);
         float turb = sin(turbAngle * 6.0 + u_time * 3.0) * cos(turbAngle * 3.0 - u_time * 2.0);
-        acc += tangent * base * (turb * 1.5 * diskStrength);
-        acc.y += sin(diskDist * 8.0 + u_time * 4.0) * base * 0.5 * diskStrength;
+        acc += tangent * qBase * (turb * 2.0 * diskStrength);
+        acc.y += sin(diskDist * 8.0 + u_time * 4.0) * qBase * 0.6 * diskStrength;
 
         // === РЕЛЯТИВИСТСКИЕ СТРУИ (узкие вертикальные выбросы) ===
-        float jetConeAngle = 0.82;
-        float inJet = smoothstep(jetConeAngle, 0.95, absAxial);
-        float jetStart = radius * 0.5;
-        float jetEnd = radius * 4.0;
-        float jetRange = smoothstep(jetStart * 0.4, jetStart, rLen) * smoothstep(jetEnd, jetEnd * 0.7, rLen);
+        float jetConeAngle = 0.75;
+        float inJet = smoothstep(jetConeAngle, 0.92, absAxial);
+        float jetStart = radius * 0.6;
+        float jetEnd = radius * 5.0;
+        float jetRange = smoothstep(jetStart * 0.3, jetStart, rLen) * smoothstep(jetEnd, jetEnd * 0.6, rLen);
         float jetStrength = inJet * jetRange * (1.0 - inCore);
 
         // Мощный выброс вдоль оси (усилен)
-        acc += axis * axialSign * base * (10.0 * jetStrength);
+        acc += axis * axialSign * qBase * (12.0 * jetStrength);
 
         // Сильная коллимация - сжатие к оси струи
-        acc -= diskDir * base * (4.0 * jetStrength);
+        acc -= diskDir * qBase * (5.0 * jetStrength);
 
         // Спиральное вращение внутри струи (усилено)
         float jetSpin = u_time * 4.0 + rLen * 5.0;
-        acc += tangent * base * (3.0 * jetStrength * sin(jetSpin));
+        acc += tangent * qBase * (4.0 * jetStrength * sin(jetSpin));
 
         // Пульсация струи
         float jetPulse = 0.7 + 0.3 * sin(u_time * 6.0 + absAxial * rLen * 4.0);
         acc *= mix(1.0, jetPulse, jetStrength);
 
         // === УДЕРЖАНИЕ В ОБЛАСТИ ===
-        float boundary = smoothstep(radius * 3.0, radius * 4.0, rLen);
-        acc -= radial * base * (7.0 * boundary);
+        float boundary = smoothstep(radius * 3.5, radius * 5.0, rLen);
+        acc -= radial * qBase * (10.0 * boundary);
 
         // Плавное торможение
-        vel = mix(vel, vel * 0.94, influence * 0.2);
+        vel = mix(vel, vel * 0.92, influence * 0.25);
       } else {
         // Магнитный поток - мощные дуговые силовые линии (ОЧЕНЬ УСИЛЕНО)
         vec3 axis = normalize(u_viewDir * 0.7 + vec3(0.0, 1.0, 0.5));
