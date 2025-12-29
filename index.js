@@ -250,14 +250,22 @@
   }
 
   vec3 shape_ribbon(float t, float s){
-    // Лента/спираль
-    float angle = t * 6.28318530718 * 2.0;
-    float radius = 0.5 + s * 0.2;
-    return vec3(
-      radius * cos(angle),
-      (s - 0.5) * 1.0,
-      radius * sin(angle)
-    );
+    // Лента Мёбиуса - топологическая поверхность с одной стороной
+    float angle = t * 6.28318530718; // Полный оборот 0..2π
+    float width = (s - 0.5) * 0.6; // Ширина ленты от центра
+
+    // Радиус основной окружности
+    float R = 0.7;
+
+    // При обходе на 360° лента делает пол-оборота (π) вокруг своей оси
+    float twist = angle * 0.5; // Половина оборота = эффект Мёбиуса
+
+    // Параметрическое представление ленты Мёбиуса
+    float x = (R + width * cos(twist)) * cos(angle);
+    float y = (R + width * cos(twist)) * sin(angle);
+    float z = width * sin(twist);
+
+    return vec3(x, y, z) * 0.8;
   }
 
   vec3 shape_icosahedron(float t, float s){
@@ -273,73 +281,48 @@
     );
   }
 
-  // Эквалайзер - столбцы визуализации частот с чёткой плоскостью
+  // Эквалайзер - ЧЁТКАЯ плоскость с столбцами/волнами частот
   vec3 shape_equalizer(float t, float s, float bass, float mid, float treble, float time){
-    // Создаём плотную сетку из столбцов 24x12 для лучшей визуализации
-    float cols = 24.0;
-    float rows = 12.0;
-    float colIdx = floor(t * cols);
-    float rowIdx = floor(s * rows);
-    float localT = fract(t * cols);
-    float localS = fract(s * rows);
-
-    // Позиция частицы на плоскости
-    float x = (t - 0.5) * 2.8;
-    float z = (s - 0.5) * 2.2;
+    // БАЗА: плоская сетка (плоскость Y = -0.8)
+    float x = (t - 0.5) * 3.0;  // X от -1.5 до 1.5
+    float z = (s - 0.5) * 2.5;  // Z от -1.25 до 1.25
+    float y = -0.8; // Базовая плоскость
 
     // Проверяем наличие аудио
     float totalEnergy = bass + mid + treble;
-    bool hasAudio = totalEnergy > 0.015;
+    bool hasAudio = totalEnergy > 0.01;
 
-    // Демо-анимация с видимым движением для всех частот
-    float demoBass = 0.8 + 0.7 * sin(time * 1.8 + colIdx * 0.3 + rowIdx * 0.25);
-    float demoMid = 0.75 + 0.65 * sin(time * 2.3 + colIdx * 0.5 + rowIdx * 0.2 + 2.0);
-    float demoTreble = 0.7 + 0.6 * sin(time * 3.0 + colIdx * 0.7 + rowIdx * 0.3 + 4.0);
+    // Демо-анимация - волны по плоскости
+    float demoWave1 = 0.5 + 0.5 * sin(time * 2.0 + x * 3.0);
+    float demoWave2 = 0.5 + 0.5 * sin(time * 2.5 + x * 2.0 + z * 1.5 + 2.0);
+    float demoWave3 = 0.5 + 0.5 * sin(time * 3.0 + x * 4.0 - z * 1.0 + 4.0);
 
-    // УСИЛЕННАЯ чувствительность к реальному аудио
-    float useBass = hasAudio ? bass * 3.5 : demoBass;
-    float useMid = hasAudio ? mid * 3.2 : demoMid;
-    float useTreble = hasAudio ? treble * 2.8 : demoTreble;
+    // Усиленная чувствительность
+    float useBass = hasAudio ? bass * 5.0 : demoWave1;
+    float useMid = hasAudio ? mid * 4.5 : demoWave2;
+    float useTreble = hasAudio ? treble * 4.0 : demoWave3;
 
-    // ПЛАВНОЕ распределение частот по столбцам (0..1)
-    float columnPosition = t;
-    float bassWeight = smoothstep(0.4, 0.0, columnPosition); // Бас слева
-    float midWeight = 1.0 - abs(columnPosition - 0.5) * 2.0; // Середина в центре
-    midWeight = smoothstep(0.0, 1.0, midWeight);
-    float trebleWeight = smoothstep(0.6, 1.0, columnPosition); // Высокие справа
+    // Определяем положение по X (-1.5..1.5) для частот
+    float normX = (x + 1.5) / 3.0; // Нормализуем к 0..1
 
-    // Каждый столбец - смесь всех частот с разными весами
-    float bandHeight = useBass * bassWeight * 3.5 +
-                       useMid * midWeight * 3.0 +
-                       useTreble * trebleWeight * 2.6;
+    // ПЛАВНОЕ распределение частот слева направо
+    float bassContribution = useBass * smoothstep(0.5, 0.0, normX); // Бас слева
+    float midContribution = useMid * (1.0 - abs(normX - 0.5) * 2.0); // Середина в центре
+    float trebleContribution = useTreble * smoothstep(0.5, 1.0, normX); // Высокие справа
 
-    // Добавляем вариации по глубине (z-направление)
-    float zVariation = 0.85 + 0.3 * sin(rowIdx * 0.8 + time * 0.7);
-    bandHeight *= zVariation;
+    // ОБЩАЯ высота = сумма всех частот
+    float totalHeight = bassContribution + midContribution + trebleContribution;
 
-    // Индивидуальный отклик каждого столбца
-    float colVariation = 0.9 + 0.2 * sin(colIdx * 0.6 + time * 1.1);
-    bandHeight *= colVariation;
+    // Поднимаем плоскость на высоту частот
+    y += totalHeight * 1.5;
 
-    // ВСЕГДА есть видимая базовая плоскость
-    float baseHeight = 0.35;
-    float finalHeight = baseHeight + bandHeight;
+    // Добавляем лёгкие волны по глубине (Z) для органичности
+    float zWave = 0.15 * sin(z * 3.0 + time * 1.5);
+    y += zWave;
 
-    // Распределение частиц по высоте столбца
-    float particleHeight = localS;
-    float y = -1.1 + particleHeight * finalHeight * 3.0;
-
-    // Пульсация верхушек - зависит от всех частот
-    float pulse = 0.15 * sin(time * 5.0 + colIdx * 0.4 + rowIdx * 0.6) * smoothstep(0.0, 1.0, particleHeight);
-    y += pulse;
-
-    // Волны по всей плоскости
-    float planeWave = 0.12 * sin(time * 1.5 + x * 2.0 + z * 1.6);
-    y += planeWave;
-
-    // Добавляем "биение" между соседними столбцами
-    float beatPhase = sin(time * 2.5 + colIdx * 1.2);
-    y += beatPhase * 0.08 * particleHeight;
+    // Добавляем детали - рябь
+    float ripple = 0.08 * sin(x * 8.0 + z * 6.0 + time * 3.0);
+    y += ripple;
 
     return vec3(x, y, z);
   }
@@ -767,89 +750,87 @@
         vel = mix(vel, vel - dirP * base * 1.5 + swirl * base * 1.2, 0.6 * pulse);
       } else if (u_pointerMode == 6) {
         // КВАЗАР: центральная звезда + аккреционный диск + релятивистские струи
-        // Ось вращения (вверх)
-        vec3 axis = normalize(u_viewDir * 0.5 + vec3(0.0, 1.0, 0.0));
         vec3 r = pos - u_pointerPos;
-        float rLen = max(0.04, length(r));
-        vec3 radial = r / rLen;
+        float rLen = max(0.05, length(r));
+        vec3 radial = normalize(r);
 
-        // Проекция на ось вращения - определяет диск vs струи
-        float axial = dot(radial, axis);
-        float absAxial = abs(axial);
+        // Ось вращения квазара (вверх)
+        vec3 axis = normalize(u_viewDir + vec3(0.0, 1.0, 0.0));
 
-        // Расстояние от оси в плоскости диска
-        vec3 diskVector = r - axis * dot(r, axis);
-        float diskRadius = length(diskVector);
-        vec3 diskRadialDir = diskRadius > 0.001 ? normalize(diskVector) : vec3(1,0,0);
+        // Проекция на ось - определяет положение: диск (0) или струи (±1)
+        float axialComponent = dot(radial, axis);
+        float absAxial = abs(axialComponent);
 
-        // Направление вращения аккреционного диска
-        vec3 tangentDir = normalize(cross(axis, diskRadialDir));
+        // Векторы в плоскости диска
+        vec3 toAxis = axis * axialComponent;
+        vec3 diskPlane = r - toAxis * rLen;
+        float diskDist = max(0.001, length(diskPlane));
+        vec3 diskDir = diskPlane / diskDist;
+        vec3 tangent = normalize(cross(axis, diskDir));
 
-        // === ЦЕНТРАЛЬНАЯ ОБЛАСТЬ (сверхмассивная чёрная дыра) ===
-        float centralRadius = radius * 0.15;
-        float inCentralZone = smoothstep(centralRadius * 1.5, centralRadius * 0.5, rLen);
+        // Расстояние от центра влияния
+        float influence = exp(-rLen / (radius * 1.5));
 
-        // Сильнейшее притяжение к центру
-        acc -= radial * base * (15.0 * inCentralZone);
-        vel *= mix(1.0, 0.85, inCentralZone); // Замедление при приближении
+        // === ЦЕНТР: притяжение ===
+        float centralPull = smoothstep(radius * 0.5, radius * 0.1, rLen);
+        acc -= radial * base * (5.0 * centralPull * influence);
 
-        // === АККРЕЦИОННЫЙ ДИСК (экваториальная плоскость) ===
-        // Диск существует где axial близок к 0
-        float diskThickness = 0.15;
-        float inDisk = exp(-pow(absAxial / diskThickness, 2.0)) * (1.0 - inCentralZone);
-        float diskFalloff = exp(-pow(diskRadius / (radius * 1.2), 1.5));
-        float diskStrength = inDisk * diskFalloff;
+        // === АККРЕЦИОННЫЙ ДИСК (плоскость) ===
+        float diskThickness = 0.2;
+        float inDiskPlane = exp(-pow(absAxial / diskThickness, 2.0));
+        float diskRange = smoothstep(radius * 1.5, radius * 0.3, diskDist) * (1.0 - centralPull);
+        float diskStrength = inDiskPlane * diskRange * influence;
 
-        // Притяжение к плоскости диска
-        acc -= axis * sign(axial) * base * (6.0 * diskStrength);
+        // Притягивание к плоскости диска
+        acc -= axis * sign(axialComponent) * base * (3.0 * diskStrength);
 
-        // Радиальное притяжение внутрь диска (аккреция)
-        acc -= diskRadialDir * base * (4.5 * diskStrength);
+        // Притягивание к центру по радиусу диска
+        acc -= diskDir * base * (2.5 * diskStrength);
 
-        // БЫСТРОЕ ВРАЩЕНИЕ диска (как реальный аккреционный диск)
-        float rotationSpeed = 8.0 / (1.0 + diskRadius * 2.0); // Быстрее ближе к центру
-        acc += tangentDir * base * (rotationSpeed * diskStrength);
+        // ВРАЩЕНИЕ диска (быстрее ближе к центру)
+        float omega = 5.0 / (1.0 + diskDist * 3.0);
+        acc += tangent * base * (omega * diskStrength);
 
-        // Спиральные потоки внутрь
-        vec3 spiralFlow = mix(diskRadialDir * -1.0, tangentDir, 0.6);
-        acc += spiralFlow * base * (3.0 * diskStrength);
+        // Спиральный поток
+        vec3 spiral = normalize(tangent * 0.7 - diskDir * 0.3);
+        acc += spiral * base * (2.0 * diskStrength);
 
-        // Турбулентность в диске
-        float turbPhase = atan(diskVector.z, diskVector.x);
-        float turb = sin(turbPhase * 12.0 + u_time * 6.0 + diskRadius * 15.0);
-        acc += tangentDir * base * (turb * 1.5 * diskStrength);
+        // Турбулентность
+        float turbAngle = atan(diskPlane.z, diskPlane.x);
+        float turb = sin(turbAngle * 8.0 + u_time * 4.0);
+        acc += tangent * base * (turb * 0.8 * diskStrength);
 
-        // === РЕЛЯТИВИСТСКИЕ СТРУИ (вверх и вниз от полюсов) ===
-        // Струи формируются вдоль оси, где absAxial близок к 1
-        float jetAngle = 0.3; // Конус раскрытия струи
-        float inJetCone = smoothstep(jetAngle, 1.0, absAxial);
-        float jetFalloff = exp(-pow(rLen / (radius * 2.5), 1.2));
-        float jetStrength = inJetCone * jetFalloff * (1.0 - inDisk);
+        // === РЕЛЯТИВИСТСКИЕ СТРУИ (вертикальные выбросы) ===
+        float jetConeAngle = 0.4;
+        float inJet = smoothstep(jetConeAngle, 0.85, absAxial);
+        float jetRange = smoothstep(0.0, radius * 2.0, rLen) * smoothstep(radius * 3.0, radius * 1.5, rLen);
+        float jetStrength = inJet * jetRange * influence * (1.0 - diskStrength);
 
-        // МОЩНЫЙ выброс вдоль оси (вверх или вниз в зависимости от знака)
-        acc += axis * sign(axial) * base * (12.0 * jetStrength);
+        // Выброс вдоль оси
+        acc += axis * sign(axialComponent) * base * (6.0 * jetStrength);
 
-        // Лёгкое вращение внутри струи
-        acc += tangentDir * base * (2.0 * jetStrength);
+        // Коллимация - сжатие к оси струи
+        acc -= diskDir * base * (2.0 * jetStrength);
 
-        // Коллимация (сжатие к оси)
-        if (diskRadius > 0.001) {
-          acc -= diskRadialDir * base * (3.0 * jetStrength);
-        }
+        // Вращение внутри струи
+        acc += tangent * base * (1.5 * jetStrength);
 
-        // Пульсация струй
-        float jetPulse = 0.7 + 0.3 * sin(u_time * 4.0 + rLen * 10.0);
-        acc *= mix(1.0, jetPulse, jetStrength * 0.5);
+        // Пульсация
+        float pulse = 0.8 + 0.2 * sin(u_time * 5.0 + rLen * 8.0);
+        acc *= mix(1.0, pulse, jetStrength);
 
-        // === ОБЩАЯ ДИНАМИКА ===
-        // Завихрения вокруг
-        float swirlPhase = atan(r.y, r.x) + u_time * 2.0;
-        vec3 swirlForce = vec3(sin(swirlPhase), cos(swirlPhase), sin(swirlPhase * 0.5));
-        acc += swirlForce * base * (1.2 * falloff * (1.0 - jetStrength));
+        // === УДЕРЖАНИЕ В ОБЛАСТИ ===
+        // Не даём частицам улетать далеко
+        float boundary = smoothstep(radius * 2.5, radius * 3.0, rLen);
+        acc -= radial * base * (4.0 * boundary);
 
-        // Обновление скорости с учётом всех эффектов
-        vec3 targetVel = tangentDir * rotationSpeed + axis * sign(axial) * jetStrength * 3.0;
-        vel = mix(vel, vel + targetVel * base, 0.5 * falloff);
+        // Общее завихрение
+        float phase = atan(r.y, r.x) + u_time;
+        vec3 swirl = vec3(-sin(phase), cos(phase), 0.0);
+        acc += swirl * base * (0.8 * influence * (1.0 - jetStrength));
+
+        // Плавное обновление скорости
+        vel = mix(vel, vel * 0.95, influence * 0.2);
       } else {
         // Магнитный поток - мощные дуговые силовые линии (ОЧЕНЬ УСИЛЕНО)
         vec3 axis = normalize(u_viewDir * 0.7 + vec3(0.0, 1.0, 0.5));

@@ -35,9 +35,24 @@ WebGL2-based particle visualization system with morphing 3D shapes, audio reacti
 - Trail effects
 - Camera rotation (RMB) and zoom (mouse wheel)
 
-## Recent Fixes (Latest Commit)
+## Recent Fixes (Latest Commits)
 
-### Audio System
+### Latest Update - Möbius Strip, Equalizer & Quasar
+- ✅ **Ribbon → Möbius Strip** - proper topological surface with twist
+- ✅ **Equalizer Complete Rewrite** - clear flat plane with frequency waves
+  - Base plane at Y = -0.8
+  - Smooth frequency distribution (bass left, mid center, treble right)
+  - 5x bass, 4.5x mid, 4x treble sensitivity
+  - Visible demo waves when no audio
+- ✅ **Quasar Complete Rewrite** - realistic astrophysical structure
+  - Central black hole with strong gravity
+  - Rotating accretion disk with spiral inflow
+  - Vertical relativistic jets (up/down)
+  - Boundary forces to keep particles contained
+  - No more uncontrolled particle escape
+
+### Previous Update - Fractals & Audio
+- ✅ **5 Fractal Types**: Mandelbrot, Julia Set, Burning Ship, Tricorn, Newton
 - ✅ Audio reactivity restricted to Equalizer mode only
 - ✅ Added audio file upload UI with playback controls
 - ✅ Microphone/file toggle with status display
@@ -45,12 +60,12 @@ WebGL2-based particle visualization system with morphing 3D shapes, audio reacti
 ### Shape Improvements
 - ✅ Fixed Helix (Spiral) - proper spiral with increasing radius
 - ✅ Fixed Octahedron - correct barycentric triangle interpolation
-- ✅ Fixed Equalizer - visible plane with 16x16 grid
+- ✅ Möbius Strip - mathematical surface with half-twist
 
 ### Cursor Effects Enhanced
 - ✅ Particle repulsion increased 2.5x (4.5x force)
 - ✅ Pulsating impulse now actually pulsates with visible waves
-- ✅ Quasar with proper accretion disk and jets
+- ✅ Quasar - realistic accretion disk + jets (not a torus!)
 - ✅ Magnetic flux with strong dipole field and spiral motion
 
 ### Free Flight Improvements
@@ -61,17 +76,7 @@ WebGL2-based particle visualization system with morphing 3D shapes, audio reacti
 ## Known Issues & TODO
 
 ### High Priority
-1. **Equalizer Visualization**
-   - Problem: Only some frequencies show visible oscillations
-   - Solution needed: Better frequency distribution, higher sensitivity
-
-2. **Quasar Cursor Mode**
-   - Problem: Forms a torus instead of realistic quasar
-   - Solution needed: Proper stellar core, vertical jets, spiral accretion disk
-
-3. **Fractal Variety**
-   - Current: Only Mandelbrot set
-   - Needed: Julia sets, Burning Ship, Newton fractals, etc.
+- All major issues resolved! ✅
 
 ### Medium Priority
 - Improve particle count performance at high resolutions
@@ -144,17 +149,27 @@ GPU-particles-web/
 
 ## Changelog
 
-### 2025-01-XX - Audio & Shape Fixes
-- Audio reactivity now restricted to Equalizer mode only
-- Added audio file upload with playback controls
-- Fixed Helix/Spiral geometry
-- Fixed Octahedron triangulation
-- Enhanced all cursor interaction modes
-- Improved Free Flight turbulence
+### 2025-01-XX - Möbius Strip, Equalizer & Quasar Fixes
+- Ribbon → Möbius Strip with proper topological twist
+- Equalizer completely rewritten - clear flat plane with frequency waves
+- Quasar completely rewritten - realistic accretion disk + jets structure
+- Enhanced sensitivity: bass 5x, mid 4.5x, treble 4x
+- Added boundary forces to prevent particle escape in quasar mode
 
-### Previous Updates
-- Initial release with 11 shape modes
+### 2025-01-XX - Fractals & Audio System
+- Added 5 fractal types: Mandelbrot, Julia, Burning Ship, Tricorn, Newton
+- Audio reactivity restricted to Equalizer mode only
+- Added audio file upload with playback controls
+- Microphone/file toggle with status display
+
+### 2025-01-XX - Shape & Cursor Fixes
+- Fixed Helix/Spiral geometry - proper spiral with increasing radius
+- Fixed Octahedron triangulation - barycentric coordinates
+- Enhanced all cursor interaction modes (4.5x repulsion, pulsating impulse)
+- Improved Free Flight turbulence (2.8x, multiple vortex layers)
+
+### Initial Release
+- 11 shape modes with morphing
 - Audio reactivity implementation
-- Fractal mode with Mandelbrot set
 - Cursor interaction system
 - Camera controls and color palettes
