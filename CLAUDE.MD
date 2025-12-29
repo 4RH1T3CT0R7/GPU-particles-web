@@ -22,66 +22,163 @@ This document provides guidance for Claude (and other AI assistants) when workin
 ```
 GPU-particles-web/
 ├── index.html          # Main HTML with embedded CSS (UI controls, layout)
-├── index.js            # Core particle system (WebGL2, shaders, physics)
+├── index.js            # Application entry point and main orchestration
 ├── package.json        # Project metadata
 ├── README.md           # User-facing documentation
 ├── LICENSE.md          # MIT License
-└── CLAUDE.MD           # This file (AI assistant guidance)
+├── CLAUDE.MD           # This file (AI assistant guidance)
+└── src/                # Modular source code
+    ├── audio/          # Audio analysis and visualization
+    │   └── analyzer.js # Audio analyzer for reactive effects
+    ├── camera/         # Camera controls and transformations
+    │   └── controls.js # Camera rotation, zoom, and view matrix
+    ├── config/         # Configuration and constants
+    │   └── constants.js # Global constants and default values
+    ├── core/           # Core WebGL and utility functions
+    │   ├── utils.js    # Helper functions and utilities
+    │   └── webgl.js    # WebGL2 context, initialization, extensions
+    ├── rendering/      # Rendering pipeline
+    │   └── pipeline.js # Rendering orchestration and draw calls
+    ├── shaders/        # GLSL shader code
+    │   ├── blit.js     # Blit/copy shader programs
+    │   ├── common.js   # Shared shader utilities and functions
+    │   ├── init.js     # Particle initialization shaders
+    │   ├── particle.js # Particle rendering shaders (vertex/fragment)
+    │   ├── shapes.js   # Shape generator functions (GLSL)
+    │   └── simulation.js # Physics simulation shaders (GPGPU)
+    ├── simulation/     # Particle simulation state management
+    │   └── state.js    # Particle state, textures, framebuffers
+    └── ui/             # User interface components
+        ├── i18n.js     # Internationalization and localization
+        └── mobile.js   # Mobile-specific UI and touch controls
 ```
 
-## Key Files
+## Key Files & Modules
 
-### index.html (18KB)
+### index.html
 - Complete HTML structure with embedded CSS
 - Control panel UI elements (sliders, buttons, dropdowns)
 - Canvas element for WebGL rendering
 - Responsive layout with left sidebar controls
 - No external CSS dependencies
 
-### index.js (64KB, 1758 lines)
-The heart of the application containing:
+### index.js
+- Application entry point and orchestration
+- Imports and initializes all modules
+- Sets up the main render loop
+- Coordinates between different subsystems
 
-**Main Components:**
-1. **WebGL2 Context & Initialization** (start of file)
-   - Canvas setup, WebGL2 context creation (line 13)
-   - Extension checking (EXT_color_buffer_float, line 21)
-   - GPU limits detection and utility functions
+### src/core/webgl.js
+**WebGL2 Context & Initialization**
+- Canvas setup and WebGL2 context creation
+- Extension checking (EXT_color_buffer_float)
+- GPU limits detection and capability testing
+- WebGL state management
 
-2. **Shader Programs** (lines ~60-800)
-   - Simulation vertex shader: Full-screen quad for GPGPU
-   - Simulation fragment shader: Physics computation (lines 130-700+)
-   - Particle rendering vertex shader: Position lookup and transform
-   - Particle rendering fragment shader: Visual appearance
-   - Shape generator functions (GLSL): Lines 154-238
-     - shape_cube, shape_sphere, shape_torus, shape_helix
-     - shape_octahedron, shape_wave, shape_ribbon, shape_icosahedron
+### src/core/utils.js
+**Utility Functions**
+- Helper functions for math operations
+- Data structure utilities
+- Common operations used across modules
 
-3. **Texture & Framebuffer Setup** (lines ~800-900)
-   - Floating-point texture creation
-   - Framebuffer setup with Multiple Render Targets (MRT)
-   - Ping-pong buffer initialization
+### src/shaders/
+**GLSL Shader Programs**
 
-4. **Input & Interaction System** (lines ~990-1050)
-   - Mouse/touch event handlers
-   - Cursor position tracking (2D screen to 3D world)
-   - Pointer state management
-   - Camera rotation and zoom controls
+- **simulation.js** - Physics computation shaders
+  - Simulation vertex shader: Full-screen quad for GPGPU
+  - Simulation fragment shader: Physics updates, forces, morphing
+  - Multiple Render Targets (MRT) output for position/velocity
 
-5. **Animation Loop & Physics** (lines ~1200-1405)
-   - Main render loop with requestAnimationFrame
-   - Shape morphing logic and auto-transition
-   - GPGPU simulation pass with MRT (lines 1330-1364)
-   - Particle rendering pass (lines 1366-1394)
-   - Camera matrix updates and uniform uploads
+- **particle.js** - Particle rendering shaders
+  - Vertex shader: Position lookup from texture, transforms
+  - Fragment shader: Visual appearance, colors, blending
 
-6. **UI Controls & Event Handlers** (lines ~1410-end)
-   - Shape button generation and selection
-   - Slider inputs (speed, attraction, particle count, colors)
-   - Color palette system and shuffling
-   - Mode switching (Shapes/Free Flight/Fractals)
-   - Parameter validation and defaults
+- **shapes.js** - Shape generator functions (GLSL)
+  - shape_cube, shape_sphere, shape_torus, shape_helix
+  - shape_octahedron, shape_wave, shape_ribbon, shape_icosahedron
+  - Mathematical shape definitions and generators
+
+- **init.js** - Particle initialization shaders
+  - Initial particle state setup
+  - Random distribution algorithms
+
+- **blit.js** - Blit/copy operations
+  - Texture copying and post-processing
+  - Screen-space rendering utilities
+
+- **common.js** - Shared shader utilities
+  - Common GLSL functions and definitions
+  - Shared constants and helper functions
+
+### src/simulation/state.js
+**Particle State Management**
+- Floating-point texture creation and management
+- Framebuffer setup with Multiple Render Targets (MRT)
+- Ping-pong buffer initialization and swapping
+- Particle state updates and synchronization
+
+### src/rendering/pipeline.js
+**Rendering Pipeline**
+- Main render loop orchestration
+- GPGPU simulation pass with MRT
+- Particle rendering pass
+- Frame timing and performance monitoring
+
+### src/camera/controls.js
+**Camera System**
+- Camera rotation and zoom controls
+- View matrix calculations
+- Mouse/touch event handlers for camera
+- Smooth camera interpolation
+
+### src/ui/mobile.js
+**Mobile UI Components**
+- Touch event handlers
+- Mobile-specific controls and gestures
+- Responsive UI adaptations
+- Touch-based camera controls
+
+### src/ui/i18n.js
+**Internationalization**
+- Language support and translations
+- Localized UI strings
+- Dynamic language switching
+
+### src/audio/analyzer.js
+**Audio Analysis**
+- Audio input processing
+- Frequency analysis for reactive effects
+- Audio-driven particle modulation
+
+### src/config/constants.js
+**Configuration**
+- Global constants and default values
+- Particle count limits
+- Physics parameters
+- Rendering configuration
 
 ## Technical Architecture
+
+### Modular Code Organization
+
+The codebase follows a **modular architecture** with clear separation of concerns:
+
+**Module Categories:**
+1. **Core** (`src/core/`) - Fundamental WebGL and utility functions
+2. **Shaders** (`src/shaders/`) - All GLSL shader code organized by purpose
+3. **Simulation** (`src/simulation/`) - Particle state and physics management
+4. **Rendering** (`src/rendering/`) - Rendering pipeline and draw orchestration
+5. **Camera** (`src/camera/`) - View transformations and controls
+6. **UI** (`src/ui/`) - User interface components and interactions
+7. **Audio** (`src/audio/`) - Audio analysis and reactive effects
+8. **Config** (`src/config/`) - Constants and configuration
+
+**Benefits of Modular Structure:**
+- **Maintainability** - Easier to locate and modify specific functionality
+- **Testability** - Individual modules can be tested in isolation
+- **Reusability** - Modules can be reused across different parts of the application
+- **Collaboration** - Multiple developers can work on different modules simultaneously
+- **Code Organization** - Clear boundaries and responsibilities for each module
 
 ### GPU-Based Particle System
 
@@ -262,22 +359,35 @@ gl.uniformMatrix4fv(matrixLoc, false, matrix);
 ### Common Tasks
 
 **Adding a New Shape:**
-1. Create shape generator function
-2. Add to shape array/object
-3. Update HTML select options
+1. Create shape generator function in `src/shaders/shapes.js`
+2. Add to shape array/object in main application
+3. Update HTML select options in `index.html`
 4. Test morphing transitions
 
 **Modifying Physics:**
-1. Locate relevant shader code (vertex shader)
-2. Update force calculations
-3. Adjust uniform parameters
-4. Test performance impact
+1. Locate relevant shader code in `src/shaders/simulation.js`
+2. Update force calculations in simulation fragment shader
+3. Adjust uniform parameters in `src/config/constants.js`
+4. Update state management in `src/simulation/state.js` if needed
+5. Test performance impact
 
 **Changing Visual Effects:**
-1. Modify fragment shader
-2. Adjust blending modes
-3. Update color calculations
+1. Modify particle fragment shader in `src/shaders/particle.js`
+2. Adjust blending modes in `src/rendering/pipeline.js`
+3. Update color calculations in shader code
 4. Test on different backgrounds
+
+**Adding New UI Controls:**
+1. Add HTML elements to `index.html`
+2. Implement event handlers in appropriate UI module (`src/ui/`)
+3. Update state in `src/simulation/state.js` or relevant module
+4. Test responsiveness on mobile devices
+
+**Working with Modules:**
+1. Import required modules at the top of files
+2. Export functions/objects that other modules need
+3. Keep modules focused on single responsibility
+4. Avoid circular dependencies between modules
 
 ## Debugging Tips
 

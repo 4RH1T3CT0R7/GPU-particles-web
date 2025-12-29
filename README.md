@@ -179,11 +179,49 @@ The left panel provides real-time control over:
 ```
 GPU-particles-web/
 ├── index.html          # Main HTML file with embedded styles
-├── index.js            # Core particle system logic
+├── index.js            # Application entry point and orchestration
 ├── package.json        # Project metadata
 ├── README.md           # This file
-└── LICENSE.md          # License information
+├── LICENSE.md          # License information
+├── CLAUDE.MD           # AI assistant development guide
+└── src/                # Modular source code
+    ├── audio/          # Audio analysis and visualization
+    │   └── analyzer.js # Audio analyzer for reactive effects
+    ├── camera/         # Camera controls and transformations
+    │   └── controls.js # Camera rotation, zoom, and view matrix
+    ├── config/         # Configuration and constants
+    │   └── constants.js # Global constants and default values
+    ├── core/           # Core WebGL and utility functions
+    │   ├── utils.js    # Helper functions and utilities
+    │   └── webgl.js    # WebGL2 context and initialization
+    ├── rendering/      # Rendering pipeline
+    │   └── pipeline.js # Rendering orchestration and draw calls
+    ├── shaders/        # GLSL shader code
+    │   ├── blit.js     # Blit/copy shader programs
+    │   ├── common.js   # Shared shader utilities
+    │   ├── init.js     # Particle initialization shaders
+    │   ├── particle.js # Particle rendering shaders
+    │   ├── shapes.js   # Shape generator functions (GLSL)
+    │   └── simulation.js # Physics simulation shaders (GPGPU)
+    ├── simulation/     # Particle simulation state management
+    │   └── state.js    # Particle state, textures, framebuffers
+    └── ui/             # User interface components
+        ├── i18n.js     # Internationalization and localization
+        └── mobile.js   # Mobile-specific UI and touch controls
 ```
+
+### Module Organization
+
+The project follows a **modular architecture** with clear separation of concerns:
+
+- **`src/core/`** - WebGL2 context management and core utilities
+- **`src/shaders/`** - All GLSL shader programs organized by function
+- **`src/simulation/`** - GPU-based particle physics and state management
+- **`src/rendering/`** - Rendering pipeline and visual output
+- **`src/camera/`** - 3D camera controls and transformations
+- **`src/ui/`** - User interface components and interactions
+- **`src/audio/`** - Audio analysis for reactive visualizations
+- **`src/config/`** - Application configuration and constants
 
 ## 🎯 Use Cases
 
