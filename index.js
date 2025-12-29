@@ -252,20 +252,66 @@
   vec3 shape_ribbon(float t, float s){
     // Лента Мёбиуса - топологическая поверхность с одной стороной
     float angle = t * 6.28318530718; // Полный оборот 0..2π
-    float width = (s - 0.5) * 0.6; // Ширина ленты от центра
+
+    // Ширина ленты (более широкая для наглядности)
+    float stripWidth = 0.4;
+    float w = (s - 0.5) * stripWidth; // -0.2 до +0.2
 
     // Радиус основной окружности
-    float R = 0.7;
+    float R = 0.8;
 
     // При обходе на 360° лента делает пол-оборота (π) вокруг своей оси
     float twist = angle * 0.5; // Половина оборота = эффект Мёбиуса
 
-    // Параметрическое представление ленты Мёбиуса
-    float x = (R + width * cos(twist)) * cos(angle);
-    float y = (R + width * cos(twist)) * sin(angle);
-    float z = width * sin(twist);
+    // Толщина ленты для 3D эффекта
+    float thickness = 0.05;
+    // Используем часть s для толщины (создаём слои)
+    float sLocal = fract(s * 3.0);  // 3 слоя по толщине
+    float layer = (sLocal - 0.5) * thickness;
 
-    return vec3(x, y, z) * 0.8;
+    // Направления в локальной системе координат ленты
+    // Нормаль к поверхности ленты (меняется при кручении)
+    vec3 normal = vec3(
+      cos(twist) * cos(angle),
+      cos(twist) * sin(angle),
+      sin(twist)
+    );
+
+    // Тангенс вдоль ширины ленты (перпендикулярен основной окружности)
+    vec3 widthDir = vec3(
+      cos(twist) * cos(angle),
+      cos(twist) * sin(angle),
+      sin(twist)
+    );
+
+    // Базовая точка на центральной окружности
+    float baseX = R * cos(angle);
+    float baseY = 0.0;  // Лента лежит в плоскости XZ
+    float baseZ = R * sin(angle);
+
+    // Смещение по ширине ленты с учётом кручения
+    float offsetX = w * cos(twist) * cos(angle);
+    float offsetY = w * sin(twist);
+    float offsetZ = w * cos(twist) * sin(angle);
+
+    // Добавляем толщину
+    float thickX = layer * sin(twist) * cos(angle);
+    float thickY = layer * cos(twist);
+    float thickZ = layer * sin(twist) * sin(angle);
+
+    // Финальная позиция
+    float x = baseX + offsetX + thickX;
+    float y = baseY + offsetY + thickY;
+    float z = baseZ + offsetZ + thickZ;
+
+    // Добавляем лёгкую волну вдоль ленты для живости
+    float waveAmp = 0.03;
+    y += sin(angle * 4.0) * waveAmp * (1.0 - abs(w) / stripWidth);
+
+    // Частицы концентрируются на краях ленты (контур)
+    float edgeFactor = smoothstep(0.3, 0.5, abs(s - 0.5) * 2.0);
+
+    return vec3(x, y, z) * 0.9;
   }
 
   vec3 shape_icosahedron(float t, float s){
@@ -281,48 +327,107 @@
     );
   }
 
-  // Эквалайзер - ЧЁТКАЯ плоскость с столбцами/волнами частот
+  // Эквалайзер - ЧЁТКИЕ столбцы с явными контурами
   vec3 shape_equalizer(float t, float s, float bass, float mid, float treble, float time){
-    // БАЗА: плоская сетка (плоскость Y = -0.8)
-    float x = (t - 0.5) * 3.0;  // X от -1.5 до 1.5
-    float z = (s - 0.5) * 2.5;  // Z от -1.25 до 1.25
-    float y = -0.8; // Базовая плоскость
+    // Количество столбцов эквалайзера
+    float numBars = 16.0;
+    float barWidth = 3.0 / numBars;  // Ширина столбца
+    float gapRatio = 0.15;  // Промежуток между столбцами (15% от ширины)
+
+    // Определяем позицию X
+    float xRange = 3.0;  // от -1.5 до 1.5
+    float xBase = (t - 0.5) * xRange;
+
+    // Определяем индекс текущего столбца
+    float barIndex = floor((t * numBars));
+    float barCenter = (barIndex + 0.5) / numBars;  // Центр столбца [0,1]
+    float localT = fract(t * numBars);  // Позиция внутри столбца [0,1]
+
+    // Создаём чёткие границы столбцов
+    float inBar = smoothstep(0.0, gapRatio, localT) * smoothstep(1.0, 1.0 - gapRatio, localT);
+    float barEdge = pow(inBar, 0.5);  // Более резкие края
+
+    // X координата привязана к столбцу
+    float x = ((barCenter - 0.5) * xRange);
+
+    // Z определяется параметром s - глубина столбца
+    float zRange = 1.8;
+    float z = (s - 0.5) * zRange;
+
+    // Позиция внутри глубины столбца
+    float depthEdge = smoothstep(0.0, 0.1, s) * smoothstep(1.0, 0.9, s);
 
     // Проверяем наличие аудио
     float totalEnergy = bass + mid + treble;
     bool hasAudio = totalEnergy > 0.01;
 
-    // Демо-анимация - волны по плоскости
-    float demoWave1 = 0.5 + 0.5 * sin(time * 2.0 + x * 3.0);
-    float demoWave2 = 0.5 + 0.5 * sin(time * 2.5 + x * 2.0 + z * 1.5 + 2.0);
-    float demoWave3 = 0.5 + 0.5 * sin(time * 3.0 + x * 4.0 - z * 1.0 + 4.0);
+    // Демо-анимация - независимые частоты для каждого столбца
+    float barPhase = barIndex * 0.7 + time;
+    float demoWave1 = 0.5 + 0.5 * sin(time * 2.0 + barIndex * 0.5);
+    float demoWave2 = 0.5 + 0.5 * sin(time * 2.5 + barIndex * 0.8 + 2.0);
+    float demoWave3 = 0.5 + 0.5 * sin(time * 3.0 + barIndex * 1.2 + 4.0);
 
     // Усиленная чувствительность
     float useBass = hasAudio ? bass * 5.0 : demoWave1;
     float useMid = hasAudio ? mid * 4.5 : demoWave2;
     float useTreble = hasAudio ? treble * 4.0 : demoWave3;
 
-    // Определяем положение по X (-1.5..1.5) для частот
-    float normX = (x + 1.5) / 3.0; // Нормализуем к 0..1
+    // Распределение частот по столбцам (слева направо: бас -> высокие)
+    float normBar = barIndex / (numBars - 1.0);
 
-    // ПЛАВНОЕ распределение частот слева направо
-    float bassContribution = useBass * smoothstep(0.5, 0.0, normX); // Бас слева
-    float midContribution = useMid * (1.0 - abs(normX - 0.5) * 2.0); // Середина в центре
-    float trebleContribution = useTreble * smoothstep(0.5, 1.0, normX); // Высокие справа
+    // Более чёткое разделение частот
+    float bassZone = smoothstep(0.4, 0.0, normBar);
+    float midZone = 1.0 - abs(normBar - 0.5) * 2.5;
+    midZone = max(0.0, midZone);
+    float trebleZone = smoothstep(0.6, 1.0, normBar);
 
-    // ОБЩАЯ высота = сумма всех частот
-    float totalHeight = bassContribution + midContribution + trebleContribution;
+    float barHeight = useBass * bassZone + useMid * midZone + useTreble * trebleZone;
 
-    // Поднимаем плоскость на высоту частот
-    y += totalHeight * 1.5;
+    // Базовая плоскость
+    float baseY = -0.9;
 
-    // Добавляем лёгкие волны по глубине (Z) для органичности
-    float zWave = 0.15 * sin(z * 3.0 + time * 1.5);
-    y += zWave;
+    // Высота столбца
+    float columnHeight = barHeight * 2.0;
 
-    // Добавляем детали - рябь
-    float ripple = 0.08 * sin(x * 8.0 + z * 6.0 + time * 3.0);
-    y += ripple;
+    // Распределение частиц внутри столбца по высоте
+    // s определяет высоту внутри столбца
+    float heightFactor = s;
+
+    // Частицы заполняют столбец снизу вверх до высоты columnHeight
+    float maxY = baseY + columnHeight;
+    float y = baseY + heightFactor * columnHeight;
+
+    // Яркий "верхний край" столбца - частицы концентрируются наверху
+    float topConcentration = smoothstep(0.6, 1.0, heightFactor);
+
+    // Вертикальные рёбра столбцов - привязка к краям
+    float edgeFactor = abs(localT - 0.5) * 2.0;  // 0 в центре, 1 на краях
+    float onEdge = smoothstep(0.7, 0.95, edgeFactor);
+
+    // Горизонтальные линии на уровнях (сетка)
+    float gridLines = 5.0;
+    float gridY = fract(heightFactor * gridLines);
+    float onGridLine = smoothstep(0.1, 0.0, gridY) + smoothstep(0.9, 1.0, gridY);
+    onGridLine *= 0.3;
+
+    // Если частица на ребре, сдвигаем к краю столбца
+    float xOffset = (localT - 0.5) * barWidth * 0.9;
+    x += xOffset;
+
+    // Передняя/задняя грань
+    float frontBack = abs(s - 0.5) * 2.0;
+    float onFrontBack = smoothstep(0.8, 1.0, frontBack);
+
+    // Создаём контуры - частицы группируются на рёбрах
+    float contourStrength = max(onEdge, onFrontBack) * barEdge * depthEdge;
+
+    // Небольшое движение для живости
+    float wobble = sin(time * 2.0 + barIndex * 1.5) * 0.02 * barEdge;
+    y += wobble;
+
+    // Пульсация верхушки
+    float topPulse = sin(time * 4.0 + barIndex * 0.8) * 0.05 * topConcentration;
+    y += topPulse;
 
     return vec3(x, y, z);
   }
@@ -364,8 +469,8 @@
   vec3 fractalFlow(vec2 id, float time, vec4 seed){
     vec2 p = id * 2.0 - 1.0;
 
-    // Тип фрактала определяется seed.w (0-1)
-    int fractalType = int(mod(seed.w * 10.0, 5.0));
+    // 10 типов фракталов для разнообразия
+    int fractalType = int(mod(seed.w * 10.0, 10.0));
 
     float zoom = 1.0 + seed.x * 0.3;
     vec2 center = vec2(-0.5 + seed.y * 0.2, seed.z * 0.15);
@@ -373,6 +478,7 @@
     float maxIter = 48.0;
     float smoothIter = 0.0;
     bool escaped = false;
+    float colorMod = 0.0;  // Дополнительный параметр для цвета
 
     // Выбираем тип фрактала
     if (fractalType == 0) {
@@ -391,8 +497,9 @@
       }
     }
     else if (fractalType == 1) {
-      // Julia Set - зависит от параметра c
-      vec2 juliaC = vec2(-0.7 + sin(time * 0.1) * 0.2, 0.27015 + cos(time * 0.13) * 0.1);
+      // Julia Set - анимированный параметр
+      float jTime = time * 0.08;
+      vec2 juliaC = vec2(-0.7 + sin(jTime) * 0.25, 0.27015 + cos(jTime * 1.3) * 0.12);
       z = p * zoom * 1.5;
       c = juliaC;
       for(int i = 0; i < 48; i++) {
@@ -407,8 +514,8 @@
       }
     }
     else if (fractalType == 2) {
-      // Burning Ship - абсолютные значения
-      c = p * zoom + vec2(-0.5, -0.6);
+      // Burning Ship
+      c = p * zoom + vec2(-0.5, -0.5);
       z = vec2(0.0);
       for(int i = 0; i < 48; i++) {
         float zLen = dot(z, z);
@@ -417,13 +524,12 @@
           escaped = true;
           break;
         }
-        // Используем abs для создания "горящего корабля"
         z = vec2(z.x*z.x - z.y*z.y, 2.0*abs(z.x*z.y)) + c;
         smoothIter = float(i);
       }
     }
     else if (fractalType == 3) {
-      // Tricorn (Mandelbar) - сопряжённое множество
+      // Tricorn (Mandelbar)
       c = p * zoom + center;
       z = vec2(0.0);
       for(int i = 0; i < 48; i++) {
@@ -433,90 +539,172 @@
           escaped = true;
           break;
         }
-        // Сопряжённое умножение
         z = vec2(z.x*z.x - z.y*z.y, -2.0*z.x*z.y) + c;
         smoothIter = float(i);
       }
     }
-    else {
-      // Newton Fractal - поиск корней z^3 - 1 = 0
+    else if (fractalType == 4) {
+      // Newton Fractal (z^3 - 1)
       z = p * zoom * 2.0;
       for(int i = 0; i < 48; i++) {
-        // Newton iteration: z = z - f(z)/f'(z)
-        // f(z) = z^3 - 1, f'(z) = 3z^2
         vec2 z2 = vec2(z.x*z.x - z.y*z.y, 2.0*z.x*z.y);
         vec2 z3 = vec2(z2.x*z.x - z2.y*z.y, z2.x*z.y + z2.y*z.x);
         vec2 fz = vec2(z3.x - 1.0, z3.y);
         vec2 fpz = vec2(3.0 * z2.x, 3.0 * z2.y);
-
-        // Деление комплексных чисел: (a+bi)/(c+di) = ((ac+bd) + (bc-ad)i)/(c^2+d^2)
         float denom = fpz.x*fpz.x + fpz.y*fpz.y + 0.0001;
         vec2 ratio = vec2((fz.x*fpz.x + fz.y*fpz.y) / denom,
                           (fz.y*fpz.x - fz.x*fpz.y) / denom);
         z = z - ratio;
-
-        // Проверяем сходимость к корням
         vec2 root1 = vec2(1.0, 0.0);
         vec2 root2 = vec2(-0.5, 0.866);
         vec2 root3 = vec2(-0.5, -0.866);
-
         float d1 = length(z - root1);
         float d2 = length(z - root2);
         float d3 = length(z - root3);
         float minDist = min(d1, min(d2, d3));
-
         if (minDist < 0.01) {
           smoothIter = float(i) + (1.0 - minDist * 100.0);
+          colorMod = (d1 < d2 && d1 < d3) ? 0.0 : ((d2 < d3) ? 0.33 : 0.66);
           escaped = true;
           break;
         }
         smoothIter = float(i);
       }
     }
+    else if (fractalType == 5) {
+      // Phoenix fractal - память о предыдущем z
+      vec2 zPrev = vec2(0.0);
+      float pParam = -0.5 + sin(time * 0.1) * 0.2;
+      c = p * zoom + vec2(-0.5, 0.0);
+      z = vec2(0.0);
+      for(int i = 0; i < 48; i++) {
+        float zLen = dot(z, z);
+        if (zLen > 4.0) {
+          smoothIter = float(i) - log2(log2(zLen) / log2(4.0));
+          escaped = true;
+          break;
+        }
+        vec2 zNew = vec2(z.x*z.x - z.y*z.y, 2.0*z.x*z.y) + c + pParam * zPrev;
+        zPrev = z;
+        z = zNew;
+        smoothIter = float(i);
+      }
+    }
+    else if (fractalType == 6) {
+      // Multibrot z^4 - более сложная симметрия
+      c = p * zoom * 0.8 + center;
+      z = vec2(0.0);
+      for(int i = 0; i < 48; i++) {
+        float zLen = dot(z, z);
+        if (zLen > 4.0) {
+          smoothIter = float(i) - log2(log2(zLen) / log2(4.0));
+          escaped = true;
+          break;
+        }
+        // z^4 = (z^2)^2
+        vec2 z2 = vec2(z.x*z.x - z.y*z.y, 2.0*z.x*z.y);
+        z = vec2(z2.x*z2.x - z2.y*z2.y, 2.0*z2.x*z2.y) + c;
+        smoothIter = float(i);
+      }
+    }
+    else if (fractalType == 7) {
+      // Celtic fractal - вариация с abs
+      c = p * zoom + vec2(-0.3, 0.0);
+      z = vec2(0.0);
+      for(int i = 0; i < 48; i++) {
+        float zLen = dot(z, z);
+        if (zLen > 4.0) {
+          smoothIter = float(i) - log2(log2(zLen) / log2(4.0));
+          escaped = true;
+          break;
+        }
+        z = vec2(abs(z.x*z.x - z.y*z.y), 2.0*z.x*z.y) + c;
+        smoothIter = float(i);
+      }
+    }
+    else if (fractalType == 8) {
+      // Perpendicular Mandelbrot
+      c = p * zoom + center;
+      z = vec2(0.0);
+      for(int i = 0; i < 48; i++) {
+        float zLen = dot(z, z);
+        if (zLen > 4.0) {
+          smoothIter = float(i) - log2(log2(zLen) / log2(4.0));
+          escaped = true;
+          break;
+        }
+        z = vec2(z.x*z.x - z.y*z.y, -2.0*abs(z.x)*z.y) + c;
+        smoothIter = float(i);
+      }
+    }
+    else {
+      // Buffalo fractal - комбинация abs
+      c = p * zoom + vec2(-0.4, -0.3);
+      z = vec2(0.0);
+      for(int i = 0; i < 48; i++) {
+        float zLen = dot(z, z);
+        if (zLen > 4.0) {
+          smoothIter = float(i) - log2(log2(zLen) / log2(4.0));
+          escaped = true;
+          break;
+        }
+        float zx = abs(z.x*z.x - z.y*z.y) - abs(2.0*z.x*z.y);
+        float zy = abs(2.0*z.x*z.y);
+        z = vec2(zx, zy) + c;
+        smoothIter = float(i);
+      }
+    }
 
-    // Нормализуем с учётом скорости побега/схождения
+    // Нормализуем
     float fractalVal = smoothIter / maxIter;
     fractalVal = clamp(fractalVal, 0.0, 1.0);
 
-    // Если точка внутри множества, создаём особый эффект
+    // Внутренние точки
     if (!escaped) {
       fractalVal = 0.5 + 0.5 * sin(length(z) * 10.0 + time);
     }
 
-    // 3D спиральная структура на основе фрактала
+    // 3D спиральная структура
     float baseAngle = atan(p.y, p.x);
     float dist = length(p);
 
-    // Различные паттерны для разных фракталов
-    float arms = float(fractalType + 3);
-    float spiral = baseAngle * arms + fractalVal * 6.28 + time * 0.3;
-    float wave = 0.5 + 0.5 * sin(spiral * (1.0 + float(fractalType) * 0.3));
+    // Уникальные паттерны для каждого фрактала
+    float typeF = float(fractalType);
+    float arms = 3.0 + mod(typeF * 1.7, 5.0);
+    float spiralSpeed = 0.2 + mod(typeF * 0.13, 0.3);
+    float spiral = baseAngle * arms + fractalVal * 6.28 + time * spiralSpeed;
+    float wave = 0.5 + 0.5 * sin(spiral * (1.0 + typeF * 0.15));
 
-    // Радиус варьируется с фрактальным значением
-    float r = (0.3 + fractalVal * 0.7) * (0.7 + 0.3 * wave);
+    // Радиус и высота зависят от фрактала
+    float r = (0.3 + fractalVal * 0.7) * (0.6 + 0.4 * wave);
+    float h = (fractalVal - 0.5) * 1.6;
+    h += sin(spiral * 0.5) * 0.25 * fractalVal;
 
-    // Высота из фрактальных данных
-    float h = (fractalVal - 0.5) * 1.8;
-    h += sin(spiral * 0.5) * 0.3 * fractalVal;
+    // Различные геометрии для разных фракталов
+    if (fractalType == 4 || fractalType == 5) {
+      // Newton/Phoenix - трёхлучевая симметрия
+      h += sin(baseAngle * 3.0 + time * 0.5) * 0.2 * fractalVal;
+    } else if (fractalType == 6) {
+      // Multibrot z^4 - четырёхлучевая симметрия
+      r *= 1.0 + 0.2 * sin(baseAngle * 4.0 + fractalVal * 8.0);
+    } else if (fractalType == 7 || fractalType == 8 || fractalType == 9) {
+      // Celtic/Perp/Buffalo - более хаотичные формы
+      h += sin(fractalVal * 15.0 + baseAngle * 2.0) * 0.15;
+      r *= 1.0 + 0.15 * cos(fractalVal * 12.0 - time * 0.4);
+    }
 
-    // Финальная позиция с вращением
-    float rotAngle = baseAngle + time * 0.2 + seed.w * 6.28;
+    // Финальная позиция
+    float rotAngle = baseAngle + time * spiralSpeed + seed.w * 6.28;
     vec3 pos = vec3(
       cos(rotAngle) * r,
       h,
       sin(rotAngle) * r
     );
 
-    // Детали движения - зависят от типа фрактала
-    pos.x += sin(fractalVal * 12.0 + time * 0.8) * 0.12 * fractalVal;
-    pos.z += cos(fractalVal * 10.0 - time * 0.6) * 0.1 * fractalVal;
-    pos.y += sin(dist * 6.0 + time * 0.5) * 0.08;
-
-    // Добавляем уникальность для каждого типа фрактала
-    if (fractalType == 4) {
-      // Newton - симметричные лепестки
-      pos.xz *= 1.0 + 0.3 * sin(fractalVal * 18.0);
-    }
+    // Органическое движение
+    pos.x += sin(fractalVal * 10.0 + time * 0.7) * 0.1 * fractalVal;
+    pos.z += cos(fractalVal * 8.0 - time * 0.5) * 0.08 * fractalVal;
+    pos.y += sin(dist * 5.0 + time * 0.4) * 0.06;
 
     return pos;
   }
@@ -749,7 +937,7 @@
         acc += dirP * base * wave * 2.5;
         vel = mix(vel, vel - dirP * base * 1.5 + swirl * base * 1.2, 0.6 * pulse);
       } else if (u_pointerMode == 6) {
-        // КВАЗАР: центральная звезда + аккреционный диск + релятивистские струи
+        // КВАЗАР: центральная плазменная сфера + аккреционный диск + вихри + струи
         vec3 r = pos - u_pointerPos;
         float rLen = max(0.05, length(r));
         vec3 radial = normalize(r);
@@ -757,9 +945,10 @@
         // Ось вращения квазара (вверх)
         vec3 axis = normalize(u_viewDir + vec3(0.0, 1.0, 0.0));
 
-        // Проекция на ось - определяет положение: диск (0) или струи (±1)
+        // Проекция на ось - определяет положение: диск (0) или струи/вихри (±1)
         float axialComponent = dot(radial, axis);
         float absAxial = abs(axialComponent);
+        float axialSign = sign(axialComponent);
 
         // Векторы в плоскости диска
         vec3 toAxis = axis * axialComponent;
@@ -769,68 +958,107 @@
         vec3 tangent = normalize(cross(axis, diskDir));
 
         // Расстояние от центра влияния
-        float influence = exp(-rLen / (radius * 1.5));
+        float influence = exp(-rLen / (radius * 1.8));
 
-        // === ЦЕНТР: притяжение ===
-        float centralPull = smoothstep(radius * 0.5, radius * 0.1, rLen);
-        acc -= radial * base * (5.0 * centralPull * influence);
+        // === ЦЕНТРАЛЬНАЯ ПЛАЗМЕННАЯ СФЕРА ===
+        float coreRadius = radius * 0.35;
+        float inCore = smoothstep(coreRadius * 1.2, coreRadius * 0.3, rLen);
+
+        // Сфера притягивает к поверхности, а не к центру
+        float surfaceDist = abs(rLen - coreRadius);
+        float onSurface = exp(-surfaceDist * surfaceDist / (coreRadius * coreRadius * 0.15));
+
+        // Притяжение к сферической поверхности
+        float toSurface = (rLen < coreRadius) ? 1.0 : -1.0;
+        acc += radial * base * (4.0 * onSurface * toSurface);
+
+        // Хаотичное движение плазмы на поверхности сферы
+        float plasmaPhase1 = u_time * 3.0 + rLen * 8.0;
+        float plasmaPhase2 = u_time * 2.5 - axialComponent * 6.0;
+        vec3 plasmaFlow = tangent * sin(plasmaPhase1) +
+                          cross(radial, tangent) * cos(plasmaPhase2) * 0.7;
+        acc += plasmaFlow * base * (3.5 * inCore);
+
+        // Пульсация ядра
+        float corePulse = 1.0 + 0.15 * sin(u_time * 4.0) + 0.1 * sin(u_time * 7.0);
+        acc *= mix(1.0, corePulse, inCore);
+
+        // === ВИХРИ НАД И ПОД СФЕРОЙ (тороидальные завихрения) ===
+        float vortexZone = smoothstep(0.3, 0.7, absAxial) * smoothstep(1.0, 0.75, absAxial);
+        float vortexRadius = radius * 0.6;
+        float vortexDist = smoothstep(vortexRadius * 2.0, vortexRadius * 0.5, rLen);
+        float vortexStrength = vortexZone * vortexDist * influence;
+
+        // Тороидальное вращение - вокруг оси + закрутка внутрь/наружу
+        float toroidalAngle = atan(diskDist, absAxial * rLen);
+        vec3 toroidalDir = normalize(
+          tangent * cos(toroidalAngle + u_time * 2.0) +
+          axis * axialSign * sin(toroidalAngle + u_time * 2.0) * 0.5 -
+          diskDir * sin(toroidalAngle * 2.0) * 0.3
+        );
+        acc += toroidalDir * base * (5.0 * vortexStrength);
+
+        // Втягивание в вихрь по спирали
+        float spiralPull = sin(atan(diskPlane.z, diskPlane.x) * 4.0 + u_time * 3.0);
+        acc -= diskDir * base * (1.5 * vortexStrength * (0.5 + 0.5 * spiralPull));
+
+        // Удержание в тороидальной зоне
+        float idealVortexHeight = radius * 0.5;
+        float heightDiff = abs(absAxial * rLen) - idealVortexHeight;
+        acc -= axis * axialSign * base * (2.0 * vortexStrength * sign(heightDiff) * smoothstep(0.0, 0.3, abs(heightDiff)));
 
         // === АККРЕЦИОННЫЙ ДИСК (плоскость) ===
-        float diskThickness = 0.2;
+        float diskThickness = 0.15;
         float inDiskPlane = exp(-pow(absAxial / diskThickness, 2.0));
-        float diskRange = smoothstep(radius * 1.5, radius * 0.3, diskDist) * (1.0 - centralPull);
-        float diskStrength = inDiskPlane * diskRange * influence;
+        float diskInner = radius * 0.4;
+        float diskOuter = radius * 1.8;
+        float diskRange = smoothstep(diskOuter, diskInner, diskDist) * smoothstep(diskInner * 0.5, diskInner, diskDist);
+        float diskStrength = inDiskPlane * diskRange * influence * (1.0 - inCore);
 
         // Притягивание к плоскости диска
-        acc -= axis * sign(axialComponent) * base * (3.0 * diskStrength);
+        acc -= axis * axialSign * base * (4.0 * diskStrength);
 
-        // Притягивание к центру по радиусу диска
-        acc -= diskDir * base * (2.5 * diskStrength);
-
-        // ВРАЩЕНИЕ диска (быстрее ближе к центру)
-        float omega = 5.0 / (1.0 + diskDist * 3.0);
+        // ВРАЩЕНИЕ диска (кеплеровское - быстрее ближе к центру)
+        float omega = 6.0 / (1.0 + diskDist * 2.5);
         acc += tangent * base * (omega * diskStrength);
 
-        // Спиральный поток
-        vec3 spiral = normalize(tangent * 0.7 - diskDir * 0.3);
-        acc += spiral * base * (2.0 * diskStrength);
+        // Медленный спиральный дрейф к центру
+        acc -= diskDir * base * (1.2 * diskStrength);
 
-        // Турбулентность
+        // Турбулентность и волны в диске
         float turbAngle = atan(diskPlane.z, diskPlane.x);
-        float turb = sin(turbAngle * 8.0 + u_time * 4.0);
-        acc += tangent * base * (turb * 0.8 * diskStrength);
+        float turb = sin(turbAngle * 6.0 + u_time * 3.0) * cos(turbAngle * 3.0 - u_time * 2.0);
+        acc += tangent * base * (turb * 1.0 * diskStrength);
+        acc.y += sin(diskDist * 8.0 + u_time * 4.0) * base * 0.3 * diskStrength;
 
-        // === РЕЛЯТИВИСТСКИЕ СТРУИ (вертикальные выбросы) ===
-        float jetConeAngle = 0.4;
-        float inJet = smoothstep(jetConeAngle, 0.85, absAxial);
-        float jetRange = smoothstep(0.0, radius * 2.0, rLen) * smoothstep(radius * 3.0, radius * 1.5, rLen);
-        float jetStrength = inJet * jetRange * influence * (1.0 - diskStrength);
+        // === РЕЛЯТИВИСТСКИЕ СТРУИ (узкие вертикальные выбросы) ===
+        float jetConeAngle = 0.85;
+        float inJet = smoothstep(jetConeAngle, 0.95, absAxial);
+        float jetStart = radius * 0.6;
+        float jetEnd = radius * 3.5;
+        float jetRange = smoothstep(jetStart * 0.5, jetStart, rLen) * smoothstep(jetEnd, jetEnd * 0.6, rLen);
+        float jetStrength = inJet * jetRange * (1.0 - inCore);
 
-        // Выброс вдоль оси
-        acc += axis * sign(axialComponent) * base * (6.0 * jetStrength);
+        // Мощный выброс вдоль оси
+        acc += axis * axialSign * base * (8.0 * jetStrength);
 
-        // Коллимация - сжатие к оси струи
-        acc -= diskDir * base * (2.0 * jetStrength);
+        // Сильная коллимация - сжатие к оси струи
+        acc -= diskDir * base * (3.0 * jetStrength);
 
-        // Вращение внутри струи
-        acc += tangent * base * (1.5 * jetStrength);
+        // Спиральное вращение внутри струи
+        float jetSpin = u_time * 4.0 + rLen * 5.0;
+        acc += tangent * base * (2.0 * jetStrength * sin(jetSpin));
 
-        // Пульсация
-        float pulse = 0.8 + 0.2 * sin(u_time * 5.0 + rLen * 8.0);
-        acc *= mix(1.0, pulse, jetStrength);
+        // Пульсация струи
+        float jetPulse = 0.7 + 0.3 * sin(u_time * 6.0 + absAxial * rLen * 4.0);
+        acc *= mix(1.0, jetPulse, jetStrength);
 
         // === УДЕРЖАНИЕ В ОБЛАСТИ ===
-        // Не даём частицам улетать далеко
-        float boundary = smoothstep(radius * 2.5, radius * 3.0, rLen);
-        acc -= radial * base * (4.0 * boundary);
+        float boundary = smoothstep(radius * 2.8, radius * 3.5, rLen);
+        acc -= radial * base * (5.0 * boundary);
 
-        // Общее завихрение
-        float phase = atan(r.y, r.x) + u_time;
-        vec3 swirl = vec3(-sin(phase), cos(phase), 0.0);
-        acc += swirl * base * (0.8 * influence * (1.0 - jetStrength));
-
-        // Плавное обновление скорости
-        vel = mix(vel, vel * 0.95, influence * 0.2);
+        // Плавное торможение
+        vel = mix(vel, vel * 0.96, influence * 0.15);
       } else {
         // Магнитный поток - мощные дуговые силовые линии (ОЧЕНЬ УСИЛЕНО)
         vec3 axis = normalize(u_viewDir * 0.7 + vec3(0.0, 1.0, 0.5));
@@ -1903,10 +2131,13 @@
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_shapeStrength'), shapeStrength);
     gl.uniform2f(gl.getUniformLocation(progSim, 'u_simSize'), texSize, texSize);
     const pointerActive = pointerState.active && mouse.leftDown;
-    const zoomReach = Math.max(0.35, camera.distance * 0.45);
-    const zoomPower = Math.pow(3.8 / (zoomReach + 0.25), 0.65);
-    const pointerRadius = pointerState.radius * (0.65 + (1.0 / zoomPower) * 0.9);
-    const pointerStrength = pointerState.strength * (0.9 + zoomPower * 0.85);
+    // Интуитивное масштабирование курсора относительно зума:
+    // - Радиус масштабируется линейно с расстоянием камеры (видимая область курсора постоянна)
+    // - Сила слегка увеличивается при отдалении для компенсации
+    const baseDistance = 4.0;  // Эталонное расстояние камеры
+    const zoomFactor = camera.distance / baseDistance;  // <1 при приближении, >1 при отдалении
+    const pointerRadius = pointerState.radius * zoomFactor;  // Линейное масштабирование радиуса
+    const pointerStrength = pointerState.strength * (0.8 + zoomFactor * 0.4);  // Мягкое усиление при отдалении
     gl.uniform3f(gl.getUniformLocation(progSim, 'u_pointerPos'), pointerWorld[0], pointerWorld[1], pointerWorld[2]);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerStrength'), pointerStrength);
     gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerRadius'), pointerRadius);
