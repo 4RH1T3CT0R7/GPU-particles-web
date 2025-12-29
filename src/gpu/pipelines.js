@@ -115,19 +115,19 @@ export async function createSimulationPipeline(device, particleCount) {
 }
 
 /**
- * Create BVH Build Compute Pipeline
+ * Create BVH Build Compute Pipeline (Simplified)
  */
 export async function createBVHBuildPipeline(device, particleCount) {
   console.log('🔧 Creating BVH build pipeline...');
 
-  const response = await fetch('/src/shaders-wgsl/bvh-build.wgsl');
+  const response = await fetch('/src/shaders-wgsl/bvh-simple.wgsl');
   const shaderCode = await response.text();
-  const shaderModule = createShaderModule(device, shaderCode, 'BVH Build');
+  const shaderModule = createShaderModule(device, shaderCode, 'BVH Build Simple');
 
   // Calculate BVH node count (2*N-1 for binary tree)
   const nodeCount = particleCount * 2 - 1;
 
-  // Create buffers
+  // Create BVH buffer
   const bvhNodeSize = 32; // min(12) + leftChild(4) + max(12) + rightChild(4)
   const bvhBuffer = createBuffer(device, {
     label: 'BVH Nodes',
@@ -135,18 +135,46 @@ export async function createBVHBuildPipeline(device, particleCount) {
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
 
-  const aabbSize = 32; // min(12) + padding(4) + max(12) + padding(4)
-  const aabbBuffer = createBuffer(device, {
-    label: 'AABBs',
-    size: particleCount * aabbSize,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  // Create particle count uniform
+  const particleCountBuffer = createBuffer(device, {
+    label: 'BVH Particle Count',
+    size: 4,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
-  const mortonSize = 16; // code(4) + index(4) + padding(8)
-  const mortonBuffer = createBuffer(device, {
-    label: 'Morton Codes',
-    size: particleCount * mortonSize,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  // Write particle count
+  device.queue.writeBuffer(particleCountBuffer, 0, new Uint32Array([particleCount]).buffer);
+
+  // Create bind group layouts and pipelines for each kernel
+  const initFlatLayout = device.createBindGroupLayout({
+    label: 'Init Flat BVH Layout',
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } }, // particles
+      { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },            // bvh nodes
+      { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } }             // particle count
+    ]
+  });
+
+  const buildRootLayout = device.createBindGroupLayout({
+    label: 'Build Root BVH Layout',
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } }, // particles
+      { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },            // bvh nodes
+      { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } }             // particle count
+    ]
+  });
+
+  // Create pipelines
+  const initFlatPipeline = device.createComputePipeline({
+    label: 'Init Flat BVH Pipeline',
+    layout: device.createPipelineLayout({ bindGroupLayouts: [initFlatLayout] }),
+    compute: { module: shaderModule, entryPoint: 'initializeFlatBVH' }
+  });
+
+  const buildRootPipeline = device.createComputePipeline({
+    label: 'Build Root BVH Pipeline',
+    layout: device.createPipelineLayout({ bindGroupLayouts: [buildRootLayout] }),
+    compute: { module: shaderModule, entryPoint: 'buildRootNode' }
   });
 
   console.log('✓ BVH build pipeline created');
@@ -155,10 +183,18 @@ export async function createBVHBuildPipeline(device, particleCount) {
     shaderModule,
     buffers: {
       bvh: bvhBuffer,
-      aabbs: aabbBuffer,
-      morton: mortonBuffer
+      particleCount: particleCountBuffer
     },
-    nodeCount
+    pipelines: {
+      initFlat: initFlatPipeline,
+      buildRoot: buildRootPipeline
+    },
+    layouts: {
+      initFlat: initFlatLayout,
+      buildRoot: buildRootLayout
+    },
+    nodeCount,
+    workgroupCount: Math.ceil(particleCount / 256)
   };
 }
 

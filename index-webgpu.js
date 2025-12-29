@@ -277,6 +277,29 @@ import { DPR } from './src/config/constants.js';
 
   await setupRayTracing();
 
+  // Setup BVH build bind groups
+  const bvhInitBindGroup = device.createBindGroup({
+    label: 'BVH Init Bind Group',
+    layout: pipelines.bvh.layouts.initFlat,
+    entries: [
+      { binding: 0, resource: { buffer: pipelines.simulation.buffers.particleA } },
+      { binding: 1, resource: { buffer: pipelines.bvh.buffers.bvh } },
+      { binding: 2, resource: { buffer: pipelines.bvh.buffers.particleCount } }
+    ]
+  });
+
+  const bvhRootBindGroup = device.createBindGroup({
+    label: 'BVH Root Bind Group',
+    layout: pipelines.bvh.layouts.buildRoot,
+    entries: [
+      { binding: 0, resource: { buffer: pipelines.simulation.buffers.particleA } },
+      { binding: 1, resource: { buffer: pipelines.bvh.buffers.bvh } },
+      { binding: 2, resource: { buffer: pipelines.bvh.buffers.particleCount } }
+    ]
+  });
+
+  console.log('✓ BVH build bind groups created');
+
   // Setup temporal accumulation bind group
   const temporalBindGroup = device.createBindGroup({
     label: 'Temporal Accumulation Bind Group',
@@ -334,8 +357,24 @@ import { DPR } from './src/config/constants.js';
     // Swap buffers
     currentBufferIndex = 1 - currentBufferIndex;
 
-    // 2. Build BVH (simplified - in real version needs proper construction)
-    // For now we skip BVH build and assume static or simplified structure
+    // 2. Build BVH (simplified flat structure)
+    // 2a. Initialize leaf nodes from particles
+    const bvhInitPass = commandEncoder.beginComputePass({
+      label: 'BVH Init Leaves'
+    });
+    bvhInitPass.setPipeline(pipelines.bvh.pipelines.initFlat);
+    bvhInitPass.setBindGroup(0, bvhInitBindGroup);
+    bvhInitPass.dispatchWorkgroups(pipelines.bvh.workgroupCount);
+    bvhInitPass.end();
+
+    // 2b. Build root node bounds
+    const bvhRootPass = commandEncoder.beginComputePass({
+      label: 'BVH Build Root'
+    });
+    bvhRootPass.setPipeline(pipelines.bvh.pipelines.buildRoot);
+    bvhRootPass.setBindGroup(0, bvhRootBindGroup);
+    bvhRootPass.dispatchWorkgroups(pipelines.bvh.workgroupCount);
+    bvhRootPass.end();
 
     // 3. Ray tracing pass
     const rayTracePass = commandEncoder.beginComputePass({
