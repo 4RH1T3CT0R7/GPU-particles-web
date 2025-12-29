@@ -56,6 +56,16 @@ export function mat4lookAt(eye, target, up) {
 }
 
 export function updateCameraMatrix(camera) {
+  // Update camera position based on angles and distance
+  const cx = Math.cos(camera.angle.x);
+  const sx = Math.sin(camera.angle.x);
+  const cy = Math.cos(camera.angle.y);
+  const sy = Math.sin(camera.angle.y);
+
+  camera.eye[0] = sy * cx * camera.distance;
+  camera.eye[1] = sx * camera.distance;
+  camera.eye[2] = cy * cx * camera.distance;
+
   camera.viewMat = mat4lookAt(camera.eye, camera.target, camera.up);
   camera.projMat = mat4perspective(camera.fov * Math.PI / 180, camera.aspect, camera.near, camera.far);
 }

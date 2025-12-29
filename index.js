@@ -59,7 +59,11 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
   // Initialize first color palette
   colorManager.rebuildColorStops(colorPalettes[0]);
 
-  // Initialize camera
+  // Initialize camera with proper structure
+  camera.angle = { x: 0.5, y: 0.5 };
+  camera.distance = 3.5;
+  camera.targetDistance = 3.5;
+  camera.target = [0, 0, 0];
   camera.aspect = canvas.width / canvas.height;
   updateCameraMatrix(camera);
 
@@ -170,43 +174,90 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     }
   }
 
-  // Compute pointer world position
+  // Compute pointer world position using raycast
   function computePointerWorld() {
-    const ndcX = (mouse.x / size.w) * 2 - 1;
-    const ndcY = -((mouse.y / size.h) * 2 - 1);
+    const nx = (mouse.x / size.w) * 2 - 1;
+    const ny = -((mouse.y / size.h) * 2 - 1);
+    const aspect = size.w / size.h;
 
-    const invProj = new Float32Array(16);
-    const invView = new Float32Array(16);
+    // Forward direction from camera to target
+    let forward = [
+      camera.target[0] - camera.eye[0],
+      camera.target[1] - camera.eye[1],
+      camera.target[2] - camera.eye[2]
+    ];
+    const flen = Math.hypot(forward[0], forward[1], forward[2]) || 1;
+    forward = forward.map(v => v / flen);
 
-    // Simple inverse (assuming orthographic-like projection)
-    const aspect = camera.aspect;
-    const tanFov = Math.tan(camera.fov * Math.PI / 360);
-    const viewX = ndcX * tanFov * aspect * 3.5;
-    const viewY = ndcY * tanFov * 3.5;
+    // Right vector
+    let right = [
+      forward[1] * 0 - forward[2] * 1,
+      forward[2] * 0 - forward[0] * 0,
+      forward[0] * 1 - forward[1] * 0
+    ];
+    const rlen = Math.hypot(right[0], right[1], right[2]) || 1;
+    right = right.map(v => v / rlen);
 
-    pointerWorld[0] = viewX;
-    pointerWorld[1] = viewY;
-    pointerWorld[2] = 0;
+    // Up vector
+    let up = [
+      right[1] * forward[2] - right[2] * forward[1],
+      right[2] * forward[0] - right[0] * forward[2],
+      right[0] * forward[1] - right[1] * forward[0]
+    ];
+    const ulen = Math.hypot(up[0], up[1], up[2]) || 1;
+    up = up.map(v => v / ulen);
 
-    viewDir[0] = 0;
-    viewDir[1] = 0;
-    viewDir[2] = -1;
+    // Compute pointer position at intersection plane
+    const fov = camera.fov * Math.PI / 180;
+    const depth = camera.distance || 3.5;
+    const zoomScale = 1.0 + (camera.distance - 1.0) * 0.14;
+    const scale = Math.tan(fov / 2) * depth * (1.2 + zoomScale * 0.4);
+
+    pointerWorld[0] = camera.target[0] + forward[0] * depth + (right[0] * nx * aspect + up[0] * ny) * scale;
+    pointerWorld[1] = camera.target[1] + forward[1] * depth + (right[1] * nx * aspect + up[1] * ny) * scale;
+    pointerWorld[2] = camera.target[2] + forward[2] * depth + (right[2] * nx * aspect + up[2] * ny) * scale;
+
+    viewDir[0] = forward[0];
+    viewDir[1] = forward[1];
+    viewDir[2] = forward[2];
   }
 
-  // Mouse event handlers
-  canvas.addEventListener('mousemove', (e) => {
+  // Mouse event handlers with camera control
+  const updateMouse = (e) => {
     const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+
+    if (mouse.rightDown) {
+      // Rotate camera when right mouse button is pressed
+      const dx = (x - mouse.lastX) * Math.PI * 1.5;
+      const dy = (y - mouse.lastY) * Math.PI * 1.5;
+      camera.angle.y += dx;
+      camera.angle.x += dy;
+      // Clamp vertical angle to prevent camera flip
+      camera.angle.x = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, camera.angle.x));
+      updateCameraMatrix(camera);
+      mouse.lastX = x;
+      mouse.lastY = y;
+    }
+
     mouse.x = (e.clientX - rect.left) * DPR;
     mouse.y = (e.clientY - rect.top) * DPR;
+  };
+
+  canvas.addEventListener('mousemove', (e) => {
+    updateMouse(e);
     computePointerWorld();
   });
 
   canvas.addEventListener('mousedown', (e) => {
-    if (e.button === 0) mouse.leftDown = true;
-    else if (e.button === 2) {
+    const rect = canvas.getBoundingClientRect();
+    if (e.button === 0) {
+      mouse.leftDown = true;
+    } else if (e.button === 2) {
       mouse.rightDown = true;
-      mouse.lastX = e.clientX;
-      mouse.lastY = e.clientY;
+      mouse.lastX = (e.clientX - rect.left) / rect.width;
+      mouse.lastY = (e.clientY - rect.top) / rect.height;
     }
   });
 
@@ -215,7 +266,22 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     else if (e.button === 2) mouse.rightDown = false;
   });
 
+  canvas.addEventListener('mouseleave', () => {
+    mouse.leftDown = false;
+    mouse.rightDown = false;
+  });
+
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // Zoom with mouse wheel
+  window.addEventListener('wheel', (e) => {
+    if (e.target.closest('#controls')) return;
+    e.preventDefault();
+    const zoomSpeed = 0.15;
+    const direction = e.deltaY > 0 ? 1 : -1;
+    camera.targetDistance += direction * zoomSpeed;
+    camera.targetDistance = Math.max(1.0, Math.min(12, camera.targetDistance));
+  }, { passive: false });
 
   // UI initialization
   initMobileMenu();
@@ -249,6 +315,11 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
 
     // Update colors
     colorManager.animateColorStops(t);
+
+    // Smooth camera zoom
+    camera.distance += (camera.targetDistance - camera.distance) * 0.1;
+    updateCameraMatrix(camera);
+    computePointerWorld();
 
     // Lerp shape strength
     const lerpSpeed = 3.0 * dt;

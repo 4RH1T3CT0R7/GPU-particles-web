@@ -52,28 +52,6 @@ float fbm(vec2 p){
   return f;
 }
 
-// Fractal flow function (placeholder - actual implementation from shapes.js)
-vec3 fractalFlow(vec2 id, float time, vec4 seed){
-  vec2 p = id * 2.0 - 1.0;
-  int fractalType = int(mod(seed.w * 10.0, 10.0));
-  float zoom = 1.0 + seed.x * 0.3;
-  vec2 center = vec2(-0.5 + seed.y * 0.2, seed.z * 0.15);
-
-  // Simplified fractal - full implementation in shapes.js
-  float angle = atan(p.y, p.x);
-  float dist = length(p);
-  float r = (0.3 + dist * 0.7) * 0.8;
-  float h = (dist - 0.5) * 1.6;
-
-  vec3 pos = vec3(
-    cos(angle) * r,
-    h,
-    sin(angle) * r
-  );
-
-  return pos;
-}
-
 void main(){
   vec2 uv = v_uv;
   vec2 id = uv;
