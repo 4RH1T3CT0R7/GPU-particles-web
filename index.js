@@ -3,6 +3,7 @@
   Thousands of particles morphing between shapes with trails, glow, and mouse turbulence.
   Open index.html in a modern browser (WebGL2 required).
 */
+//TODO FIX QUASAR
 
 (function () {
   const DPR = Math.min(2, window.devicePixelRatio || 1);
