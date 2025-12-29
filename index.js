@@ -963,71 +963,69 @@
         float q = u_pointerStrength * pressBoost * 0.5;
 
         // Размеры
-        float diskR = radius * 1.5;
-        float coreR = radius * 0.15;
-        float diskThick = radius * 0.18;
+        float diskR = radius * 1.4;
+        float coreR = radius * 0.08;
+        float diskThick = radius * 0.08;
 
         // Зоны
         float inDiskPlane = exp(-absH * absH / (diskThick * diskThick));
         float inCore = exp(-rLen * rLen / (coreR * coreR));
 
-        // Джет - СУЖАЕТСЯ с высотой (широкий → тонкий)
-        float jetRadius = radius * 0.5 / (1.0 + absH * 1.5);
+        // Джет - резко сужается
+        float jetRadius = radius * 0.6 / (1.0 + absH * 2.5);
         float inJetCone = exp(-rho * rho / (jetRadius * jetRadius));
         float inJet = inJetCone * (1.0 - inDiskPlane);
 
-        // === 1. МОЩНЫЙ ТОЛСТЫЙ ДИСК ===
+        // === 1. ТОНКИЙ ПЛОТНЫЙ ДИСК ===
 
-        // ОЧЕНЬ сильное сплющивание (вне джета)
-        float flattenForce = 15.0 * (1.0 - inJetCone * 0.98);
+        // ЭКСТРЕМАЛЬНОЕ сплющивание
+        float flattenForce = 25.0 * (1.0 - inJetCone * 0.99);
         acc -= axis * hSign * q * flattenForce;
 
-        // ОЧЕНЬ сильное вращение в диске
-        float orbitalForce = 1.5 / (0.1 + rho * rho);
-        acc += phi * q * orbitalForce * 18.0 * (1.0 - inJet);
+        // ЭКСТРЕМАЛЬНОЕ вращение
+        float orbitalForce = 2.0 / (0.05 + rho * rho);
+        acc += phi * q * orbitalForce * 30.0 * (1.0 - inJet);
 
-        // Медленная аккреция
-        float accretionForce = 0.3 / sqrt(0.1 + rho);
+        // Сильная аккреция к центру
+        float accretionForce = 0.5 / sqrt(0.05 + rho);
         acc -= rhoDir * q * accretionForce * inDiskPlane;
 
-        // Минимальная турбулентность
-        float noise = sin(rho * 5.0 + u_time * 1.5) * cos(h * 6.0);
-        acc += vec3(noise * 0.2, noise * 0.15, noise * 0.2) * q * inDiskPlane;
+        // Без турбулентности - чистая структура
 
-        // Сильная вязкость - держит в диске
-        vel *= mix(1.0, 0.985, inDiskPlane * (1.0 - inJet));
+        // Очень сильная вязкость
+        vel *= mix(1.0, 0.98, inDiskPlane * (1.0 - inJet));
 
-        // === 2. СУЖАЮЩИЕСЯ ДЖЕТЫ ===
+        // === 2. ЯРКОЕ ЯДРО + СУЖАЮЩИЕСЯ ДЖЕТЫ ===
 
-        // ЭКСТРЕМАЛЬНЫЙ выброс из ядра
-        float coreEject = 60.0 * inCore;
+        // СУПЕР-МОЩНЫЙ выброс из ядра
+        float coreEject = 100.0 * inCore;
         acc += axis * hSign * q * coreEject;
 
-        // Мощный подъём в джете
-        float jetLift = 35.0 * inJetCone;
+        // Очень сильный подъём в джете
+        float jetLift = 50.0 * inJetCone;
         acc += axis * hSign * q * jetLift;
 
-        // Сильная коллимация (сужение)
-        float collimatePower = 25.0 * (1.0 + absH * 3.0);
-        float edgeDist = smoothstep(jetRadius * 0.2, jetRadius, rho);
+        // МОЩНАЯ коллимация - резкое сужение
+        float collimatePower = 40.0 * (1.0 + absH * 4.0);
+        float edgeDist = smoothstep(jetRadius * 0.15, jetRadius, rho);
         acc -= rhoDir * q * collimatePower * inJetCone * edgeDist;
 
-        // Вращение в джете
-        acc += phi * q * 10.0 * inJetCone;
+        // Сильное вращение в джете
+        acc += phi * q * 12.0 * inJetCone;
 
         // === 3. ГРАНИЦЫ ===
-        float boundR = smoothstep(diskR * 0.85, diskR, rho);
-        float boundH = smoothstep(diskR, diskR * 1.5, absH);
-        acc -= rhoDir * q * 12.0 * boundR;
-        acc -= axis * hSign * q * 8.0 * boundH;
+        float boundR = smoothstep(diskR * 0.9, diskR, rho);
+        float boundH = smoothstep(diskR * 0.8, diskR * 1.2, absH);
+        acc -= rhoDir * q * 18.0 * boundR;
+        acc -= axis * hSign * q * 12.0 * boundH;
 
-        // Притяжение к системе
-        acc -= normalize(r) * q * 0.4 / (0.5 + rLen);
+        // Сильное притяжение к центру
+        acc -= normalize(r) * q * 0.8 / (0.3 + rLen);
 
-        // Стабилизация
-        vel *= 0.994;
+        // Сильная стабилизация
+        vel *= 0.990;
         float speed = length(vel);
-        if (speed > 3.5) vel = vel / speed * 3.5;
+        if (speed > 3.0) vel = vel / speed * 3.0;
       } else {
         // Магнитный поток - мощные дуговые силовые линии (ОЧЕНЬ УСИЛЕНО)
         vec3 axis = normalize(u_viewDir * 0.7 + vec3(0.0, 1.0, 0.5));
