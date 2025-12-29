@@ -296,6 +296,60 @@ export async function createParticleRenderPipeline(device, format) {
 }
 
 /**
+ * Create Blit Pipeline (Ray traced output to canvas)
+ */
+export async function createBlitPipeline(device, format) {
+  console.log('🔧 Creating blit pipeline...');
+
+  const response = await fetch('/src/shaders-wgsl/blit.wgsl');
+  const shaderCode = await response.text();
+  const shaderModule = createShaderModule(device, shaderCode, 'Blit');
+
+  // Create sampler
+  const sampler = device.createSampler({
+    label: 'Blit Sampler',
+    magFilter: 'linear',
+    minFilter: 'linear',
+  });
+
+  // Create uniforms buffer
+  const uniformsBuffer = createBuffer(device, {
+    label: 'Blit Uniforms',
+    size: 16, // 4 floats
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
+  // Initialize uniforms
+  const uniformsData = new Float32Array([0.2, 2.2, 0, 0]); // exposure, gamma, pad, pad
+  device.queue.writeBuffer(uniformsBuffer, 0, uniformsData.buffer);
+
+  const pipeline = device.createRenderPipeline({
+    label: 'Blit Pipeline',
+    layout: 'auto',
+    vertex: {
+      module: shaderModule,
+      entryPoint: 'vs_main',
+    },
+    fragment: {
+      module: shaderModule,
+      entryPoint: 'fs_main',
+      targets: [{ format }]
+    },
+    primitive: {
+      topology: 'triangle-list',
+    }
+  });
+
+  console.log('✓ Blit pipeline created');
+
+  return {
+    pipeline,
+    sampler,
+    uniformsBuffer
+  };
+}
+
+/**
  * Initialize all pipelines
  */
 export async function initializePipelines(device, config) {
@@ -306,11 +360,12 @@ export async function initializePipelines(device, config) {
   const height = config.height || 1080;
   const format = config.format || 'bgra8unorm';
 
-  const [simulation, bvh, rayTracing, render] = await Promise.all([
+  const [simulation, bvh, rayTracing, render, blit] = await Promise.all([
     createSimulationPipeline(device, particleCount),
     createBVHBuildPipeline(device, particleCount),
     createRayTracingPipeline(device, width, height),
-    createParticleRenderPipeline(device, format)
+    createParticleRenderPipeline(device, format),
+    createBlitPipeline(device, format)
   ]);
 
   console.log('✅ All pipelines initialized!');
@@ -320,6 +375,7 @@ export async function initializePipelines(device, config) {
     bvh,
     rayTracing,
     render,
+    blit,
     config: {
       particleCount,
       width,

@@ -205,6 +205,76 @@ import { DPR } from './src/config/constants.js';
 
   window.addEventListener('resize', resize);
 
+  // Create ray tracing bind group layout and pipeline
+  let rayTracingPipeline = null;
+  let rayTracingBindGroup = null;
+
+  async function setupRayTracing() {
+    console.log('🔧 Setting up ray tracing pipeline...');
+
+    // Load and compile ray tracing shader
+    const response = await fetch('/src/shaders-wgsl/ray-trace.wgsl');
+    const shaderCode = await response.text();
+    const shaderModule = device.createShaderModule({
+      label: 'Ray Tracing Compute',
+      code: shaderCode
+    });
+
+    // Create bind group layout
+    const bindGroupLayout = device.createBindGroupLayout({
+      label: 'Ray Tracing Bind Group Layout',
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } }, // particles
+        { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } }, // bvh nodes
+        { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } }, // lights
+        { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },            // params
+        { binding: 4, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: 'rgba16float' } } // output
+      ]
+    });
+
+    // Create pipeline
+    rayTracingPipeline = device.createComputePipeline({
+      label: 'Ray Tracing Pipeline',
+      layout: device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout]
+      }),
+      compute: {
+        module: shaderModule,
+        entryPoint: 'main'
+      }
+    });
+
+    // Create bind group
+    rayTracingBindGroup = device.createBindGroup({
+      label: 'Ray Tracing Bind Group',
+      layout: bindGroupLayout,
+      entries: [
+        { binding: 0, resource: { buffer: pipelines.simulation.buffers.particleA } },
+        { binding: 1, resource: { buffer: pipelines.bvh.buffers.bvh } },
+        { binding: 2, resource: { buffer: pipelines.rayTracing.buffers.lights } },
+        { binding: 3, resource: { buffer: pipelines.rayTracing.buffers.params } },
+        { binding: 4, resource: pipelines.rayTracing.outputTexture.createView() }
+      ]
+    });
+
+    console.log('✓ Ray tracing pipeline ready');
+  }
+
+  await setupRayTracing();
+
+  // Setup blit bind group
+  blitBindGroup = device.createBindGroup({
+    label: 'Blit Bind Group',
+    layout: pipelines.blit.pipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: pipelines.rayTracing.outputTexture.createView() },
+      { binding: 1, resource: pipelines.blit.sampler },
+      { binding: 2, resource: { buffer: pipelines.blit.uniformsBuffer } }
+    ]
+  });
+
+  console.log('✓ Blit bind group created');
+
   // Main render loop
   let lastTime = performance.now();
 
@@ -234,24 +304,38 @@ import { DPR } from './src/config/constants.js';
     // Swap buffers
     currentBufferIndex = 1 - currentBufferIndex;
 
-    // 2. Ray tracing pass (TODO: implement full integration)
-    // For now, this is a placeholder
+    // 2. Build BVH (simplified - in real version needs proper construction)
+    // For now we skip BVH build and assume static or simplified structure
 
-    // 3. Render to canvas
+    // 3. Ray tracing pass
+    const rayTracePass = commandEncoder.beginComputePass({
+      label: 'Ray Tracing'
+    });
+    rayTracePass.setPipeline(rayTracingPipeline);
+    rayTracePass.setBindGroup(0, rayTracingBindGroup);
+    rayTracePass.dispatchWorkgroups(
+      pipelines.rayTracing.workgroupCount.x,
+      pipelines.rayTracing.workgroupCount.y,
+      1
+    );
+    rayTracePass.end();
+
+    // 4. Blit ray traced output to canvas
     const textureView = presentation.context.getCurrentTexture().createView();
 
     const renderPass = commandEncoder.beginRenderPass({
-      label: 'Canvas Render Pass',
+      label: 'Blit to Canvas',
       colorAttachments: [{
         view: textureView,
-        clearValue: { r: 0.02, g: 0.03, b: 0.07, a: 1.0 },
+        clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
         loadOp: 'clear',
         storeOp: 'store',
       }]
     });
 
-    // Simple particle rendering (fallback for now)
-    // TODO: Replace with ray traced output
+    renderPass.setPipeline(pipelines.blit.pipeline);
+    renderPass.setBindGroup(0, blitBindGroup);
+    renderPass.draw(3, 1, 0, 0); // Full-screen triangle
 
     renderPass.end();
 
