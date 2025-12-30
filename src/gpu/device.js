@@ -71,6 +71,11 @@ export async function initWebGPU(canvas) {
       }
     });
 
+    // Emergency stop mechanism
+    if (!window.__webgpu_error_count) {
+      window.__webgpu_error_count = 0;
+    }
+
     // Handle uncaptured errors
     device.addEventListener('uncapturederror', (event) => {
       const error = event.error;
@@ -78,6 +83,14 @@ export async function initWebGPU(canvas) {
       console.error('   Message:', error.message);
       if (error.reason) {
         console.error('   Reason:', error.reason);
+      }
+
+      // Emergency stop after too many errors
+      window.__webgpu_error_count++;
+      if (window.__webgpu_error_count >= 10) {
+        window.__webgpu_render_stopped = true;
+        console.error('🚨 EMERGENCY STOP: Too many WebGPU errors. Render loop stopped to prevent crash.');
+        console.error('🚨 Please hard refresh the page (Ctrl+Shift+R) to clear browser cache.');
       }
     });
 

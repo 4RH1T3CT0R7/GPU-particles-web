@@ -288,11 +288,22 @@
                 const device = await adapter.requestDevice();
                 addLog('✓ GPU device obtained', 'success');
 
-                // Setup error handling
+                // Setup error handling with emergency stop
+                let errorCount = 0;
+                const MAX_ERRORS = 10;
+
                 device.addEventListener('uncapturederror', (event) => {
                     const error = event.error;
                     // Combine into single message for better deduplication
                     addLog('❌ WebGPU uncaptured error: ' + error.constructor.name + ' - ' + error.message, 'error');
+
+                    // Emergency stop after too many errors
+                    errorCount++;
+                    if (errorCount >= MAX_ERRORS) {
+                        addLog('🚨 EMERGENCY STOP: Too many errors. Page load stopped to prevent crash.', 'error');
+                        addLog('🚨 Please do HARD REFRESH: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)', 'error');
+                        throw new Error('Emergency stop to prevent GPU crash');
+                    }
                 });
 
                 device.lost.then((info) => {
