@@ -135,6 +135,83 @@ No installation needed! Simply open `index.html` in any modern browser that supp
 2. If WebGPU is unavailable, automatically falls back to WebGL2
 3. See [WEBGPU_SETUP.md](WEBGPU_SETUP.md) for complete setup instructions
 
+## 🐛 Debugging & Troubleshooting
+
+If you encounter issues with either version, use the dedicated debug pages to diagnose problems:
+
+### Debug Pages
+
+#### WebGL2 Debug Page
+```
+http://localhost:8080/debug.html
+```
+
+**Features:**
+- ✅ WebGL2 context availability check
+- ✅ Extension support verification (EXT_color_buffer_float)
+- ✅ Basic shader compilation tests
+- ✅ Real-time error capture and logging
+- ✅ Stack traces for debugging
+
+#### WebGPU Debug Page
+```
+http://localhost:8080/debug-webgpu.html
+```
+
+**Features:**
+- ✅ WebGPU adapter & device detection
+- ✅ GPU capabilities and limits inspection
+- ✅ Shader file loading verification (checks for 404 errors)
+- ✅ WGSL shader compilation with detailed error messages
+- ✅ Real-time console log capture in UI overlay
+- ✅ Comprehensive error reporting with line numbers
+- ✅ Automatic HTML vs WGSL detection
+
+### How to Use Debug Pages
+
+1. **Start your local server**
+   ```bash
+   python3 -m http.server 8080
+   ```
+
+2. **Open the appropriate debug page**
+   - For WebGL2 issues: Open `debug.html`
+   - For WebGPU issues: Open `debug-webgpu.html`
+
+3. **Review the diagnostic output**
+   - Green ✓ messages indicate successful operations
+   - Red ❌ messages show errors with detailed information
+   - Yellow ⚠ messages display warnings
+
+4. **Common Issues**
+
+   **WebGPU Shader 404 Errors:**
+   - Ensure local server is running from project root
+   - Check that `src/shaders-wgsl/` directory exists
+   - Verify shader files use `.wgsl` extension
+
+   **WGSL Compilation Errors:**
+   - Check debug page for exact line numbers
+   - Look for unsupported syntax (e.g., ternary operators `?:`)
+   - Verify shader code doesn't contain HTML (404 page)
+
+   **WebGPU Not Available:**
+   - Enable in Chrome: `chrome://flags/#enable-unsafe-webgpu`
+   - Use Chrome Canary 113+ or Chrome Dev channel
+   - Verify GPU supports WebGPU (see [WEBGPU_SETUP.md](WEBGPU_SETUP.md))
+
+### Getting Help
+
+If debug pages don't resolve your issue:
+
+1. Check browser console for additional errors
+2. Review [WEBGPU_SETUP.md](WEBGPU_SETUP.md) for WebGPU-specific setup
+3. Open an issue on GitHub with:
+   - Debug page screenshot
+   - Browser version
+   - GPU model
+   - Operating system
+
 ## 🎮 Interactive Controls
 
 ### Mouse/Touch Controls
@@ -244,6 +321,8 @@ GPU-particles-web/
 ├── index.js                # WebGL2 application entry point
 ├── index-webgpu.html       # WebGPU version (ray tracing)
 ├── index-webgpu.js         # WebGPU application entry point
+├── debug.html              # WebGL2 debug page
+├── debug-webgpu.html       # WebGPU debug page 🆕
 ├── package.json            # Project metadata
 ├── README.md               # This file
 ├── WEBGPU_SETUP.md         # WebGPU setup and documentation

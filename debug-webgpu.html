@@ -1,0 +1,311 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Debug WebGPU - GPU Particles</title>
+    <style>
+        body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
+        canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+        #log {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.9);
+            padding: 20px;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+            font-size: 11px;
+            z-index: 1000;
+            border: 1px solid #0f0;
+            border-radius: 4px;
+        }
+        .error { color: #f00; font-weight: bold; }
+        .success { color: #0f0; }
+        .warning { color: #ff0; }
+        .info { color: #0af; }
+        .debug { color: #888; font-size: 10px; }
+        h3 { color: #0ff; margin: 10px 0 5px 0; font-size: 14px; }
+        .collapsible { cursor: pointer; user-select: none; }
+        .collapsible:before { content: '▼ '; }
+        .collapsible.collapsed:before { content: '▶ '; }
+        .content { display: block; margin-left: 15px; }
+        .content.collapsed { display: none; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="log"></div>
+    <script type="module">
+        const log = document.getElementById('log');
+        let logCount = 0;
+
+        function addLog(msg, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            div.innerHTML = `<span style="color:#666">[${timestamp}]</span> ${msg}`;
+            log.appendChild(div);
+            console.log(`[${type.toUpperCase()}] ${msg}`);
+            logCount++;
+
+            // Auto-scroll to bottom
+            log.scrollTop = log.scrollHeight;
+
+            return div;
+        }
+
+        function addSection(title) {
+            const h3 = document.createElement('h3');
+            h3.textContent = title;
+            log.appendChild(h3);
+        }
+
+        function addCollapsible(title, content) {
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'collapsible';
+            titleDiv.textContent = title;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'content';
+            contentDiv.innerHTML = content;
+
+            titleDiv.onclick = () => {
+                titleDiv.classList.toggle('collapsed');
+                contentDiv.classList.toggle('collapsed');
+            };
+
+            log.appendChild(titleDiv);
+            log.appendChild(contentDiv);
+        }
+
+        async function testWebGPU() {
+            try {
+                addSection('🔍 WebGPU Debug Session');
+                addLog('Starting WebGPU diagnostics...', 'success');
+
+                // Check canvas
+                const canvas = document.getElementById('canvas');
+                if (!canvas) {
+                    throw new Error('Canvas element not found!');
+                }
+                addLog('✓ Canvas element found', 'success');
+
+                // Check WebGPU support
+                if (!navigator.gpu) {
+                    throw new Error('WebGPU not supported! Your browser does not support navigator.gpu');
+                }
+                addLog('✓ navigator.gpu available', 'success');
+
+                // Request adapter
+                addLog('Requesting GPU adapter...', 'info');
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) {
+                    throw new Error('Failed to get GPU adapter! Your GPU may not support WebGPU.');
+                }
+                addLog('✓ GPU adapter obtained', 'success');
+
+                // Log adapter info
+                const adapterInfo = await adapter.requestAdapterInfo();
+                addCollapsible('Adapter Info', `
+                    <div class="debug">Vendor: ${adapterInfo.vendor || 'Unknown'}</div>
+                    <div class="debug">Architecture: ${adapterInfo.architecture || 'Unknown'}</div>
+                    <div class="debug">Device: ${adapterInfo.device || 'Unknown'}</div>
+                    <div class="debug">Description: ${adapterInfo.description || 'Unknown'}</div>
+                `);
+
+                // Log adapter features
+                const features = Array.from(adapter.features);
+                addCollapsible('Adapter Features (' + features.length + ')',
+                    features.map(f => `<div class="debug">• ${f}</div>`).join('')
+                );
+
+                // Log adapter limits
+                const limits = adapter.limits;
+                const importantLimits = [
+                    'maxTextureDimension2D',
+                    'maxBufferSize',
+                    'maxStorageBufferBindingSize',
+                    'maxComputeWorkgroupsPerDimension',
+                    'maxComputeInvocationsPerWorkgroup'
+                ];
+                addCollapsible('Adapter Limits',
+                    importantLimits.map(l => `<div class="debug">${l}: ${limits[l]}</div>`).join('')
+                );
+
+                // Request device
+                addLog('Requesting GPU device...', 'info');
+                const device = await adapter.requestDevice();
+                addLog('✓ GPU device obtained', 'success');
+
+                // Setup error handling
+                device.addEventListener('uncapturederror', (event) => {
+                    addLog('❌ WebGPU uncaptured error: ' + event.error.constructor.name, 'error');
+                    addLog('   ' + event.error.message, 'error');
+                });
+
+                device.lost.then((info) => {
+                    addLog('❌ Device lost! Reason: ' + info.reason, 'error');
+                    addLog('   Message: ' + info.message, 'error');
+                });
+
+                // Test shader compilation
+                addSection('🔧 Testing Shader Compilation');
+
+                const testShaderCode = `
+                    @compute @workgroup_size(64)
+                    fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+                        // Test compute shader
+                    }
+                `;
+
+                try {
+                    const testModule = device.createShaderModule({
+                        label: 'Test Shader',
+                        code: testShaderCode
+                    });
+                    addLog('✓ Test compute shader compiled', 'success');
+                } catch (err) {
+                    addLog('❌ Test shader failed: ' + err.message, 'error');
+                }
+
+                // Test shader loading from files
+                addSection('📂 Testing Shader File Loading');
+
+                const shaderFiles = [
+                    './src/shaders-wgsl/particle-sim.wgsl',
+                    './src/shaders-wgsl/bvh-simple.wgsl',
+                    './src/shaders-wgsl/ray-trace.wgsl',
+                    './src/shaders-wgsl/temporal-accumulation.wgsl',
+                    './src/shaders-wgsl/blit.wgsl'
+                ];
+
+                for (const file of shaderFiles) {
+                    try {
+                        addLog(`Loading ${file}...`, 'info');
+                        const response = await fetch(file);
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+
+                        const shaderCode = await response.text();
+
+                        // Check if it's actually WGSL (not HTML error page)
+                        if (shaderCode.includes('<!DOCTYPE') || shaderCode.includes('<html')) {
+                            throw new Error('Received HTML instead of WGSL shader code (404 error page)');
+                        }
+
+                        addLog(`  ✓ Fetched (${shaderCode.length} chars)`, 'success');
+
+                        // Try to compile it
+                        try {
+                            const shaderModule = device.createShaderModule({
+                                label: file.split('/').pop(),
+                                code: shaderCode
+                            });
+
+                            // Wait for compilation
+                            const compilationInfo = await shaderModule.getCompilationInfo();
+
+                            let hasErrors = false;
+                            for (const message of compilationInfo.messages) {
+                                if (message.type === 'error') {
+                                    hasErrors = true;
+                                    addLog(`  ❌ Line ${message.lineNum}: ${message.message}`, 'error');
+                                } else if (message.type === 'warning') {
+                                    addLog(`  ⚠ Line ${message.lineNum}: ${message.message}`, 'warning');
+                                }
+                            }
+
+                            if (!hasErrors) {
+                                addLog(`  ✓ Compiled successfully`, 'success');
+                            }
+                        } catch (compileErr) {
+                            addLog(`  ❌ Compilation error: ${compileErr.message}`, 'error');
+                        }
+
+                    } catch (err) {
+                        addLog(`  ❌ Failed: ${err.message}`, 'error');
+                    }
+                }
+
+                // Test context configuration
+                addSection('🖼️ Testing Canvas Context');
+
+                const context = canvas.getContext('webgpu');
+                if (!context) {
+                    throw new Error('Failed to get WebGPU context from canvas!');
+                }
+                addLog('✓ WebGPU context obtained', 'success');
+
+                const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+                addLog(`  Preferred format: ${canvasFormat}`, 'info');
+
+                context.configure({
+                    device: device,
+                    format: canvasFormat,
+                    alphaMode: 'premultiplied',
+                });
+                addLog('✓ Context configured', 'success');
+
+                // Now load the actual application
+                addSection('🚀 Loading WebGPU Application');
+                addLog('Importing index-webgpu.js...', 'info');
+
+                // Override console methods to capture logs
+                const originalLog = console.log;
+                const originalError = console.error;
+                const originalWarn = console.warn;
+
+                console.log = (...args) => {
+                    addLog(args.join(' '), 'debug');
+                    originalLog.apply(console, args);
+                };
+
+                console.error = (...args) => {
+                    addLog(args.join(' '), 'error');
+                    originalError.apply(console, args);
+                };
+
+                console.warn = (...args) => {
+                    addLog(args.join(' '), 'warning');
+                    originalWarn.apply(console, args);
+                };
+
+                try {
+                    await import('./index-webgpu.js');
+                    addLog('✓ Application module loaded', 'success');
+                } catch (err) {
+                    addLog('❌ Application failed: ' + err.message, 'error');
+                    addLog('Stack trace:', 'error');
+                    const stack = err.stack.split('\n');
+                    stack.forEach(line => addLog('  ' + line, 'error'));
+                }
+
+            } catch (err) {
+                addLog('❌ FATAL ERROR: ' + err.message, 'error');
+                addLog('Stack trace:', 'error');
+                const stack = err.stack.split('\n');
+                stack.forEach(line => addLog('  ' + line, 'error'));
+            }
+        }
+
+        // Capture all errors
+        window.addEventListener('error', (e) => {
+            addLog('❌ Runtime error: ' + e.message, 'error');
+            addLog('  at ' + e.filename + ':' + e.lineno + ':' + e.colno, 'error');
+        });
+
+        window.addEventListener('unhandledrejection', (e) => {
+            addLog('❌ Unhandled promise rejection: ' + e.reason, 'error');
+            if (e.reason && e.reason.stack) {
+                addLog('  ' + e.reason.stack, 'error');
+            }
+        });
+
+        // Start the test
+        testWebGPU();
+    </script>
+</body>
+</html>

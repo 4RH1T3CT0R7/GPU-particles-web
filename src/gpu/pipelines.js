@@ -11,10 +11,21 @@ import { createShaderModule, createBuffer, createTexture } from './device.js';
 export async function createSimulationPipeline(device, particleCount) {
   console.log('🔧 Creating particle simulation pipeline...');
 
-  // Load shader
-  const response = await fetch('./src/shaders-wgsl/particle-sim.wgsl');
-  const shaderCode = await response.text();
-  const shaderModule = createShaderModule(device, shaderCode, 'Particle Simulation');
+  try {
+    // Load shader
+    const response = await fetch('./src/shaders-wgsl/particle-sim.wgsl');
+    if (!response.ok) {
+      throw new Error(`Failed to load particle-sim.wgsl: HTTP ${response.status} ${response.statusText}`);
+    }
+    const shaderCode = await response.text();
+
+    // Check if we got HTML instead of WGSL (404 error page)
+    if (shaderCode.includes('<!DOCTYPE') || shaderCode.includes('<html>')) {
+      throw new Error('Received HTML instead of WGSL shader code. File not found on server.');
+    }
+
+    console.log(`  ✓ Loaded particle-sim.wgsl (${shaderCode.length} chars)`);
+    const shaderModule = createShaderModule(device, shaderCode, 'Particle Simulation');
 
   // Create particle buffers (double-buffered)
   const particleSize = 32; // vec3 position (12) + padding (4) + vec3 velocity (12) + padding (4)
@@ -99,19 +110,23 @@ export async function createSimulationPipeline(device, particleCount) {
     ]
   });
 
-  console.log('✓ Particle simulation pipeline created');
+    console.log('✓ Particle simulation pipeline created');
 
-  return {
+    return {
     pipeline,
     bindGroupLayout,
     bindGroups: [bindGroupA, bindGroupB],
-    buffers: {
-      particleA: particleBufferA,
-      particleB: particleBufferB,
-      params: paramsBuffer
-    },
-    workgroupCount: Math.ceil(particleCount / 256)
-  };
+      buffers: {
+        particleA: particleBufferA,
+        particleB: particleBufferB,
+        params: paramsBuffer
+      },
+      workgroupCount: Math.ceil(particleCount / 256)
+    };
+  } catch (error) {
+    console.error('❌ Failed to create simulation pipeline:', error);
+    throw error;
+  }
 }
 
 /**
@@ -120,9 +135,17 @@ export async function createSimulationPipeline(device, particleCount) {
 export async function createBVHBuildPipeline(device, particleCount) {
   console.log('🔧 Creating BVH build pipeline...');
 
-  const response = await fetch('./src/shaders-wgsl/bvh-simple.wgsl');
-  const shaderCode = await response.text();
-  const shaderModule = createShaderModule(device, shaderCode, 'BVH Build Simple');
+  try {
+    const response = await fetch('./src/shaders-wgsl/bvh-simple.wgsl');
+    if (!response.ok) {
+      throw new Error(`Failed to load bvh-simple.wgsl: HTTP ${response.status} ${response.statusText}`);
+    }
+    const shaderCode = await response.text();
+    if (shaderCode.includes('<!DOCTYPE') || shaderCode.includes('<html>')) {
+      throw new Error('Received HTML instead of WGSL shader code. File not found on server.');
+    }
+    console.log(`  ✓ Loaded bvh-simple.wgsl (${shaderCode.length} chars)`);
+    const shaderModule = createShaderModule(device, shaderCode, 'BVH Build Simple');
 
   // Calculate BVH node count (2*N-1 for binary tree)
   const nodeCount = particleCount * 2 - 1;
@@ -177,25 +200,29 @@ export async function createBVHBuildPipeline(device, particleCount) {
     compute: { module: shaderModule, entryPoint: 'buildRootNode' }
   });
 
-  console.log('✓ BVH build pipeline created');
+    console.log('✓ BVH build pipeline created');
 
-  return {
-    shaderModule,
-    buffers: {
-      bvh: bvhBuffer,
-      particleCount: particleCountBuffer
-    },
-    pipelines: {
-      initFlat: initFlatPipeline,
-      buildRoot: buildRootPipeline
-    },
-    layouts: {
-      initFlat: initFlatLayout,
-      buildRoot: buildRootLayout
-    },
-    nodeCount,
-    workgroupCount: Math.ceil(particleCount / 256)
-  };
+    return {
+      shaderModule,
+      buffers: {
+        bvh: bvhBuffer,
+        particleCount: particleCountBuffer
+      },
+      pipelines: {
+        initFlat: initFlatPipeline,
+        buildRoot: buildRootPipeline
+      },
+      layouts: {
+        initFlat: initFlatLayout,
+        buildRoot: buildRootLayout
+      },
+      nodeCount,
+      workgroupCount: Math.ceil(particleCount / 256)
+    };
+  } catch (error) {
+    console.error('❌ Failed to create BVH build pipeline:', error);
+    throw error;
+  }
 }
 
 /**
@@ -204,9 +231,17 @@ export async function createBVHBuildPipeline(device, particleCount) {
 export async function createRayTracingPipeline(device, width, height) {
   console.log('🔧 Creating ray tracing pipeline...');
 
-  const response = await fetch('./src/shaders-wgsl/ray-trace.wgsl');
-  const shaderCode = await response.text();
-  const shaderModule = createShaderModule(device, shaderCode, 'Ray Tracing');
+  try {
+    const response = await fetch('./src/shaders-wgsl/ray-trace.wgsl');
+    if (!response.ok) {
+      throw new Error(`Failed to load ray-trace.wgsl: HTTP ${response.status} ${response.statusText}`);
+    }
+    const shaderCode = await response.text();
+    if (shaderCode.includes('<!DOCTYPE') || shaderCode.includes('<html>')) {
+      throw new Error('Received HTML instead of WGSL shader code. File not found on server.');
+    }
+    console.log(`  ✓ Loaded ray-trace.wgsl (${shaderCode.length} chars)`);
+    const shaderModule = createShaderModule(device, shaderCode, 'Ray Tracing');
 
   // Create output texture
   const outputTexture = createTexture(device, {
@@ -233,21 +268,25 @@ export async function createRayTracingPipeline(device, width, height) {
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
-  console.log('✓ Ray tracing pipeline created');
+    console.log('✓ Ray tracing pipeline created');
 
-  return {
-    shaderModule,
-    outputTexture,
-    buffers: {
-      lights: lightBuffer,
-      params: paramsBuffer
-    },
-    workgroupSize: { x: 8, y: 8 },
-    workgroupCount: {
-      x: Math.ceil(width / 8),
-      y: Math.ceil(height / 8)
-    }
-  };
+    return {
+      shaderModule,
+      outputTexture,
+      buffers: {
+        lights: lightBuffer,
+        params: paramsBuffer
+      },
+      workgroupSize: { x: 8, y: 8 },
+      workgroupCount: {
+        x: Math.ceil(width / 8),
+        y: Math.ceil(height / 8)
+      }
+    };
+  } catch (error) {
+    console.error('❌ Failed to create ray tracing pipeline:', error);
+    throw error;
+  }
 }
 
 /**
@@ -337,9 +376,17 @@ export async function createParticleRenderPipeline(device, format) {
 export async function createTemporalAccumulationPipeline(device, width, height) {
   console.log('🔧 Creating temporal accumulation pipeline...');
 
-  const response = await fetch('./src/shaders-wgsl/temporal-accumulation.wgsl');
-  const shaderCode = await response.text();
-  const shaderModule = createShaderModule(device, shaderCode, 'Temporal Accumulation');
+  try {
+    const response = await fetch('./src/shaders-wgsl/temporal-accumulation.wgsl');
+    if (!response.ok) {
+      throw new Error(`Failed to load temporal-accumulation.wgsl: HTTP ${response.status} ${response.statusText}`);
+    }
+    const shaderCode = await response.text();
+    if (shaderCode.includes('<!DOCTYPE') || shaderCode.includes('<html>')) {
+      throw new Error('Received HTML instead of WGSL shader code. File not found on server.');
+    }
+    console.log(`  ✓ Loaded temporal-accumulation.wgsl (${shaderCode.length} chars)`);
+    const shaderModule = createShaderModule(device, shaderCode, 'Temporal Accumulation');
 
   // Create history texture (for accumulation)
   const historyTexture = createTexture(device, {
@@ -389,21 +436,25 @@ export async function createTemporalAccumulationPipeline(device, width, height) 
     }
   });
 
-  console.log('✓ Temporal accumulation pipeline created');
+    console.log('✓ Temporal accumulation pipeline created');
 
-  return {
-    pipeline,
-    bindGroupLayout,
-    textures: {
-      history: historyTexture,
-      output: outputTexture
-    },
-    paramsBuffer,
-    workgroupCount: {
-      x: Math.ceil(width / 8),
-      y: Math.ceil(height / 8)
-    }
-  };
+    return {
+      pipeline,
+      bindGroupLayout,
+      textures: {
+        history: historyTexture,
+        output: outputTexture
+      },
+      paramsBuffer,
+      workgroupCount: {
+        x: Math.ceil(width / 8),
+        y: Math.ceil(height / 8)
+      }
+    };
+  } catch (error) {
+    console.error('❌ Failed to create temporal accumulation pipeline:', error);
+    throw error;
+  }
 }
 
 /**
@@ -412,9 +463,17 @@ export async function createTemporalAccumulationPipeline(device, width, height) 
 export async function createBlitPipeline(device, format) {
   console.log('🔧 Creating blit pipeline...');
 
-  const response = await fetch('./src/shaders-wgsl/blit.wgsl');
-  const shaderCode = await response.text();
-  const shaderModule = createShaderModule(device, shaderCode, 'Blit');
+  try {
+    const response = await fetch('./src/shaders-wgsl/blit.wgsl');
+    if (!response.ok) {
+      throw new Error(`Failed to load blit.wgsl: HTTP ${response.status} ${response.statusText}`);
+    }
+    const shaderCode = await response.text();
+    if (shaderCode.includes('<!DOCTYPE') || shaderCode.includes('<html>')) {
+      throw new Error('Received HTML instead of WGSL shader code. File not found on server.');
+    }
+    console.log(`  ✓ Loaded blit.wgsl (${shaderCode.length} chars)`);
+    const shaderModule = createShaderModule(device, shaderCode, 'Blit');
 
   // Create sampler
   const sampler = device.createSampler({
@@ -451,13 +510,17 @@ export async function createBlitPipeline(device, format) {
     }
   });
 
-  console.log('✓ Blit pipeline created');
+    console.log('✓ Blit pipeline created');
 
-  return {
-    pipeline,
-    sampler,
-    uniformsBuffer
-  };
+    return {
+      pipeline,
+      sampler,
+      uniformsBuffer
+    };
+  } catch (error) {
+    console.error('❌ Failed to create blit pipeline:', error);
+    throw error;
+  }
 }
 
 /**
