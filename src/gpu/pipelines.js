@@ -12,8 +12,8 @@ export async function createSimulationPipeline(device, particleCount) {
   console.log('🔧 Creating particle simulation pipeline...');
 
   try {
-    // Load shader
-    const response = await fetch('./src/shaders-wgsl/particle-sim.wgsl');
+    // Load shader (with cache busting to ensure fresh version)
+    const response = await fetch('./src/shaders-wgsl/particle-sim.wgsl?t=' + Date.now());
     if (!response.ok) {
       throw new Error(`Failed to load particle-sim.wgsl: HTTP ${response.status} ${response.statusText}`);
     }
@@ -136,7 +136,7 @@ export async function createBVHBuildPipeline(device, particleCount) {
   console.log('🔧 Creating BVH build pipeline...');
 
   try {
-    const response = await fetch('./src/shaders-wgsl/bvh-simple.wgsl');
+    const response = await fetch('./src/shaders-wgsl/bvh-simple.wgsl?t=' + Date.now());
     if (!response.ok) {
       throw new Error(`Failed to load bvh-simple.wgsl: HTTP ${response.status} ${response.statusText}`);
     }
@@ -232,7 +232,7 @@ export async function createRayTracingPipeline(device, width, height) {
   console.log('🔧 Creating ray tracing pipeline...');
 
   try {
-    const response = await fetch('./src/shaders-wgsl/ray-trace.wgsl');
+    const response = await fetch('./src/shaders-wgsl/ray-trace.wgsl?t=' + Date.now());
     if (!response.ok) {
       throw new Error(`Failed to load ray-trace.wgsl: HTTP ${response.status} ${response.statusText}`);
     }
@@ -377,7 +377,7 @@ export async function createTemporalAccumulationPipeline(device, width, height) 
   console.log('🔧 Creating temporal accumulation pipeline...');
 
   try {
-    const response = await fetch('./src/shaders-wgsl/temporal-accumulation.wgsl');
+    const response = await fetch('./src/shaders-wgsl/temporal-accumulation.wgsl?t=' + Date.now());
     if (!response.ok) {
       throw new Error(`Failed to load temporal-accumulation.wgsl: HTTP ${response.status} ${response.statusText}`);
     }
@@ -464,7 +464,7 @@ export async function createBlitPipeline(device, format) {
   console.log('🔧 Creating blit pipeline...');
 
   try {
-    const response = await fetch('./src/shaders-wgsl/blit.wgsl');
+    const response = await fetch('./src/shaders-wgsl/blit.wgsl?t=' + Date.now());
     if (!response.ok) {
       throw new Error(`Failed to load blit.wgsl: HTTP ${response.status} ${response.statusText}`);
     }

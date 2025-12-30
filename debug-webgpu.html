@@ -75,6 +75,7 @@
         const log = document.getElementById('log');
         let logCount = 0;
         const MAX_LOGS = 200; // Максимальное количество логов
+        const MAX_REPEAT_COUNT = 1000; // Максимум повторений одного сообщения
         const logCache = new Map(); // Кэш для группировки повторяющихся сообщений
 
         // Сохраняем оригинальные методы console ДО их перезаписи
@@ -123,6 +124,17 @@
             if (logCache.has(cacheKey)) {
                 const cached = logCache.get(cacheKey);
                 cached.count++;
+
+                // Если сообщение повторилось слишком много раз, показываем warning и останавливаем логирование
+                if (cached.count === MAX_REPEAT_COUNT) {
+                    cached.element.innerHTML = `<span style="color:#666">[${new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span> ${msg} <span style="color:#f00">(×${cached.count} - STOPPED)</span>`;
+                    log.appendChild(cached.element);
+                    originalWarn.call(console, `⚠ Message repeated ${MAX_REPEAT_COUNT} times, stopping further updates:`, msg);
+                    return cached.element;
+                } else if (cached.count > MAX_REPEAT_COUNT) {
+                    // Просто игнорируем дальнейшие повторения, не обновляя DOM
+                    return cached.element;
+                }
 
                 // Обновляем существующий элемент
                 const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -321,7 +333,8 @@
                 for (const file of shaderFiles) {
                     try {
                         addLog(`Loading ${file}...`, 'info');
-                        const response = await fetch(file);
+                        // Add cache-busting parameter to force fresh download
+                        const response = await fetch(file + '?t=' + Date.now());
 
                         if (!response.ok) {
                             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
