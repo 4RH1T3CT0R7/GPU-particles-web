@@ -311,7 +311,7 @@ fn randomHemisphere(normal: vec3<f32>, seed: vec3<f32>) -> vec3<f32> {
     );
 
     // Transform to world space
-    let up = abs(normal.y) < 0.999 ? vec3<f32>(0.0, 1.0, 0.0) : vec3<f32>(1.0, 0.0, 0.0);
+    let up = select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 1.0, 0.0), abs(normal.y) < 0.999);
     let tangent = normalize(cross(up, normal));
     let bitangent = cross(normal, tangent);
 
@@ -375,7 +375,7 @@ fn importanceSampleGGX(normal: vec3<f32>, roughness: f32, seed: vec3<f32>) -> ve
     );
 
     // Transform to world space
-    let up = abs(normal.y) < 0.999 ? vec3<f32>(0.0, 1.0, 0.0) : vec3<f32>(1.0, 0.0, 0.0);
+    let up = select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 1.0, 0.0), abs(normal.y) < 0.999);
     let tangent = normalize(cross(up, normal));
     let bitangent = cross(normal, tangent);
 

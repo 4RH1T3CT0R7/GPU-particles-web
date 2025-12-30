@@ -12,7 +12,7 @@ export async function createSimulationPipeline(device, particleCount) {
   console.log('🔧 Creating particle simulation pipeline...');
 
   // Load shader
-  const response = await fetch('/src/shaders-wgsl/particle-sim.wgsl');
+  const response = await fetch('./src/shaders-wgsl/particle-sim.wgsl');
   const shaderCode = await response.text();
   const shaderModule = createShaderModule(device, shaderCode, 'Particle Simulation');
 
@@ -120,7 +120,7 @@ export async function createSimulationPipeline(device, particleCount) {
 export async function createBVHBuildPipeline(device, particleCount) {
   console.log('🔧 Creating BVH build pipeline...');
 
-  const response = await fetch('/src/shaders-wgsl/bvh-simple.wgsl');
+  const response = await fetch('./src/shaders-wgsl/bvh-simple.wgsl');
   const shaderCode = await response.text();
   const shaderModule = createShaderModule(device, shaderCode, 'BVH Build Simple');
 
@@ -204,7 +204,7 @@ export async function createBVHBuildPipeline(device, particleCount) {
 export async function createRayTracingPipeline(device, width, height) {
   console.log('🔧 Creating ray tracing pipeline...');
 
-  const response = await fetch('/src/shaders-wgsl/ray-trace.wgsl');
+  const response = await fetch('./src/shaders-wgsl/ray-trace.wgsl');
   const shaderCode = await response.text();
   const shaderModule = createShaderModule(device, shaderCode, 'Ray Tracing');
 
@@ -337,7 +337,7 @@ export async function createParticleRenderPipeline(device, format) {
 export async function createTemporalAccumulationPipeline(device, width, height) {
   console.log('🔧 Creating temporal accumulation pipeline...');
 
-  const response = await fetch('/src/shaders-wgsl/temporal-accumulation.wgsl');
+  const response = await fetch('./src/shaders-wgsl/temporal-accumulation.wgsl');
   const shaderCode = await response.text();
   const shaderModule = createShaderModule(device, shaderCode, 'Temporal Accumulation');
 
@@ -412,7 +412,7 @@ export async function createTemporalAccumulationPipeline(device, width, height) 
 export async function createBlitPipeline(device, format) {
   console.log('🔧 Creating blit pipeline...');
 
-  const response = await fetch('/src/shaders-wgsl/blit.wgsl');
+  const response = await fetch('./src/shaders-wgsl/blit.wgsl');
   const shaderCode = await response.text();
   const shaderModule = createShaderModule(device, shaderCode, 'Blit');
 
