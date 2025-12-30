@@ -220,9 +220,10 @@ import { DPR } from './src/config/constants.js';
 
   window.addEventListener('resize', resize);
 
-  // Create ray tracing bind group layout and pipeline
+  // Create ray tracing and blit bind groups
   let rayTracingPipeline = null;
   let rayTracingBindGroup = null;
+  let blitBindGroup = null;
 
   async function setupRayTracing() {
     console.log('🔧 Setting up ray tracing pipeline...');
