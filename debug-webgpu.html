@@ -31,16 +31,127 @@
         .collapsible.collapsed:before { content: '▶ '; }
         .content { display: block; margin-left: 15px; }
         .content.collapsed { display: none; }
+        #controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.9);
+            padding: 10px;
+            border: 1px solid #0f0;
+            border-radius: 4px;
+            z-index: 1001;
+            font-size: 11px;
+        }
+        #controls button {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 5px 10px;
+            margin: 2px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        #controls button:hover { background: #0ff; }
+        #stats { color: #0af; margin-bottom: 5px; }
+        .stat-error { color: #f00; }
+        .stat-warning { color: #ff0; }
+        .stat-success { color: #0f0; }
     </style>
 </head>
 <body>
     <canvas id="canvas"></canvas>
+    <div id="controls">
+        <div id="stats">
+            Errors: <span class="stat-error" id="errorCount">0</span> |
+            Warnings: <span class="stat-warning" id="warningCount">0</span> |
+            Success: <span class="stat-success" id="successCount">0</span>
+        </div>
+        <button onclick="clearLogs()">Clear Logs</button>
+        <button onclick="copyLogs()">Copy Logs</button>
+    </div>
     <div id="log"></div>
     <script type="module">
         const log = document.getElementById('log');
         let logCount = 0;
+        const MAX_LOGS = 200; // Максимальное количество логов
+        const logCache = new Map(); // Кэш для группировки повторяющихся сообщений
+
+        // Статистика
+        let errorCount = 0;
+        let warningCount = 0;
+        let successCount = 0;
+
+        function updateStats() {
+            document.getElementById('errorCount').textContent = errorCount;
+            document.getElementById('warningCount').textContent = warningCount;
+            document.getElementById('successCount').textContent = successCount;
+        }
+
+        window.clearLogs = function() {
+            log.innerHTML = '';
+            logCount = 0;
+            logCache.clear();
+            errorCount = 0;
+            warningCount = 0;
+            successCount = 0;
+            updateStats();
+            addLog('Logs cleared', 'info');
+        };
+
+        window.copyLogs = function() {
+            const logText = Array.from(log.children)
+                .filter(el => el.tagName === 'DIV' && !el.className.includes('collapsible') && !el.className.includes('content'))
+                .map(el => el.textContent)
+                .join('\n');
+
+            navigator.clipboard.writeText(logText).then(() => {
+                addLog('✓ Logs copied to clipboard', 'success');
+            }).catch(err => {
+                addLog('❌ Failed to copy: ' + err.message, 'error');
+            });
+        };
 
         function addLog(msg, type = 'info') {
+            // Проверяем, есть ли это сообщение уже
+            const cacheKey = `${type}:${msg}`;
+            if (logCache.has(cacheKey)) {
+                const cached = logCache.get(cacheKey);
+                cached.count++;
+
+                // Обновляем существующий элемент
+                const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                cached.element.innerHTML = `<span style="color:#666">[${timestamp}]</span> ${msg} <span style="color:#666">(×${cached.count})</span>`;
+
+                // Перемещаем в конец
+                log.appendChild(cached.element);
+                log.scrollTop = log.scrollHeight;
+                return cached.element;
+            }
+
+            // Проверяем лимит логов
+            if (logCount >= MAX_LOGS) {
+                // Показываем предупреждение о лимите (только один раз)
+                if (!window.limitWarningShown) {
+                    console.warn(`⚠ Log limit reached (${MAX_LOGS}). Older logs will be removed. Use "Copy Logs" button to save current logs.`);
+                    window.limitWarningShown = true;
+                }
+
+                // Удаляем первый лог (самый старый)
+                const firstChild = log.querySelector('div:not(h3):not(.collapsible):not(.content)');
+                if (firstChild) {
+                    // Удаляем из кэша
+                    for (let [key, value] of logCache.entries()) {
+                        if (value.element === firstChild) {
+                            logCache.delete(key);
+                            break;
+                        }
+                    }
+                    firstChild.remove();
+                    logCount--;
+                }
+            }
+
             const div = document.createElement('div');
             div.className = type;
             const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -48,6 +159,15 @@
             log.appendChild(div);
             console.log(`[${type.toUpperCase()}] ${msg}`);
             logCount++;
+
+            // Добавляем в кэш
+            logCache.set(cacheKey, { element: div, count: 1 });
+
+            // Обновляем статистику
+            if (type === 'error') errorCount++;
+            else if (type === 'warning') warningCount++;
+            else if (type === 'success') successCount++;
+            updateStats();
 
             // Auto-scroll to bottom
             log.scrollTop = log.scrollHeight;
