@@ -401,7 +401,7 @@ export async function createTemporalAccumulationPipeline(device, width, height) 
     label: 'Temporal Output',
     size: { width, height },
     format: 'rgba16float',
-    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+    usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
   });
 
   // Create params buffer
