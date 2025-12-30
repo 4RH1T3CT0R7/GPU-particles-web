@@ -290,8 +290,9 @@
 
                 // Setup error handling
                 device.addEventListener('uncapturederror', (event) => {
-                    addLog('❌ WebGPU uncaptured error: ' + event.error.constructor.name, 'error');
-                    addLog('   ' + event.error.message, 'error');
+                    const error = event.error;
+                    // Combine into single message for better deduplication
+                    addLog('❌ WebGPU uncaptured error: ' + error.constructor.name + ' - ' + error.message, 'error');
                 });
 
                 device.lost.then((info) => {
