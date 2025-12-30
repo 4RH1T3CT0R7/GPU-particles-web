@@ -145,9 +145,9 @@ fn calculateForces(pos: vec3<f32>, vel: vec3<f32>, idx: u32) -> vec3<f32> {
     // Shape attraction
     let targetA = getShapeTarget(idx, params.shapeA);
     let targetB = getShapeTarget(idx, params.shapeB);
-    let target = mix(targetA, targetB, params.morph);
+    let targetPos = mix(targetA, targetB, params.morph);
 
-    let toTarget = target - pos;
+    let toTarget = targetPos - pos;
     let distToTarget = length(toTarget);
     if (distToTarget > 0.01) {
         let springForce = normalize(toTarget) * distToTarget * params.shapeStrength;

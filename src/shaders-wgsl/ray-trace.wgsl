@@ -347,10 +347,10 @@ fn getMaterial(particleIdx: u32) -> Material {
     mat.roughness = 0.2 + 0.6 * hash13(vec3<f32>(f32(particleIdx * 3), 0.0, 0.0));
 
     // Some particles more metallic
-    mat.metallic = hash13(vec3<f32>(f32(particleIdx * 5), 0.0, 0.0)) > 0.7 ? 0.8 : 0.1;
+    mat.metallic = select(0.1, 0.8, hash13(vec3<f32>(f32(particleIdx * 5), 0.0, 0.0)) > 0.7);
 
     // Occasional emissive particles
-    mat.emissive = hash13(vec3<f32>(f32(particleIdx * 11), 0.0, 0.0)) > 0.95 ? 2.0 : 0.0;
+    mat.emissive = select(0.0, 2.0, hash13(vec3<f32>(f32(particleIdx * 11), 0.0, 0.0)) > 0.95);
 
     return mat;
 }

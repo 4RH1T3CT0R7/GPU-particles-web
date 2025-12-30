@@ -77,6 +77,11 @@
         const MAX_LOGS = 200; // Максимальное количество логов
         const logCache = new Map(); // Кэш для группировки повторяющихся сообщений
 
+        // Сохраняем оригинальные методы console ДО их перезаписи
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+
         // Статистика
         let errorCount = 0;
         let warningCount = 0;
@@ -157,7 +162,8 @@
             const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
             div.innerHTML = `<span style="color:#666">[${timestamp}]</span> ${msg}`;
             log.appendChild(div);
-            console.log(`[${type.toUpperCase()}] ${msg}`);
+            // Используем оригинальный console.log, чтобы избежать бесконечной рекурсии
+            originalLog.call(console, `[${type.toUpperCase()}] ${msg}`);
             logCount++;
 
             // Добавляем в кэш
@@ -386,23 +392,16 @@
                 addLog('Importing index-webgpu.js...', 'info');
 
                 // Override console methods to capture logs
-                const originalLog = console.log;
-                const originalError = console.error;
-                const originalWarn = console.warn;
-
                 console.log = (...args) => {
                     addLog(args.join(' '), 'debug');
-                    originalLog.apply(console, args);
                 };
 
                 console.error = (...args) => {
                     addLog(args.join(' '), 'error');
-                    originalError.apply(console, args);
                 };
 
                 console.warn = (...args) => {
                     addLog(args.join(' '), 'warning');
-                    originalWarn.apply(console, args);
                 };
 
                 try {
