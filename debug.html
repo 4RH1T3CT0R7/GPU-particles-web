@@ -1,0 +1,121 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Debug - GPU Particles</title>
+    <style>
+        body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
+        canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+        #log { position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 20px; max-width: 600px; max-height: 90vh; overflow-y: auto; font-size: 12px; z-index: 1000; }
+        .error { color: #f00; }
+        .success { color: #0f0; }
+        .warning { color: #ff0; }
+    </style>
+</head>
+<body>
+    <canvas id="gl"></canvas>
+    <div id="log"></div>
+    <script type="module">
+        const log = document.getElementById('log');
+        function addLog(msg, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            log.appendChild(div);
+            console.log(msg);
+        }
+
+        try {
+            addLog('🚀 Starting debug session...', 'success');
+
+            // Check canvas
+            const canvas = document.getElementById('gl');
+            if (!canvas) {
+                throw new Error('Canvas not found!');
+            }
+            addLog('✓ Canvas element found', 'success');
+
+            // Check WebGL2
+            const gl = canvas.getContext('webgl2');
+            if (!gl) {
+                throw new Error('WebGL2 not supported!');
+            }
+            addLog('✓ WebGL2 context created', 'success');
+
+            // Check extensions
+            const extFloat = gl.getExtension('EXT_color_buffer_float');
+            if (!extFloat) {
+                throw new Error('EXT_color_buffer_float not supported!');
+            }
+            addLog('✓ EXT_color_buffer_float supported', 'success');
+
+            // Test simple shader
+            const vs = gl.createShader(gl.VERTEX_SHADER);
+            gl.shaderSource(vs, `#version 300 es
+                precision highp float;
+                in vec2 a_pos;
+                void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+            `);
+            gl.compileShader(vs);
+            if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
+                throw new Error('Vertex shader failed: ' + gl.getShaderInfoLog(vs));
+            }
+            addLog('✓ Vertex shader compiles', 'success');
+
+            const fs = gl.createShader(gl.FRAGMENT_SHADER);
+            gl.shaderSource(fs, `#version 300 es
+                precision highp float;
+                out vec4 o_col;
+                void main() { o_col = vec4(1.0, 0.0, 1.0, 1.0); }
+            `);
+            gl.compileShader(fs);
+            if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+                throw new Error('Fragment shader failed: ' + gl.getShaderInfoLog(fs));
+            }
+            addLog('✓ Fragment shader compiles', 'success');
+
+            const prog = gl.createProgram();
+            gl.attachShader(prog, vs);
+            gl.attachShader(prog, fs);
+            gl.linkProgram(prog);
+            if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+                throw new Error('Program link failed: ' + gl.getProgramInfoLog(prog));
+            }
+            addLog('✓ Shader program links', 'success');
+
+            // Test rendering
+            canvas.width = 800;
+            canvas.height = 600;
+            gl.viewport(0, 0, 800, 600);
+            gl.clearColor(0, 0, 0, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            addLog('✓ Basic rendering OK', 'success');
+            addLog('', 'info');
+            addLog('🔍 Now testing actual application...', 'warning');
+
+            // Import and run actual app
+            import('./index.js').then(() => {
+                addLog('✓ Application module loaded', 'success');
+            }).catch(err => {
+                addLog('❌ Application failed: ' + err.message, 'error');
+                addLog('Stack: ' + err.stack, 'error');
+            });
+
+        } catch (err) {
+            addLog('❌ ERROR: ' + err.message, 'error');
+            addLog('Stack: ' + err.stack, 'error');
+        }
+
+        // Capture all errors
+        window.addEventListener('error', (e) => {
+            addLog('❌ Runtime error: ' + e.message, 'error');
+            addLog('  at ' + e.filename + ':' + e.lineno, 'error');
+        });
+
+        window.addEventListener('unhandledrejection', (e) => {
+            addLog('❌ Unhandled promise rejection: ' + e.reason, 'error');
+        });
+    </script>
+</body>
+</html>

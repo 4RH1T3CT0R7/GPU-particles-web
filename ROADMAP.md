@@ -253,13 +253,180 @@ Enhance ray tracing quality and performance with advanced techniques.
 
 ---
 
-## 📋 Phase 4: User Interface & Performance
+## 📋 Phase 4: TypeScript Migration & Code Quality
+
+**Status:** Planned
+**Estimated Scope:** Large
+
+### Objectives
+Migrate codebase to TypeScript for better type safety, developer experience, and maintainability.
+
+### Planned Features
+
+####  TypeScript Migration Strategy
+- [ ] **Phase 4.1: Infrastructure Setup**
+  - [ ] Install TypeScript and required dev dependencies (`typescript`, `@types/webgl2`, `vite` or `esbuild`)
+  - [ ] Configure `tsconfig.json` with strict mode
+  - [ ] Setup build pipeline (Vite recommended for fast HMR)
+  - [ ] Configure source maps for debugging
+  - [ ] Add ESLint with TypeScript support
+
+- [ ] **Phase 4.2: Type Definitions**
+  - [ ] Create type definitions for all interfaces:
+    - `types/webgl.d.ts` - WebGL2 context, programs, buffers
+    - `types/webgpu.d.ts` - WebGPU device, pipelines, bind groups
+    - `types/particles.d.ts` - Particle system state
+    - `types/camera.d.ts` - Camera controls
+    - `types/lights.d.ts` - Lighting system
+    - `types/audio.d.ts` - Audio analyzer
+    - `types/ui.d.ts` - UI controls
+  - [ ] Define shader uniform types
+  - [ ] Create generic utility types
+
+- [ ] **Phase 4.3: Incremental Migration (Bottom-up)**
+  - [ ] **Step 1: Constants & Config** (~2-3 files)
+    - `src/config/constants.ts` - Convert to TS first
+    - Export typed constants
+    - Define enums for modes, shapes, etc.
+
+  - [ ] **Step 2: Utility Modules** (~5-7 files)
+    - `src/core/utils.ts` - WebGL utilities
+    - `src/core/math.ts` - Math helpers
+    - Type WebGL functions with generics
+    - Add JSDoc comments
+
+  - [ ] **Step 3: Shader Modules** (~10 files)
+    - Keep shader code as template strings
+    - Add type validation for shader uniforms
+    - Create typed uniform setters
+
+  - [ ] **Step 4: Core Systems** (~15 files)
+    - `src/simulation/state.ts` - State management
+    - `src/rendering/pipeline.ts` - Render pipeline
+    - `src/camera/controls.ts` - Camera system
+    - `src/audio/analyzer.ts` - Audio processing
+    - Add interfaces for all system states
+
+  - [ ] **Step 5: UI Layer** (~5 files)
+    - `src/ui/controls.ts` - UI controls
+    - `src/ui/i18n.ts` - Internationalization
+    - Type event handlers
+
+  - [ ] **Step 6: Main Entry Points** (~2 files)
+    - `index.ts` - WebGL2 main
+    - `index-webgpu.ts` - WebGPU main
+    - Full type coverage
+
+- [ ] **Phase 4.4: Enhanced Type Safety**
+  - [ ] Branded types for IDs (ProgramID, BufferID, TextureID)
+  - [ ] Union types for modes and states
+  - [ ] Discriminated unions for event types
+  - [ ] Type guards for runtime validation
+  - [ ] Generic pipeline builders
+
+- [ ] **Phase 4.5: Build & Tooling**
+  - [ ] Setup Vite for development with HMR
+  - [ ] Configure production builds with minification
+  - [ ] Add type checking to CI/CD
+  - [ ] Generate API documentation from TSDoc
+  - [ ] Setup pre-commit hooks for type checking
+
+#### Example Type Definitions
+
+```typescript
+// types/webgl.d.ts
+export type ShaderType = 'vertex' | 'fragment';
+export type TextureFormat = 'rgba32f' | 'rgba16f' | 'rgba8';
+
+export interface WebGLContext {
+  gl: WebGL2RenderingContext;
+  canvas: HTMLCanvasElement;
+  limits: WebGLLimits;
+}
+
+export interface Program {
+  id: ProgramID;
+  vs: WebGLShader;
+  fs: WebGLShader;
+  uniforms: Map<string, WebGLUniformLocation>;
+}
+
+// types/particles.d.ts
+export interface ParticleSystemState {
+  texSize: number;
+  N: number; // Total particle count
+  simFBO: [WebGLFramebuffer, WebGLFramebuffer];
+  simTex: {
+    pos: [WebGLTexture, WebGLTexture];
+    vel: [WebGLTexture, WebGLTexture];
+  };
+  simRead: 0 | 1;
+  idxVAO: WebGLVertexArrayObject;
+}
+
+export interface ShapeState {
+  shapeMode: 'shapes' | 'free' | 'fractals' | 'equalizer';
+  shapeA: number;
+  shapeB: number;
+  morph: number;
+  shapeStrength: number;
+  targetShapeStrength: number;
+  autoMorph: boolean;
+  // ... etc
+}
+
+// types/camera.d.ts
+export interface Camera {
+  eye: vec3;
+  target: vec3;
+  up: vec3;
+  angle: { x: number; y: number };
+  distance: number;
+  targetDistance: number;
+  aspect: number;
+  view: mat4;
+  proj: mat4;
+}
+
+// Generic vector types
+export type vec2 = [number, number];
+export type vec3 = [number, number, number];
+export type vec4 = [number, number, number, number];
+export type mat4 = Float32Array; // 16 elements
+```
+
+#### Migration Benefits
+- **Type Safety**: Catch errors at compile time
+- **Intellisense**: Better autocomplete in IDEs
+- **Refactoring**: Safer code changes
+- **Documentation**: Self-documenting code
+- **Maintainability**: Easier onboarding for contributors
+- **Performance**: No runtime overhead (compiles to JS)
+
+#### Migration Risks & Mitigation
+- **Risk**: Breaking existing code
+  - **Mitigation**: Incremental migration, thorough testing
+- **Risk**: Build complexity
+  - **Mitigation**: Use Vite for simple configuration
+- **Risk**: Learning curve
+  - **Mitigation**: Start with `any` types, gradually strengthen
+
+#### Estimated Timeline
+- Phase 4.1-4.2: 1-2 weeks (setup + type definitions)
+- Phase 4.3: 4-6 weeks (incremental migration)
+- Phase 4.4: 1-2 weeks (enhanced types)
+- Phase 4.5: 1 week (build & tooling)
+- **Total**: 7-11 weeks for full migration
+
+---
+
+## 📋 Phase 5: User Interface & Performance
 
 **Status:** Planned
 **Estimated Scope:** Medium
 
 ### Objectives
-Provide comprehensive UI controls and performance optimization tools.
+Provide comprehensive UI controls and performance optimization tools (enhanced with TypeScript).
 
 ### Planned Features
 
@@ -323,7 +490,7 @@ Provide comprehensive UI controls and performance optimization tools.
 
 ---
 
-## 📋 Phase 5: Polish & Advanced Effects
+## 📋 Phase 6: Polish & Advanced Effects
 
 **Status:** Planned
 **Estimated Scope:** Large
@@ -437,23 +604,24 @@ Add final polish and advanced visual effects for production quality.
 ### High Priority (Phase 3-4)
 1. Full LBVH implementation (major performance boost)
 2. SVGF denoising (major quality improvement)
-3. WebGPU UI controls (usability)
-4. Performance monitoring (optimization)
-5. Multi-bounce GI (visual quality)
+3. TypeScript migration (code quality & maintainability)
+4. WebGPU UI controls (usability)
+5. Performance monitoring (optimization)
 
 ### Medium Priority (Phase 4-5)
-1. TAA implementation
-2. Quality presets
-3. Save/load system
-4. Volumetric lighting
-5. New shapes
+1. Multi-bounce GI (visual quality)
+2. TAA implementation
+3. Quality presets
+4. Save/load system
+5. Volumetric lighting
 
-### Low Priority (Phase 5)
-1. VR/AR support
-2. Advanced audio features
-3. Caustics
-4. Plugin system
-5. Video recording
+### Low Priority (Phase 6)
+1. New shapes
+2. VR/AR support
+3. Advanced audio features
+4. Caustics
+5. Plugin system
+6. Video recording
 
 ---
 
