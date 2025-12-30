@@ -105,14 +105,26 @@
                 }
                 addLog('✓ GPU adapter obtained', 'success');
 
-                // Log adapter info
-                const adapterInfo = await adapter.requestAdapterInfo();
-                addCollapsible('Adapter Info', `
-                    <div class="debug">Vendor: ${adapterInfo.vendor || 'Unknown'}</div>
-                    <div class="debug">Architecture: ${adapterInfo.architecture || 'Unknown'}</div>
-                    <div class="debug">Device: ${adapterInfo.device || 'Unknown'}</div>
-                    <div class="debug">Description: ${adapterInfo.description || 'Unknown'}</div>
-                `);
+                // Log adapter info (optional - newer WebGPU API)
+                if (typeof adapter.requestAdapterInfo === 'function') {
+                    try {
+                        const adapterInfo = await adapter.requestAdapterInfo();
+                        addCollapsible('Adapter Info', `
+                            <div class="debug">Vendor: ${adapterInfo.vendor || 'Unknown'}</div>
+                            <div class="debug">Architecture: ${adapterInfo.architecture || 'Unknown'}</div>
+                            <div class="debug">Device: ${adapterInfo.device || 'Unknown'}</div>
+                            <div class="debug">Description: ${adapterInfo.description || 'Unknown'}</div>
+                        `);
+                    } catch (err) {
+                        addLog('⚠ Could not get adapter info: ' + err.message, 'warning');
+                    }
+                } else {
+                    addLog('⚠ adapter.requestAdapterInfo() not available (older WebGPU version)', 'warning');
+                    addCollapsible('Adapter Info', `
+                        <div class="debug">requestAdapterInfo() not supported in this browser version</div>
+                        <div class="debug">Consider updating to latest Chrome Canary for full diagnostics</div>
+                    `);
+                }
 
                 // Log adapter features
                 const features = Array.from(adapter.features);
