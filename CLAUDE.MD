@@ -4,12 +4,17 @@ This document provides guidance for Claude (and other AI assistants) when workin
 
 ## Project Overview
 
-**GPU Particle Shapes** is a WebGL2-powered particle system that renders 65,000+ particles in real-time, creating fluid morphing clouds that transition between various 3D mathematical shapes. The project is built with vanilla JavaScript and requires no external dependencies.
+**GPU Particle Shapes** is a dual-version particle visualization system:
+1. **WebGL2 Version (Stable)** - 65,000+ particles with interactive morphing
+2. **WebGPU Version (Experimental)** - Real-time ray tracing with path-traced global illumination
+
+The project is built with vanilla JavaScript and requires no external dependencies.
 
 **Live Demo:** [GPU Particle Shapes](https://4rh1t3ct0r7.github.io/GPU-particles-web/)
 
 ## Core Technologies
 
+### WebGL2 Version
 - **WebGL2** - Hardware-accelerated graphics rendering
 - **GPGPU (General-Purpose GPU)** - Particle physics computed entirely on GPU
 - **Framebuffer-based Rendering** - GPU-based particle state updates using Multiple Render Targets (MRT)
@@ -17,56 +22,126 @@ This document provides guidance for Claude (and other AI assistants) when workin
 - **Ping-Pong Buffering** - Double-buffered texture swapping for particle updates
 - **Vanilla JavaScript (ES6+)** - No frameworks or build tools
 
+### WebGPU Version (Ray Tracing) ⚡ NEW
+- **WebGPU Compute API** - Modern GPU compute with WGSL shaders
+- **Ray Tracing Pipeline** - BVH acceleration with iterative traversal
+- **Path Tracing** - 1-bounce global illumination with importance sampling
+- **Temporal Accumulation** - Exponential moving average denoising
+- **PBR Materials** - Cook-Torrance BRDF with metallic-roughness workflow
+- **HDR Rendering** - RGBA16F textures with ACES tone mapping
+
+📖 **See [WEBGPU_SETUP.md](WEBGPU_SETUP.md) for complete WebGPU documentation**
+
 ## Project Structure
 
 ```
 GPU-particles-web/
-├── index.html          # Main HTML with embedded CSS (UI controls, layout)
-├── index.js            # Application entry point and main orchestration
-├── package.json        # Project metadata
-├── README.md           # User-facing documentation
-├── LICENSE.md          # MIT License
-├── CLAUDE.MD           # This file (AI assistant guidance)
-└── src/                # Modular source code
-    ├── audio/          # Audio analysis and visualization
-    │   └── analyzer.js # Audio analyzer for reactive effects
-    ├── camera/         # Camera controls and transformations
-    │   └── controls.js # Camera rotation, zoom, and view matrix
-    ├── config/         # Configuration and constants
-    │   └── constants.js # Global constants and default values
-    ├── core/           # Core WebGL and utility functions
-    │   ├── utils.js    # Helper functions and utilities
-    │   └── webgl.js    # WebGL2 context, initialization, extensions
-    ├── rendering/      # Rendering pipeline
-    │   └── pipeline.js # Rendering orchestration and draw calls
-    ├── shaders/        # GLSL shader code
-    │   ├── blit.js     # Blit/copy shader programs
-    │   ├── common.js   # Shared shader utilities and functions
-    │   ├── init.js     # Particle initialization shaders
-    │   ├── particle.js # Particle rendering shaders (vertex/fragment)
-    │   ├── shapes.js   # Shape generator functions (GLSL)
-    │   └── simulation.js # Physics simulation shaders (GPGPU)
-    ├── simulation/     # Particle simulation state management
-    │   └── state.js    # Particle state, textures, framebuffers
-    └── ui/             # User interface components
-        ├── i18n.js     # Internationalization and localization
-        └── mobile.js   # Mobile-specific UI and touch controls
+├── index.html              # WebGL2 version HTML
+├── index.js                # WebGL2 application entry
+├── index-webgpu.html       # WebGPU ray tracing version HTML ⚡
+├── index-webgpu.js         # WebGPU application entry ⚡
+├── package.json            # Project metadata
+├── README.md               # User documentation
+├── WEBGPU_SETUP.md         # WebGPU setup guide ⚡
+├── LICENSE.md              # MIT License
+├── CLAUDE.MD               # This file (AI guidance)
+└── src/
+    ├── audio/
+    │   └── analyzer.js
+    ├── camera/
+    │   └── controls.js
+    ├── config/
+    │   └── constants.js
+    ├── core/
+    │   ├── utils.js
+    │   └── webgl.js
+    ├── gpu/                # WebGPU infrastructure ⚡
+    │   ├── device.js       # WebGPU device init, helpers
+    │   └── pipelines.js    # Compute & render pipelines
+    ├── rendering/
+    │   └── pipeline.js
+    ├── shaders/            # GLSL (WebGL2)
+    │   ├── blit.js
+    │   ├── common.js
+    │   ├── init.js
+    │   ├── particle.js
+    │   ├── pbr.js          # PBR lighting ⚡
+    │   ├── shapes.js
+    │   └── simulation.js
+    ├── shaders-wgsl/       # WGSL (WebGPU) ⚡
+    │   ├── blit.wgsl       # Tone mapping
+    │   ├── bvh-build.wgsl  # Full LBVH (Morton codes)
+    │   ├── bvh-simple.wgsl # Simplified BVH
+    │   ├── common.wgsl     # Math, noise, hash
+    │   ├── particle-sim.wgsl # Particle physics
+    │   ├── pbr.wgsl        # PBR BRDF functions
+    │   ├── ray-trace.wgsl  # Ray tracing kernel
+    │   └── temporal-accumulation.wgsl # Denoising
+    ├── simulation/
+    │   └── state.js
+    └── ui/
+        ├── i18n.js
+        └── mobile.js
 ```
 
 ## Key Files & Modules
 
-### index.html
+### WebGL2 Version
+
+#### index.html
 - Complete HTML structure with embedded CSS
 - Control panel UI elements (sliders, buttons, dropdowns)
 - Canvas element for WebGL rendering
 - Responsive layout with left sidebar controls
 - No external CSS dependencies
 
-### index.js
-- Application entry point and orchestration
+#### index.js
+- WebGL2 application entry point
 - Imports and initializes all modules
 - Sets up the main render loop
 - Coordinates between different subsystems
+
+### WebGPU Version (Ray Tracing) ⚡
+
+#### index-webgpu.html
+- WebGPU version HTML
+- Minimal UI (focus on visual quality)
+- Feature showcase info panel
+- Automatic fallback to WebGL2 if unavailable
+
+#### index-webgpu.js
+- WebGPU application entry point
+- Pipeline initialization and orchestration
+- Ray tracing render loop implementation
+- Camera, lights, and parameter management
+- BVH construction integration
+- Temporal accumulation control
+
+#### src/gpu/device.js
+**WebGPU Device & Helpers**
+- WebGPU adapter and device initialization
+- Canvas context configuration
+- Helper functions: createShaderModule, createBuffer, createTexture
+- GPU capability detection
+
+#### src/gpu/pipelines.js
+**Pipeline Management**
+- createSimulationPipeline() - Particle physics compute
+- createBVHBuildPipeline() - BVH construction (simplified)
+- createRayTracingPipeline() - Ray tracing compute
+- createTemporalAccumulationPipeline() - Denoising
+- createBlitPipeline() - Final output with tone mapping
+- initializePipelines() - Async pipeline initialization
+
+#### src/shaders-wgsl/*.wgsl
+**WGSL Compute & Render Shaders**
+- **ray-trace.wgsl** - Main ray tracing kernel with path tracing
+- **particle-sim.wgsl** - Particle physics simulation
+- **bvh-simple.wgsl** - Simplified BVH construction
+- **temporal-accumulation.wgsl** - Exponential moving average denoising
+- **pbr.wgsl** - Cook-Torrance BRDF functions
+- **common.wgsl** - Math, noise, and hash utilities
+- **blit.wgsl** - ACES tone mapping and output
 
 ### src/core/webgl.js
 **WebGL2 Context & Initialization**
@@ -441,6 +516,87 @@ function checkGLError(gl, label) {
 - Alerts users if required extensions are unavailable
 - Works best on systems with dedicated GPUs for optimal performance
 
+## WebGPU Ray Tracing Architecture ⚡
+
+### Render Pipeline Flow
+
+```
+Frame N:
+1. Particle Simulation (Compute)
+   → Updates particle positions and velocities
+   → Output: particleBufferA/B (ping-pong)
+
+2. BVH Construction (Compute - 2 passes)
+   → Pass 1: Initialize leaf nodes from particles
+   → Pass 2: Build root node bounds (parallel reduction)
+   → Output: BVH buffer
+
+3. Ray Tracing (Compute)
+   → Generate camera rays (8x8 workgroups)
+   → Trace BVH for intersections
+   → Calculate direct lighting + shadows
+   → 1-bounce path tracing for GI
+   → Importance sampling (diffuse/specular)
+   → Output: HDR texture (rgba16float)
+
+4. Temporal Accumulation (Compute)
+   → Blend with history buffer (exponential moving average)
+   → Smooth path tracing noise
+   → Output: Denoised HDR texture
+
+5. Blit to Canvas (Render)
+   → ACES tone mapping
+   → Gamma correction (sRGB)
+   → Output: Final frame
+```
+
+### Key WebGPU Concepts
+
+**Compute Shaders:**
+- Work in workgroups (8x8 for ray tracing, 256 for simulation)
+- Access storage buffers and storage textures
+- No vertex/fragment stages - pure computation
+
+**WGSL Shader Language:**
+- Modern GPU shading language
+- Type-safe with strict alignment rules
+- Built-in functions for common operations
+- See [WGSL Spec](https://www.w3.org/TR/WGSL/)
+
+**Buffer Usage:**
+- Storage buffers for particle data and BVH
+- Uniform buffers for parameters (256-byte aligned)
+- Read-only-storage for input, storage for read-write
+
+**Texture Usage:**
+- Storage textures (write-only) for compute output
+- Sampled textures for reading in shaders
+- RGBA16F format for HDR rendering
+
+### WebGPU Development Tips
+
+1. **Shader Compilation:**
+   - Check for errors with try-catch
+   - WGSL compiler is strict about types and alignment
+   - Use `@group()` and `@binding()` decorators
+
+2. **Buffer Alignment:**
+   - Structs must follow WGSL alignment rules
+   - vec3 is 16-byte aligned (use padding)
+   - Arrays of structs need careful layout
+
+3. **Performance:**
+   - Group related data in same buffer
+   - Minimize buffer updates per frame
+   - Use storage textures for large 2D data
+   - Prefer compute shaders for parallel work
+
+4. **Debugging:**
+   - Use Chrome DevTools WebGPU tab
+   - Enable validation layers in device creation
+   - Check pipeline compilation logs
+   - Monitor GPU memory usage
+
 ## Important Notes for AI Assistants
 
 ### DO:
@@ -451,6 +607,10 @@ function checkGLError(gl, label) {
 - ✅ Maintain consistent coding style (ES6+, camelCase)
 - ✅ Comment complex shader code
 - ✅ Test across different particle counts
+- ✅ **For WebGPU:** Validate WGSL shader syntax and alignment
+- ✅ **For WebGPU:** Check WebGPU availability before using
+- ✅ **For WebGPU:** Follow buffer alignment rules strictly
+- ✅ **For WebGPU:** Test in Chrome Canary with WebGPU enabled
 
 ### DON'T:
 - ❌ Add external dependencies (keep it vanilla JS)
@@ -461,6 +621,9 @@ function checkGLError(gl, label) {
 - ❌ Break backward compatibility without discussion
 - ❌ Add build tools or transpilation steps
 - ❌ Assume transform feedback is used (it's framebuffer-based GPGPU)
+- ❌ **For WebGPU:** Mix up GLSL and WGSL syntax
+- ❌ **For WebGPU:** Ignore struct padding requirements
+- ❌ **For WebGPU:** Use deprecated WebGPU features
 
 ### When Making Changes:
 
@@ -550,6 +713,11 @@ When contributing:
 
 ---
 
-**Last Updated:** 2025-12-28
-**Version:** 1.0
+**Last Updated:** 2025-12-29
+**Version:** 2.0 (WebGPU Ray Tracing Edition)
 **For Claude Code & AI Assistants**
+
+📖 **Additional Documentation:**
+- [README.md](README.md) - User-facing project overview
+- [WEBGPU_SETUP.md](WEBGPU_SETUP.md) - WebGPU installation and features
+- [LICENSE.md](LICENSE.md) - MIT License

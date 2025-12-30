@@ -17,10 +17,11 @@
 
 ## 🌟 Overview
 
-**GPU Particle Shapes** is an advanced WebGL2-powered visualization that renders up to 65,000+ particles in real-time, creating fluid, morphing clouds that transition smoothly between various 3D mathematical shapes. Experience interactive physics, beautiful color palettes, and mesmerizing particle trails with hardware-accelerated graphics.
+**GPU Particle Shapes** is an advanced particle visualization system with **two cutting-edge versions**: a stable **WebGL2** version and an experimental **WebGPU version featuring real-time ray tracing** with path-traced global illumination. Experience up to 65,000+ particles morphing between mathematical shapes with stunning visual effects and physically-based rendering.
 
 ### ✨ Key Highlights
 
+#### WebGL2 Version (Stable)
 - 🚀 **GPU-Accelerated Rendering** - Leverages WebGL2 for ultra-smooth performance
 - 🎨 **Dynamic Color Palettes** - Multiple gradient schemes with live palette switching
 - 🔄 **Shape Morphing** - Seamless transitions between geometric forms
@@ -28,6 +29,18 @@
 - 💫 **Particle Trails** - Soft glow effects with customizable persistence
 - 🎮 **Real-Time Controls** - Intuitive UI with live parameter adjustments
 - 📱 **Responsive Design** - Works across desktop and mobile devices
+
+#### WebGPU Version (Experimental - Ray Tracing) 🔥
+- ⚡ **Real-Time Ray Tracing** - Hardware-accelerated ray tracing with BVH acceleration
+- 🌍 **Path-Traced Global Illumination** - 1-bounce GI for realistic indirect lighting
+- ✨ **Per-Particle Materials** - Varied albedo, roughness, metallic, and emissive properties
+- 🎭 **Importance Sampling** - GGX distribution for specular reflections
+- 🔆 **Emissive Particles** - Dynamic light-emitting particles
+- 🎬 **Temporal Denoising** - Smooth, noise-free rendering via temporal accumulation
+- 💎 **PBR Shading** - Cook-Torrance BRDF with up to 8 dynamic lights
+- 🌈 **HDR + ACES Tone Mapping** - Cinematic color grading
+
+📖 **[WebGPU Setup Guide](WEBGPU_SETUP.md)** - Complete installation and feature documentation
 
 ## 🎨 Features
 
@@ -72,8 +85,17 @@ The system includes a diverse collection of mathematical forms:
 
 ### Prerequisites
 
+#### WebGL2 Version
 - Modern web browser with WebGL2 support
 - No build tools or dependencies required!
+
+#### WebGPU Version (Ray Tracing)
+- Chrome Canary 113+ or Chrome Dev channel
+- Enable WebGPU: `chrome://flags/#enable-unsafe-webgpu`
+- Modern GPU (NVIDIA 10-series+, AMD RX 5000+, Intel Arc)
+- 4GB+ VRAM recommended
+
+📖 **See [WEBGPU_SETUP.md](WEBGPU_SETUP.md) for detailed WebGPU requirements and troubleshooting**
 
 ### Installation
 
@@ -85,29 +107,33 @@ The system includes a diverse collection of mathematical forms:
 
 2. **Serve the files**
 
-   Use any local web server. Here are some options:
+   Use any local web server:
 
    ```bash
    # Python 3
-   python -m http.server 8000
+   python3 -m http.server 8080
 
-   # Python 2
-   python -m SimpleHTTPServer 8000
-
-   # Node.js (with http-server)
-   npx http-server -p 8000
+   # Node.js
+   npx http-server -p 8080
 
    # PHP
-   php -S localhost:8000
+   php -S localhost:8080
    ```
 
 3. **Open in browser**
 
-   Navigate to `http://localhost:8000`
+   - **WebGL2 Version:** `http://localhost:8080/index.html`
+   - **WebGPU Version:** `http://localhost:8080/index-webgpu.html`
 
 ### Quick Start
 
+#### WebGL2 (Stable)
 No installation needed! Simply open `index.html` in any modern browser that supports WebGL2.
+
+#### WebGPU (Ray Tracing)
+1. Open `index-webgpu.html` in Chrome Canary
+2. If WebGPU is unavailable, automatically falls back to WebGL2
+3. See [WEBGPU_SETUP.md](WEBGPU_SETUP.md) for complete setup instructions
 
 ## 🎮 Interactive Controls
 
@@ -151,19 +177,45 @@ The left panel provides real-time control over:
 
 ### Architecture
 
+#### WebGL2 Version
 - **WebGL2** - Hardware-accelerated graphics rendering
 - **Framebuffer-based GPGPU** - GPU-based particle physics using Multiple Render Targets (MRT)
 - **Ping-Pong Buffering** - Double-buffered texture swapping for efficient state updates
 - **Floating-Point Textures** - Particle state stored in RGBA32F textures (position & velocity)
 
+#### WebGPU Version (Ray Tracing)
+- **WebGPU Compute Shaders** - Modern GPU compute API
+- **Ray Tracing Pipeline** - BVH acceleration structure with iterative traversal
+- **Path Tracing** - Monte Carlo ray tracing with importance sampling
+- **Temporal Accumulation** - Frame-to-frame denoising via exponential moving average
+- **PBR Materials** - Cook-Torrance BRDF with metallic-roughness workflow
+- **HDR Rendering** - RGBA16F textures with ACES tone mapping
+
+**Render Pipeline (WebGPU):**
+1. Particle Simulation (Compute)
+2. BVH Construction (Compute)
+3. Ray Tracing with GI (Compute)
+4. Temporal Accumulation (Compute)
+5. Blit to Canvas with Tone Mapping (Render)
+
+📖 **[Technical Documentation](WEBGPU_SETUP.md#-technical-details)** - In-depth WebGPU architecture
+
 ### Performance
 
+#### WebGL2 Version
 - Runs at **60 FPS** with 65,000+ particles on modern hardware
 - Optimized shader code for minimal GPU overhead
 - Efficient texture-based particle state management
-- No external dependencies - pure vanilla JavaScript
+
+#### WebGPU Version
+- **60 FPS** with ray tracing on RTX 3080+ (1080p)
+- Dynamic BVH rebuilt every frame
+- Temporal accumulation smooths path tracing noise
+- Scales from 16K to 65K particles
 
 ### Browser Compatibility
+
+#### WebGL2 Version
 
 | Browser | Version | Support |
 |---------|---------|---------|
@@ -172,42 +224,68 @@ The left panel provides real-time control over:
 | Safari | 15+ | ✅ Full Support |
 | Edge | 79+ | ✅ Full Support |
 
-*Requires WebGL2 support*
+#### WebGPU Version
+
+| Browser | Version | Support |
+|---------|---------|---------|
+| Chrome Canary | 113+ | ✅ Full Support |
+| Chrome Dev | Latest | ✅ Full Support |
+| Chrome Stable | 113+ | ⚠️ Regional |
+| Firefox | - | 🔄 Coming Soon |
+| Safari TP | Latest | ⚠️ Partial |
+
+*WebGPU requires GPU with hardware ray tracing support for optimal performance*
 
 ## 📁 Project Structure
 
 ```
 GPU-particles-web/
-├── index.html          # Main HTML file with embedded styles
-├── index.js            # Application entry point and orchestration
-├── package.json        # Project metadata
-├── README.md           # This file
-├── LICENSE.md          # License information
-├── CLAUDE.MD           # AI assistant development guide
-└── src/                # Modular source code
-    ├── audio/          # Audio analysis and visualization
-    │   └── analyzer.js # Audio analyzer for reactive effects
-    ├── camera/         # Camera controls and transformations
-    │   └── controls.js # Camera rotation, zoom, and view matrix
-    ├── config/         # Configuration and constants
-    │   └── constants.js # Global constants and default values
-    ├── core/           # Core WebGL and utility functions
-    │   ├── utils.js    # Helper functions and utilities
-    │   └── webgl.js    # WebGL2 context and initialization
-    ├── rendering/      # Rendering pipeline
-    │   └── pipeline.js # Rendering orchestration and draw calls
-    ├── shaders/        # GLSL shader code
-    │   ├── blit.js     # Blit/copy shader programs
-    │   ├── common.js   # Shared shader utilities
-    │   ├── init.js     # Particle initialization shaders
-    │   ├── particle.js # Particle rendering shaders
-    │   ├── shapes.js   # Shape generator functions (GLSL)
-    │   └── simulation.js # Physics simulation shaders (GPGPU)
-    ├── simulation/     # Particle simulation state management
-    │   └── state.js    # Particle state, textures, framebuffers
-    └── ui/             # User interface components
-        ├── i18n.js     # Internationalization and localization
-        └── mobile.js   # Mobile-specific UI and touch controls
+├── index.html              # WebGL2 version (stable)
+├── index.js                # WebGL2 application entry point
+├── index-webgpu.html       # WebGPU version (ray tracing)
+├── index-webgpu.js         # WebGPU application entry point
+├── package.json            # Project metadata
+├── README.md               # This file
+├── WEBGPU_SETUP.md         # WebGPU setup and documentation
+├── LICENSE.md              # MIT License
+├── CLAUDE.MD               # AI assistant development guide
+└── src/
+    ├── audio/              # Audio analysis
+    │   └── analyzer.js
+    ├── camera/             # Camera controls
+    │   └── controls.js
+    ├── config/             # Configuration
+    │   └── constants.js
+    ├── core/               # Core WebGL utilities
+    │   ├── utils.js
+    │   └── webgl.js
+    ├── gpu/                # WebGPU infrastructure ⚡ NEW
+    │   ├── device.js       # WebGPU device initialization
+    │   └── pipelines.js    # Compute & render pipelines
+    ├── rendering/          # Rendering pipeline
+    │   └── pipeline.js
+    ├── shaders/            # GLSL shaders (WebGL2)
+    │   ├── blit.js
+    │   ├── common.js
+    │   ├── init.js
+    │   ├── particle.js
+    │   ├── pbr.js          # PBR lighting ⚡ NEW
+    │   ├── shapes.js
+    │   └── simulation.js
+    ├── shaders-wgsl/       # WGSL shaders (WebGPU) ⚡ NEW
+    │   ├── blit.wgsl       # Tone mapping output
+    │   ├── bvh-build.wgsl  # Full LBVH construction
+    │   ├── bvh-simple.wgsl # Simplified BVH builder
+    │   ├── common.wgsl     # Math utilities
+    │   ├── particle-sim.wgsl # Particle physics
+    │   ├── pbr.wgsl        # PBR BRDF functions
+    │   ├── ray-trace.wgsl  # Ray tracing kernel
+    │   └── temporal-accumulation.wgsl # Denoising
+    ├── simulation/         # Particle state
+    │   └── state.js
+    └── ui/                 # User interface
+        ├── i18n.js
+        └── mobile.js
 ```
 
 ### Module Organization
