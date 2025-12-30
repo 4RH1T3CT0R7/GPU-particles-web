@@ -75,13 +75,13 @@ void main(){
     for(int y=-3; y<=3; y++){
       vec2 off = vec2(float(x), float(y)) * texel * 1.8;
       float w = exp(-0.4 * float(x*x + y*y));
-      vec3 sample = texture(u_tex, uv + off).rgb;
+      vec3 texSample = texture(u_tex, uv + off).rgb;
 
       // Extract bright areas for bloom
-      float brightness = max(max(sample.r, sample.g), sample.b);
+      float brightness = max(max(texSample.r, texSample.g), texSample.b);
       float contribution = max(0.0, brightness - brightThreshold);
 
-      bloom += sample * w * (1.0 + contribution);
+      bloom += texSample * w * (1.0 + contribution);
       weight += w;
     }
   }
