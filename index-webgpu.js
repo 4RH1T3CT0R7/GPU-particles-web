@@ -49,6 +49,9 @@ import { DPR } from './src/config/constants.js';
   // State
   let currentBufferIndex = 0;
   let frameCount = 0;
+  let renderLoopActive = true;
+  let validationErrorCount = 0;
+  const MAX_VALIDATION_ERRORS = 10; // Emergency stop after 10 errors
 
   // Camera state
   const camera = {
@@ -366,6 +369,12 @@ import { DPR } from './src/config/constants.js';
   let lastTime = performance.now();
 
   async function frame(now) {
+    // Emergency stop check
+    if (window.__webgpu_render_stopped) {
+      console.error('🚨 Render loop stopped due to errors. Hard refresh required.');
+      return; // Stop render loop
+    }
+
     const deltaTime = Math.min(0.05, (now - lastTime) / 1000);
     lastTime = now;
     const time = now / 1000;
