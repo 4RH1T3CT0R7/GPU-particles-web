@@ -9,7 +9,9 @@
 
 *A mesmerizing real-time GPU-accelerated particle system that morphs between mathematical shapes with stunning visual effects*
 
-[🎮 WebGL2 Demo](https://4RH1T3CT0R7.github.io/GPU-particles-web/index.html) • [⚡ WebGPU Demo (Ray Tracing)](https://4RH1T3CT0R7.github.io/GPU-particles-web/index-webgpu.html) • [Features](#-features) • [Getting Started](#-getting-started) • [Controls](#-interactive-controls)
+[🎮 WebGL2 Demo](https://4RH1T3CT0R7.github.io/GPU-particles-web/index.html) • [⚡ WebGPU Demo](https://4RH1T3CT0R7.github.io/GPU-particles-web/index-webgpu.html) • [🔍 Debug Tools](#-debugging--troubleshooting)
+
+[Features](#-features) • [Getting Started](#-getting-started) • [Controls](#-interactive-controls)
 
 ---
 
@@ -142,9 +144,9 @@ If you encounter issues with either version, use the dedicated debug pages to di
 ### Debug Pages
 
 #### WebGL2 Debug Page
-```
-http://localhost:8080/debug.html
-```
+
+**Local:** `http://localhost:8080/debug.html`
+**Live Demo:** [🔍 WebGL2 Debug](https://4RH1T3CT0R7.github.io/GPU-particles-web/debug.html)
 
 **Features:**
 - ✅ WebGL2 context availability check
@@ -154,9 +156,9 @@ http://localhost:8080/debug.html
 - ✅ Stack traces for debugging
 
 #### WebGPU Debug Page
-```
-http://localhost:8080/debug-webgpu.html
-```
+
+**Local:** `http://localhost:8080/debug-webgpu.html`
+**Live Demo:** [🔍 WebGPU Debug](https://4RH1T3CT0R7.github.io/GPU-particles-web/debug-webgpu.html)
 
 **Features:**
 - ✅ WebGPU adapter & device detection
@@ -169,14 +171,20 @@ http://localhost:8080/debug-webgpu.html
 
 ### How to Use Debug Pages
 
+**Option 1: Live Demo (Quick Test)**
+- Click the live demo links above to test in your browser immediately
+- No setup required, works directly from GitHub Pages
+
+**Option 2: Local Testing (Full Development)**
+
 1. **Start your local server**
    ```bash
    python3 -m http.server 8080
    ```
 
 2. **Open the appropriate debug page**
-   - For WebGL2 issues: Open `debug.html`
-   - For WebGPU issues: Open `debug-webgpu.html`
+   - For WebGL2 issues: Open `http://localhost:8080/debug.html`
+   - For WebGPU issues: Open `http://localhost:8080/debug-webgpu.html`
 
 3. **Review the diagnostic output**
    - Green ✓ messages indicate successful operations
