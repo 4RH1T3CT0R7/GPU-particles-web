@@ -24,7 +24,7 @@ import { DPR } from './src/config/constants.js';
     // Fallback to WebGL2 version
     const webglScript = document.createElement('script');
     webglScript.type = 'module';
-    webglScript.src = '/index.js';
+    webglScript.src = './index.js';
     document.body.appendChild(webglScript);
     return;
   }
@@ -229,7 +229,7 @@ import { DPR } from './src/config/constants.js';
     console.log('🔧 Setting up ray tracing pipeline...');
 
     // Load and compile ray tracing shader
-    const response = await fetch('/src/shaders-wgsl/ray-trace.wgsl');
+    const response = await fetch('./src/shaders-wgsl/ray-trace.wgsl');
     const shaderCode = await response.text();
     const shaderModule = device.createShaderModule({
       label: 'Ray Tracing Compute',
