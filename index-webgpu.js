@@ -229,15 +229,19 @@ import { DPR } from './src/config/constants.js';
   let blitBindGroup = null;
 
   async function setupRayTracing() {
-    console.log('🔧 Setting up ray tracing pipeline...');
+    try {
+      console.log('🔧 Setting up ray tracing pipeline...');
 
-    // Load and compile ray tracing shader (with cache busting)
-    const response = await fetch('./src/shaders-wgsl/ray-trace.wgsl?t=' + Date.now());
-    const shaderCode = await response.text();
-    const shaderModule = device.createShaderModule({
-      label: 'Ray Tracing Compute',
-      code: shaderCode
-    });
+      // Load and compile ray tracing shader (with cache busting)
+      const response = await fetch('./src/shaders-wgsl/ray-trace.wgsl?t=' + Date.now());
+      const shaderCode = await response.text();
+
+      console.log('🔍 Compiling ray tracing shader...');
+      const shaderModule = device.createShaderModule({
+        label: 'Ray Tracing Compute',
+        code: shaderCode
+      });
+      console.log('✓ Ray tracing shader compiled');
 
     // Create bind group layout
     const bindGroupLayout = device.createBindGroupLayout({
@@ -289,9 +293,34 @@ import { DPR } from './src/config/constants.js';
     });
 
     console.log('✓ Ray tracing pipeline ready');
+    } catch (error) {
+      console.error('🚨 FATAL: Ray tracing setup failed!');
+      console.error('Error:', error.message);
+      console.error('⚠️  This is likely due to browser cache loading old buggy shader code.');
+      console.error('⚠️  DO HARD REFRESH: Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)');
+      console.error('⚠️  Or clear browser cache and reload the page.');
+
+      // Prevent render loop from starting
+      window.__webgpu_render_stopped = true;
+
+      throw new Error('WebGPU initialization failed - hard refresh required');
+    }
   }
 
-  await setupRayTracing();
+  // Setup ray tracing with fallback to WebGL2 on error
+  try {
+    await setupRayTracing();
+  } catch (error) {
+    console.error('🚨 WebGPU initialization FAILED. Browser cache issue detected.');
+    console.error('🔄 Falling back to WebGL2 version...');
+
+    // Fallback to WebGL2 version
+    const webglScript = document.createElement('script');
+    webglScript.type = 'module';
+    webglScript.src = './index.js';
+    document.body.appendChild(webglScript);
+    return;
+  }
 
   // Setup BVH build bind groups (two sets for ping-pong buffering)
   const bvhInitBindGroups = [
