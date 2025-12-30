@@ -73,7 +73,12 @@ export async function initWebGPU(canvas) {
 
     // Handle uncaptured errors
     device.addEventListener('uncapturederror', (event) => {
-      console.error('❌ WebGPU uncaptured error:', event.error);
+      const error = event.error;
+      console.error('❌ WebGPU uncaptured error:', error.constructor.name);
+      console.error('   Message:', error.message);
+      if (error.reason) {
+        console.error('   Reason:', error.reason);
+      }
     });
 
     // Configure canvas context
