@@ -67,6 +67,14 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
   camera.aspect = canvas.width / canvas.height;
   updateCameraMatrix(camera);
 
+  // Initialize multiple dynamic light sources
+  const lights = [
+    { pos: [2, 3, 2], color: [1.0, 0.9, 0.8], intensity: 3.0, radius: 20.0 },      // Main warm light
+    { pos: [-3, 1, -2], color: [0.3, 0.5, 1.0], intensity: 2.5, radius: 15.0 },    // Blue accent
+    { pos: [0, -2, 3], color: [1.0, 0.3, 0.5], intensity: 2.0, radius: 12.0 },     // Magenta fill
+    { pos: [3, 2, -3], color: [0.5, 1.0, 0.3], intensity: 1.8, radius: 12.0 }      // Green rim
+  ];
+
   // Mouse state
   const mouse = { x: 0, y: 0, leftDown: false, rightDown: false, lastX: 0, lastY: 0 };
   const pointerWorld = [0, 0, 0];
@@ -132,18 +140,19 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     if (shapeState.shapeMode === 'fractals') {
       shapeState.shapeA = FRACTAL_SHAPE_ID;
       shapeState.shapeB = FRACTAL_SHAPE_ID;
-      // Keep high attraction for fractals
-      shapeState.targetShapeStrength = Math.max(1.25, shapeState.shapeStrength * 1.3);
+      // Reduced attraction for fractals to prevent jerking
+      shapeState.targetShapeStrength = 0.85;
 
-      // Smooth easing with hold at start and end
-      const hold = 0.15;
+      // Smoother easing with longer hold periods
+      const hold = 0.25;
       const phase = fractalState.timer / fractalState.duration;
       const clampedPhase = Math.min(1.0, phase);
       const eased = (() => {
         if (clampedPhase < hold) return 0.0;
         if (clampedPhase > 1.0 - hold) return 1.0;
         const u = (clampedPhase - hold) / (1.0 - 2.0 * hold);
-        return 0.5 - 0.5 * Math.cos(Math.PI * u);
+        // Cubic easing for smoother transitions
+        return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
       })();
       shapeState.morph = eased;
 
@@ -158,7 +167,7 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
           Math.random() * 0.6 - 0.3,
           Math.random() * Math.PI * 2
         ];
-        fractalState.duration = 14.0 + Math.random() * 8.0;
+        fractalState.duration = 16.0 + Math.random() * 10.0;
         // Change palette on fractal transition
         colorManager.currentPaletteIndex = (colorManager.currentPaletteIndex + 1) % colorPalettes.length;
         colorManager.rebuildColorStops(colorPalettes[colorManager.currentPaletteIndex]);
@@ -198,49 +207,50 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     }
   }
 
-  // Compute pointer world position using raycast (matches original)
+  // Compute pointer world position using raycast (fixed to match cursor position)
   function computePointerWorld() {
-    const nx = (mouse.x / size.w) * 2 - 1;
-    const ny = 1 - (mouse.y / size.h) * 2;
-    const aspect = size.w / size.h;
+    const nx = mouse.x * 2 - 1;
+    const ny = 1 - mouse.y * 2;
+    const aspect = canvas.width / canvas.height;
     const fov = Math.PI / 4;
-    const depth = Math.max(0.35, camera.distance * 0.55);
+    const depth = camera.distance * 0.8;
 
-    // Forward direction from camera position
+    // Forward direction from camera to target
     const forward = [
-      -camera.eye[0] / camera.distance,
-      -camera.eye[1] / camera.distance,
-      -camera.eye[2] / camera.distance,
+      camera.target[0] - camera.eye[0],
+      camera.target[1] - camera.eye[1],
+      camera.target[2] - camera.eye[2],
     ];
+    const flen = Math.hypot(forward[0], forward[1], forward[2]) || 1;
+    forward[0] /= flen; forward[1] /= flen; forward[2] /= flen;
+
     viewDir[0] = forward[0];
     viewDir[1] = forward[1];
     viewDir[2] = forward[2];
 
-    // Right vector (cross product with up)
+    // Right vector (cross product of forward and world up)
+    const worldUp = [0, 1, 0];
     const right = [
-      forward[2],
-      0,
-      -forward[0],
+      forward[1] * worldUp[2] - forward[2] * worldUp[1],
+      forward[2] * worldUp[0] - forward[0] * worldUp[2],
+      forward[0] * worldUp[1] - forward[1] * worldUp[0],
     ];
     const rlen = Math.hypot(right[0], right[1], right[2]) || 1;
     right[0] /= rlen; right[1] /= rlen; right[2] /= rlen;
 
-    // Up vector
-    let up = [
+    // Up vector (cross product of right and forward)
+    const up = [
       right[1] * forward[2] - right[2] * forward[1],
       right[2] * forward[0] - right[0] * forward[2],
       right[0] * forward[1] - right[1] * forward[0],
     ];
-    const ulen = Math.hypot(up[0], up[1], up[2]) || 1;
-    up = up.map((v) => v / ulen);
 
     // Compute pointer position at intersection plane
-    const zoomScale = 1.0 + (camera.distance - 1.0) * 0.14;
-    const scale = Math.tan(fov / 2) * depth * (1.2 + zoomScale * 0.4);
+    const scale = Math.tan(fov / 2) * depth;
 
-    pointerWorld[0] = camera.target[0] + forward[0] * depth + (right[0] * nx * aspect + up[0] * ny) * scale;
-    pointerWorld[1] = camera.target[1] + forward[1] * depth + (right[1] * nx * aspect + up[1] * ny) * scale;
-    pointerWorld[2] = camera.target[2] + forward[2] * depth + (right[2] * nx * aspect + up[2] * ny) * scale;
+    pointerWorld[0] = camera.eye[0] + forward[0] * depth + (right[0] * nx * aspect + up[0] * ny) * scale;
+    pointerWorld[1] = camera.eye[1] + forward[1] * depth + (right[1] * nx * aspect + up[1] * ny) * scale;
+    pointerWorld[2] = camera.eye[2] + forward[2] * depth + (right[2] * nx * aspect + up[2] * ny) * scale;
   }
 
   // Mouse event handlers with camera control
@@ -262,8 +272,8 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
       mouse.lastY = y;
     }
 
-    mouse.x = (e.clientX - rect.left) * DPR;
-    mouse.y = (e.clientY - rect.top) * DPR;
+    mouse.x = x;
+    mouse.y = y;
   };
 
   canvas.addEventListener('mousemove', (e) => {
@@ -343,8 +353,7 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     computePointerWorld();
 
     // Lerp shape strength
-    const lerpSpeed = 3.0 * dt;
-    shapeState.shapeStrength += (shapeState.targetShapeStrength - shapeState.shapeStrength) * lerpSpeed;
+    shapeState.shapeStrength += (shapeState.targetShapeStrength - shapeState.shapeStrength) * 0.1;
 
     // Run simulation
     gl.useProgram(progSim);
@@ -392,7 +401,7 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
 
     gl.useProgram(progParticles);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
     bindTex(gl, progParticles, 'u_pos', simState.posTex[simState.simRead], 0);
     gl.uniform2f(gl.getUniformLocation(progParticles, 'u_texSize'), simState.texSize, simState.texSize);
@@ -401,7 +410,38 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     gl.uniform1f(gl.getUniformLocation(progParticles, 'u_time'), t);
     gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_colors'), colorManager.colorStops);
     gl.uniform1i(gl.getUniformLocation(progParticles, 'u_colorCount'), colorManager.colorStopCount);
-    gl.uniform3f(gl.getUniformLocation(progParticles, 'u_lightPos'), 2, 3, 2);
+    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_cameraPos'), camera.eye);
+    gl.uniform1f(gl.getUniformLocation(progParticles, 'u_roughness'), 0.4);
+    gl.uniform1f(gl.getUniformLocation(progParticles, 'u_metallic'), 0.3);
+    gl.uniform1f(gl.getUniformLocation(progParticles, 'u_pbrStrength'), 0.7);
+
+    // Animate lights and send to shader
+    const lightPositions = new Float32Array(8 * 3);
+    const lightColors = new Float32Array(8 * 3);
+    const lightIntensities = new Float32Array(8);
+    const lightRadii = new Float32Array(8);
+
+    for (let i = 0; i < lights.length; i++) {
+      // Gentle orbital animation
+      const angle = t * 0.3 + i * Math.PI * 0.5;
+      const offset = Math.sin(t * 0.5 + i) * 0.5;
+      lightPositions[i * 3 + 0] = lights[i].pos[0] * Math.cos(angle) - lights[i].pos[2] * Math.sin(angle);
+      lightPositions[i * 3 + 1] = lights[i].pos[1] + offset;
+      lightPositions[i * 3 + 2] = lights[i].pos[0] * Math.sin(angle) + lights[i].pos[2] * Math.cos(angle);
+
+      lightColors[i * 3 + 0] = lights[i].color[0];
+      lightColors[i * 3 + 1] = lights[i].color[1];
+      lightColors[i * 3 + 2] = lights[i].color[2];
+
+      lightIntensities[i] = lights[i].intensity * (0.9 + 0.1 * Math.sin(t * 2.0 + i * 1.5));
+      lightRadii[i] = lights[i].radius;
+    }
+
+    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_lightPositions'), lightPositions);
+    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_lightColors'), lightColors);
+    gl.uniform1fv(gl.getUniformLocation(progParticles, 'u_lightIntensities'), lightIntensities);
+    gl.uniform1fv(gl.getUniformLocation(progParticles, 'u_lightRadii'), lightRadii);
+    gl.uniform1i(gl.getUniformLocation(progParticles, 'u_lightCount'), lights.length);
 
     gl.bindVertexArray(simState.idxVAO);
     gl.drawArrays(gl.POINTS, 0, simState.N);
@@ -409,13 +449,15 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
 
     gl.disable(gl.BLEND);
 
-    // Blit to screen
+    // Blit to screen with HDR tone mapping
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, size.w, size.h);
     gl.useProgram(progPresent);
     bindTex(gl, progPresent, 'u_tex', renderTarget.tex, 0);
     gl.uniform2f(gl.getUniformLocation(progPresent, 'u_resolution'), size.w, size.h);
     gl.uniform1f(gl.getUniformLocation(progPresent, 'u_time'), t);
+    gl.uniform1f(gl.getUniformLocation(progPresent, 'u_exposure'), 0.2);
+    gl.uniform1f(gl.getUniformLocation(progPresent, 'u_bloomStrength'), 0.35);
     drawQuad(gl, quadVAO);
   }
 

@@ -81,9 +81,9 @@ export function createSimulationState(gl, simSize = 256) {
 
 export function createShapeState() {
   let shapeA = 0;
-  let shapeB = 1;
+  let shapeB = 0;
   let morph = 0.0;
-  let nextSwitch = 5.0;
+  let nextSwitch = 15.0;
   let transitionSpeed = 15.0;
   let customTransition = 15.0;
   let controlMode = 'preset';
