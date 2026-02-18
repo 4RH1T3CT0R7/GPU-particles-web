@@ -1,3 +1,5 @@
+use glam::Vec3;
+use xpbd_core::forces::pointer::PointerParams;
 use xpbd_core::solver::Solver;
 
 #[test]
@@ -76,4 +78,61 @@ fn test_no_nan_after_stepping() {
             i
         );
     }
+}
+
+#[test]
+fn test_attract_moves_toward_pointer() {
+    let mut solver = Solver::new(10);
+    solver.config.shape_strength = 0.0;
+    solver.pointer_params = PointerParams {
+        active: true,
+        mode: 0,
+        position: Vec3::new(2.0, 0.0, 0.0),
+        strength: 1.0,
+        radius: 5.0,
+        pressing: true,
+        pulse: false,
+        view_dir: Vec3::NEG_Z,
+    };
+    solver.particles.position[0] = Vec3::ZERO;
+    solver.particles.velocity[0] = Vec3::ZERO;
+
+    for _ in 0..50 {
+        solver.step(0.016, 1.0);
+    }
+
+    assert!(
+        solver.particles.position[0].x > 0.1,
+        "particle didn't move toward pointer: {:?}",
+        solver.particles.position[0]
+    );
+}
+
+#[test]
+fn test_repel_pushes_away() {
+    let mut solver = Solver::new(10);
+    solver.config.shape_strength = 0.0;
+    solver.pointer_params = PointerParams {
+        active: true,
+        mode: 1,
+        position: Vec3::new(2.0, 0.0, 0.0),
+        strength: 1.0,
+        radius: 5.0,
+        pressing: true,
+        pulse: false,
+        view_dir: Vec3::NEG_Z,
+    };
+    solver.particles.position[0] = Vec3::new(1.0, 0.0, 0.0);
+    solver.particles.velocity[0] = Vec3::ZERO;
+
+    for _ in 0..50 {
+        solver.step(0.016, 1.0);
+    }
+
+    // Should have moved away from pointer (x < 1.0)
+    assert!(
+        solver.particles.position[0].x < 0.5,
+        "particle didn't move away from pointer: {:?}",
+        solver.particles.position[0]
+    );
 }

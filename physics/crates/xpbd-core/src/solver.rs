@@ -1,4 +1,5 @@
 use crate::config::PhysicsConfig;
+use crate::forces::pointer::{compute_pointer_force, PointerParams};
 use crate::math::{curl, ease_in_out_cubic, hash12, noise, smoothstep};
 use crate::particle::ParticleSet;
 use crate::shapes::dispatcher::target_for;
@@ -43,6 +44,7 @@ pub struct Solver {
     pub particles: ParticleSet,
     pub config: PhysicsConfig,
     pub shape_params: ShapeParams,
+    pub pointer_params: PointerParams,
 }
 
 impl Solver {
@@ -70,6 +72,7 @@ impl Solver {
             particles,
             config: PhysicsConfig::default(),
             shape_params: ShapeParams::default(),
+            pointer_params: PointerParams::default(),
         }
     }
 
@@ -223,6 +226,22 @@ impl Solver {
             acc = Vec3::lerp(acc, shape_force * 2.2, cohesion * 0.92);
             acc += shape_force * 0.6;
             vel *= mix_f32(0.96, 0.87, cohesion * calm_factor);
+
+            // ==== POINTER INTERACTION ====
+            if self.pointer_params.active {
+                let result = compute_pointer_force(
+                    pos, vel, id_hash, time, &self.pointer_params,
+                );
+                acc += result.acc;
+                vel += result.vel_add;
+                vel *= result.vel_scale;
+                if let Some(cap) = result.speed_cap {
+                    let speed = vel.length();
+                    if speed > cap {
+                        vel = vel / speed * cap;
+                    }
+                }
+            }
 
             // ==== 3. BOUNDARY ====
             let dist_center = pos.length();
