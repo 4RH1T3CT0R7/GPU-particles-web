@@ -71,6 +71,8 @@ pub fn solve_density_constraints(
             let j = j as usize;
             let r_len = (pos_i - particles.predicted[j]).length();
             if r_len < h {
+                // NOTE: Assumes unit mass for all particles. If per-particle mass
+                // is added (via inv_mass field), multiply by mass_j here.
                 rho += poly6_kernel(r_len, h);
             }
         });

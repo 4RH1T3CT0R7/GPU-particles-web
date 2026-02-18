@@ -51,8 +51,10 @@ pub fn apply_xsph_viscosity(
         vel_corrections[i] = correction * viscosity;
     }
 
-    // Apply corrections
+    // Apply corrections (only to fluid/gas particles)
     for i in 0..count {
-        particles.velocity[i] += vel_corrections[i];
+        if vel_corrections[i] != Vec3::ZERO {
+            particles.velocity[i] += vel_corrections[i];
+        }
     }
 }
