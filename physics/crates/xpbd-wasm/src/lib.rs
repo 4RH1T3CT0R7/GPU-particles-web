@@ -61,6 +61,46 @@ impl PhysicsWorld {
     pub fn particle_count(&self) -> usize {
         self.solver.particles.count
     }
+
+    #[wasm_bindgen]
+    pub fn set_shapes(
+        &mut self,
+        shape_a: u32,
+        shape_b: u32,
+        morph: f32,
+        shape_strength: f32,
+        speed_multiplier: f32,
+    ) {
+        self.solver.shape_params.shape_a = shape_a;
+        self.solver.shape_params.shape_b = shape_b;
+        self.solver.shape_params.morph = morph;
+        self.solver.config.shape_strength = shape_strength;
+        self.solver.shape_params.speed_multiplier = speed_multiplier;
+    }
+
+    #[wasm_bindgen]
+    pub fn set_shape_rotations(&mut self, rot_a: &[f32], rot_b: &[f32]) {
+        if let (Ok(a), Ok(b)) = (rot_a.try_into(), rot_b.try_into()) {
+            self.solver.shape_params.rot_a = glam::Mat3::from_cols_array(a);
+            self.solver.shape_params.rot_b = glam::Mat3::from_cols_array(b);
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn set_fractal_seeds(&mut self, seed_a: &[f32], seed_b: &[f32]) {
+        if let (Ok(a), Ok(b)) = (seed_a.try_into(), seed_b.try_into()) {
+            self.solver.shape_params.fractal_a = a;
+            self.solver.shape_params.fractal_b = b;
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn set_audio(&mut self, bass: f32, mid: f32, treble: f32, energy: f32) {
+        self.solver.shape_params.audio_bass = bass;
+        self.solver.shape_params.audio_mid = mid;
+        self.solver.shape_params.audio_treble = treble;
+        self.solver.shape_params.audio_energy = energy;
+    }
 }
 
 impl PhysicsWorld {

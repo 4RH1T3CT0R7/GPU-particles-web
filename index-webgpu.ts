@@ -547,6 +547,10 @@ import { initPhysicsEngine, stepPhysics, getGpuBufferView, type PhysicsEngine } 
 
   console.log('✓ Blit ping-pong bind groups created');
 
+  // Pre-allocated constant buffers for WASM physics (avoid per-frame GC)
+  const identityRot = new Float32Array([1,0,0, 0,1,0, 0,0,1]);
+  const defaultFractalSeed = new Float32Array([0.5, 0.0, 0.0, 0.0]);
+
   // Main render loop
   let lastTime = performance.now();
 
@@ -570,6 +574,18 @@ import { initPhysicsEngine, stepPhysics, getGpuBufferView, type PhysicsEngine } 
     const commandEncoder = device.createCommandEncoder({
       label: 'Frame Commands'
     });
+
+    // Pass shape parameters to WASM physics engine
+    physicsEngine.world.set_shapes(
+        0,    // shapeA
+        1,    // shapeB
+        Math.sin(time * 0.5) * 0.5 + 0.5, // morph (animated)
+        0.5,  // shapeStrength
+        1.0   // speedMultiplier
+    );
+    physicsEngine.world.set_shape_rotations(identityRot, identityRot);
+    physicsEngine.world.set_fractal_seeds(defaultFractalSeed, defaultFractalSeed);
+    physicsEngine.world.set_audio(0, 0, 0, 0);
 
     // 1. WASM physics step (replaces GPU simulation compute pass)
     stepPhysics(physicsEngine, deltaTime, time);
