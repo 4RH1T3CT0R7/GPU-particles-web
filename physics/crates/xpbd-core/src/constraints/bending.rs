@@ -154,35 +154,56 @@ pub fn solve_bending_constraints(
         if e_len < 1e-8 {
             continue;
         }
+        let e_len_sq = e_len * e_len;
 
+        // Unnormalized triangle normals (magnitude = 2 * triangle area).
         let n1 = (p3 - p1).cross(p3 - p2);
         let n2 = (p4 - p2).cross(p4 - p1);
-        let n1_len = n1.length();
-        let n2_len = n2.length();
-        if n1_len < 1e-8 || n2_len < 1e-8 {
+        let n1_len_sq = n1.length_squared();
+        let n2_len_sq = n2.length_squared();
+        if n1_len_sq < 1e-16 || n2_len_sq < 1e-16 {
             continue;
         }
-        let n1_hat = n1 / n1_len;
-        let n2_hat = n2 / n2_len;
+
+        // Analytical gradients of the dihedral angle with respect to each vertex.
+        //
+        // For opposite vertices (perpendicular to their respective triangle plane):
+        //   grad_k = -|e| * n1 / |n1|^2
+        //   grad_l = -|e| * n2 / |n2|^2
+        //
+        // For shared edge vertices (cotangent-weighted blend):
+        //   t_k = dot(p3 - p1, e) / |e|^2   (projection parameter of p3 onto edge)
+        //   t_l = dot(p4 - p1, e) / |e|^2   (projection parameter of p4 onto edge)
+        //   grad_i = -(1 - t_k) * grad_k - (1 - t_l) * grad_l
+        //   grad_j = -t_k * grad_k - t_l * grad_l
+        let grad_k = n1 * (-e_len / n1_len_sq);
+        let grad_l = n2 * (-e_len / n2_len_sq);
+
+        let t_k = (p3 - p1).dot(e) / e_len_sq;
+        let t_l = (p4 - p1).dot(e) / e_len_sq;
+        let grad_i = grad_k * (-(1.0 - t_k)) + grad_l * (-(1.0 - t_l));
+        let grad_j = grad_k * (-t_k) + grad_l * (-t_l);
+
+        // XPBD denominator: sum of w * |grad|^2.
+        let denom = w_k * grad_k.length_squared()
+            + w_l * grad_l.length_squared()
+            + w_i * grad_i.length_squared()
+            + w_j * grad_j.length_squared();
+
+        if denom < 1e-10 {
+            continue;
+        }
 
         // XPBD: compliance-scaled Lagrange multiplier update.
         let alpha_tilde = c.compliance / dt_sq;
-        let delta_lambda = -(angle_error + alpha_tilde * c.lambda) / (w_sum + alpha_tilde);
+        let delta_lambda = -(angle_error + alpha_tilde * c.lambda) / (denom + alpha_tilde);
         c.lambda += delta_lambda;
 
-        // Apply corrections: k moves along n1, l moves along -n2,
-        // i and j split the opposing corrections evenly.
-        let scale = delta_lambda / e_len;
-
-        let corr_k = n1_hat * scale * w_k;
-        let corr_l = -n2_hat * scale * w_l;
-        let corr_i = (-n1_hat * 0.5 + n2_hat * 0.5) * scale * w_i;
-        let corr_j = (-n1_hat * 0.5 + n2_hat * 0.5) * scale * w_j;
-
-        particles.corrections[kk] += corr_k;
-        particles.corrections[ll] += corr_l;
-        particles.corrections[ii] += corr_i;
-        particles.corrections[jj] += corr_j;
+        // Apply position corrections: delta_x = w * delta_lambda * grad.
+        particles.corrections[kk] += grad_k * (delta_lambda * w_k);
+        particles.corrections[ll] += grad_l * (delta_lambda * w_l);
+        particles.corrections[ii] += grad_i * (delta_lambda * w_i);
+        particles.corrections[jj] += grad_j * (delta_lambda * w_j);
         particles.correction_counts[kk] += 1;
         particles.correction_counts[ll] += 1;
         particles.correction_counts[ii] += 1;
