@@ -14,6 +14,7 @@ import {
   STRUCT_TEMPORAL_PARAMS,
   FN_HASH13,
   FN_NOISE3D,
+  FN_PCG,
 } from './snippets.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -569,25 +570,31 @@ fn calculateDirectLighting(hit: Hit, viewDir: vec3<f32>, albedo: vec3<f32>, roug
     return lighting;
 }
 
-// ── Sampling ─────────────────────────────────────────────────────────────────
+// ── PRNG & Sampling ──────────────────────────────────────────────────────────
 
+${FN_PCG}
+
+// hash13 retained for deterministic material lookup (not per-frame random)
 ${FN_HASH13}
 
-fn randomHemisphere(normal: vec3<f32>, seed: vec3<f32>) -> vec3<f32> {
-    let h1 = hash13(seed);
-    let h2 = hash13(seed + vec3<f32>(12.9898, 78.233, 37.719));
+fn tangentFrame(normal: vec3<f32>) -> mat3x3<f32> {
+    let up = select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 1.0, 0.0), abs(normal.y) < 0.999);
+    let tangent = normalize(cross(up, normal));
+    let bitangent = cross(normal, tangent);
+    return mat3x3<f32>(tangent, bitangent, normal);
+}
+
+fn randomHemisphere(normal: vec3<f32>, rng: ptr<function, u32>) -> vec3<f32> {
+    let h1 = pcgFloat(rng);
+    let h2 = pcgFloat(rng);
 
     let phi = 2.0 * 3.14159 * h1;
     let cosTheta = sqrt(h2);
     let sinTheta = sqrt(1.0 - cosTheta * cosTheta);
 
     let localDir = vec3<f32>(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
-
-    let up = select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 1.0, 0.0), abs(normal.y) < 0.999);
-    let tangent = normalize(cross(up, normal));
-    let bitangent = cross(normal, tangent);
-
-    return normalize(tangent * localDir.x + bitangent * localDir.y + normal * localDir.z);
+    let frame = tangentFrame(normal);
+    return normalize(frame * localDir);
 }
 
 // ── Material ─────────────────────────────────────────────────────────────────
@@ -617,9 +624,9 @@ fn getMaterial(particleIdx: u32) -> Material {
     return mat;
 }
 
-fn importanceSampleGGX(normal: vec3<f32>, roughness: f32, seed: vec3<f32>) -> vec3<f32> {
-    let h1 = hash13(seed);
-    let h2 = hash13(seed + vec3<f32>(41.234, 71.543, 23.876));
+fn importanceSampleGGX(normal: vec3<f32>, roughness: f32, rng: ptr<function, u32>) -> vec3<f32> {
+    let h1 = pcgFloat(rng);
+    let h2 = pcgFloat(rng);
 
     let a = roughness * roughness;
     let phi = 2.0 * 3.14159 * h1;
@@ -627,12 +634,8 @@ fn importanceSampleGGX(normal: vec3<f32>, roughness: f32, seed: vec3<f32>) -> ve
     let sinTheta = sqrt(1.0 - cosTheta * cosTheta);
 
     let localDir = vec3<f32>(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
-
-    let up = select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 1.0, 0.0), abs(normal.y) < 0.999);
-    let tangent = normalize(cross(up, normal));
-    let bitangent = cross(normal, tangent);
-
-    return normalize(tangent * localDir.x + bitangent * localDir.y + normal * localDir.z);
+    let frame = tangentFrame(normal);
+    return normalize(frame * localDir);
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
@@ -644,9 +647,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     if (pixelCoord.x >= texSize.x || pixelCoord.y >= texSize.y) { return; }
 
-    let pixelSeed = vec3<f32>(f32(pixelCoord.x), f32(pixelCoord.y), params.time * 100.0 + f32(params.frameCount));
-    let jitterX = hash13(pixelSeed) - 0.5;
-    let jitterY = hash13(pixelSeed + vec3<f32>(57.13, 91.71, 0.0)) - 0.5;
+    // Per-pixel PCG state seeded from coordinates + frame
+    var rng = pcgSeed(pixelCoord, params.frameCount);
+
+    let jitterX = pcgFloat(&rng) - 0.5;
+    let jitterY = pcgFloat(&rng) - 0.5;
     let uv = (vec2<f32>(pixelCoord) + 0.5 + vec2<f32>(jitterX, jitterY)) / vec2<f32>(texSize);
     let ndc = uv * 2.0 - 1.0;
     let aspect = f32(texSize.x) / f32(texSize.y);
@@ -673,19 +678,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         color += material.albedo * material.emissive;
         color += calculateDirectLighting(hit, viewDir, material.albedo, material.roughness, material.metallic);
 
-        let seed = vec3<f32>(f32(pixelCoord.x), f32(pixelCoord.y), params.time);
-
-        let useDiffuse = hash13(seed + vec3<f32>(99.9, 0.0, 0.0)) > material.metallic;
+        let useDiffuse = pcgFloat(&rng) > material.metallic;
         var bounceDir: vec3<f32>;
 
         if (useDiffuse) {
-            bounceDir = randomHemisphere(hit.normal, seed);
+            bounceDir = randomHemisphere(hit.normal, &rng);
         } else {
-            let halfVector = importanceSampleGGX(hit.normal, material.roughness, seed);
+            let halfVector = importanceSampleGGX(hit.normal, material.roughness, &rng);
             bounceDir = reflect(rayDir, halfVector);
 
             if (dot(bounceDir, hit.normal) < 0.0) {
-                bounceDir = randomHemisphere(hit.normal, seed);
+                bounceDir = randomHemisphere(hit.normal, &rng);
             }
         }
 

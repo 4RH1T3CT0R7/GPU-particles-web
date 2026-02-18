@@ -99,6 +99,22 @@ struct TemporalParams {
 
 // ─── Functions ────────────────────────────────────────────────────────────────
 
+export const FN_PCG = /* wgsl */`
+fn pcg(state: ptr<function, u32>) -> u32 {
+    let s = *state;
+    *state = s * 747796405u + 2891336453u;
+    let word = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+    return (word >> 22u) ^ word;
+}
+
+fn pcgFloat(state: ptr<function, u32>) -> f32 {
+    return f32(pcg(state)) / 4294967295.0;
+}
+
+fn pcgSeed(pixel: vec2<u32>, frame: u32) -> u32 {
+    return pixel.x * 1973u + pixel.y * 9277u + frame * 26699u + 1u;
+}`;
+
 export const FN_HASH13 = /* wgsl */`
 fn hash13(p: vec3<f32>) -> f32 {
     var p3 = fract(p * 0.1031);
