@@ -21,6 +21,10 @@ pub struct PhysicsConfig {
     pub smoothing_radius: f32,
     /// Enable Macklin tensile instability correction.
     pub tensile_correction: bool,
+    /// Compliance for cloth distance constraints (lower = stiffer).
+    pub cloth_stiffness: f32,
+    /// Compliance for cloth bending constraints (lower = stiffer).
+    pub cloth_bending: f32,
 }
 
 impl Default for PhysicsConfig {
@@ -39,6 +43,8 @@ impl Default for PhysicsConfig {
             fluid_vorticity: 0.1,
             smoothing_radius: 0.1,
             tensile_correction: true,
+            cloth_stiffness: 0.001,
+            cloth_bending: 0.01,
         }
     }
 }

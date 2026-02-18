@@ -1,5 +1,7 @@
 use crate::config::PhysicsConfig;
+use crate::constraints::bending::{self, BendingConstraint};
 use crate::constraints::contact::{detect_contacts, solve_contacts, ContactConstraint};
+use crate::constraints::distance::{self, DistanceConstraint};
 use crate::forces::pointer::{compute_pointer_force, PointerParams};
 use crate::grid::SpatialHashGrid;
 use crate::math::{curl, ease_in_out_cubic, hash12, noise, smoothstep};
@@ -47,6 +49,8 @@ pub struct Solver {
     pub config: PhysicsConfig,
     pub shape_params: ShapeParams,
     pub pointer_params: PointerParams,
+    pub distance_constraints: Vec<DistanceConstraint>,
+    pub bending_constraints: Vec<BendingConstraint>,
     grid: SpatialHashGrid,
     contacts: Vec<ContactConstraint>,
 }
@@ -77,6 +81,8 @@ impl Solver {
             config: PhysicsConfig::default(),
             shape_params: ShapeParams::default(),
             pointer_params: PointerParams::default(),
+            distance_constraints: Vec::new(),
+            bending_constraints: Vec::new(),
             grid: SpatialHashGrid::new(0.2, 131072, particle_count),
             contacts: Vec::new(),
         }
@@ -121,6 +127,10 @@ impl Solver {
                         self.particles.position[i] + self.particles.velocity[i] * sub_dt;
                 }
 
+                // Reset XPBD Lagrange multipliers for this substep
+                distance::reset_lambdas(&mut self.distance_constraints);
+                bending::reset_lambdas(&mut self.bending_constraints);
+
                 // STEP 3: Build grid and solve constraints
                 self.grid.build(&self.particles.predicted, count);
 
@@ -154,6 +164,24 @@ impl Solver {
                             self.config.fluid_rest_density,
                             self.config.smoothing_radius,
                             self.config.tensile_correction,
+                        );
+                    }
+
+                    // Distance constraints (cloth)
+                    if !self.distance_constraints.is_empty() {
+                        distance::solve_distance_constraints(
+                            &mut self.distance_constraints,
+                            &mut self.particles,
+                            sub_dt,
+                        );
+                    }
+
+                    // Bending constraints (cloth)
+                    if !self.bending_constraints.is_empty() {
+                        bending::solve_bending_constraints(
+                            &mut self.bending_constraints,
+                            &mut self.particles,
+                            sub_dt,
                         );
                     }
 
@@ -523,6 +551,136 @@ impl Solver {
                 self.particles.corrections[i] += correction;
                 self.particles.correction_counts[i] += 1;
             }
+        }
+    }
+
+    /// Create a cloth patch from particles [start_idx .. start_idx + width*height].
+    ///
+    /// Sets particles to Phase::Cloth and creates distance constraints between
+    /// grid neighbors (horizontal, vertical, diagonal) and bending constraints
+    /// between opposite vertices of quads.
+    ///
+    /// `spacing` is the rest distance between adjacent particles.
+    /// `stiffness` is the distance constraint compliance (lower = stiffer).
+    /// `bending_stiffness` is the bending constraint compliance.
+    pub fn create_cloth(
+        &mut self,
+        start_idx: usize,
+        width: usize,
+        height: usize,
+        spacing: f32,
+        stiffness: f32,
+        bending_stiffness: f32,
+    ) {
+        let total = width * height;
+        if start_idx + total > self.particles.count {
+            return;
+        }
+
+        // Position particles in a grid and set phase
+        for row in 0..height {
+            for col in 0..width {
+                let idx = start_idx + row * width + col;
+                self.particles.position[idx] = Vec3::new(
+                    (col as f32 - width as f32 / 2.0) * spacing,
+                    2.0, // start elevated
+                    (row as f32 - height as f32 / 2.0) * spacing,
+                );
+                self.particles.velocity[idx] = Vec3::ZERO;
+                self.particles.phase[idx] = Phase::Cloth;
+            }
+        }
+
+        // Helper to get particle index from grid coordinates
+        let idx = |row: usize, col: usize| -> u32 {
+            (start_idx + row * width + col) as u32
+        };
+
+        // Distance constraints: horizontal edges
+        for row in 0..height {
+            for col in 0..width - 1 {
+                self.distance_constraints.push(DistanceConstraint::new(
+                    idx(row, col),
+                    idx(row, col + 1),
+                    spacing,
+                    stiffness,
+                ));
+            }
+        }
+
+        // Distance constraints: vertical edges
+        for row in 0..height - 1 {
+            for col in 0..width {
+                self.distance_constraints.push(DistanceConstraint::new(
+                    idx(row, col),
+                    idx(row + 1, col),
+                    spacing,
+                    stiffness,
+                ));
+            }
+        }
+
+        // Distance constraints: diagonal edges (shear)
+        let diag_len = spacing * std::f32::consts::SQRT_2;
+        for row in 0..height - 1 {
+            for col in 0..width - 1 {
+                // Top-left to bottom-right
+                self.distance_constraints.push(DistanceConstraint::new(
+                    idx(row, col),
+                    idx(row + 1, col + 1),
+                    diag_len,
+                    stiffness,
+                ));
+                // Top-right to bottom-left
+                self.distance_constraints.push(DistanceConstraint::new(
+                    idx(row, col + 1),
+                    idx(row + 1, col),
+                    diag_len,
+                    stiffness,
+                ));
+            }
+        }
+
+        // Bending constraints: for each interior quad, connect opposite vertices
+        // Horizontal bending
+        for row in 0..height {
+            for col in 0..width.saturating_sub(2) {
+                if row > 0 {
+                    self.bending_constraints.push(BendingConstraint::new(
+                        idx(row, col),
+                        idx(row, col + 2),
+                        idx(row - 1, col + 1),
+                        idx(row, col + 1),
+                        0.0,
+                        bending_stiffness,
+                    ));
+                }
+            }
+        }
+
+        // Vertical bending
+        for row in 0..height.saturating_sub(2) {
+            for col in 0..width {
+                if col > 0 {
+                    self.bending_constraints.push(BendingConstraint::new(
+                        idx(row, col),
+                        idx(row + 2, col),
+                        idx(row + 1, col - 1),
+                        idx(row + 1, col),
+                        0.0,
+                        bending_stiffness,
+                    ));
+                }
+            }
+        }
+    }
+
+    /// Clear all constraints and reset particles to Phase::Free.
+    pub fn clear_constraints(&mut self) {
+        self.distance_constraints.clear();
+        self.bending_constraints.clear();
+        for i in 0..self.particles.count {
+            self.particles.phase[i] = Phase::Free;
         }
     }
 

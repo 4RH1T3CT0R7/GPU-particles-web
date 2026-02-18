@@ -6,6 +6,7 @@ use xpbd_core::constraints::distance::{
     reset_lambdas, solve_distance_constraints, DistanceConstraint,
 };
 use xpbd_core::particle::{ParticleSet, Phase};
+use xpbd_core::solver::Solver;
 
 /// Helper: apply accumulated Jacobi corrections to predicted positions and reset buffers.
 fn apply_corrections(particles: &mut ParticleSet) {
@@ -239,4 +240,57 @@ fn dihedral_angle_test(p1: Vec3, p2: Vec3, p3: Vec3, p4: Vec3) -> f32 {
     let sin_angle = n1.cross(n2).dot(e_norm);
 
     sin_angle.atan2(cos_angle)
+}
+
+// ---------------------------------------------------------------------------
+// Solver-level cloth creation tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_create_cloth_generates_constraints() {
+    let mut solver = Solver::new(100);
+    solver.create_cloth(0, 5, 5, 0.1, 0.001, 0.01);
+
+    // 5x5 grid should produce:
+    // Horizontal: 5 rows * 4 = 20
+    // Vertical: 4 rows * 5 = 20
+    // Diagonal: 4 * 4 * 2 = 32
+    // Total distance = 72
+    assert_eq!(solver.distance_constraints.len(), 72);
+    assert!(solver.bending_constraints.len() > 0);
+
+    // All cloth particles should be Phase::Cloth
+    for i in 0..25 {
+        assert_eq!(solver.particles.phase[i], Phase::Cloth);
+    }
+}
+
+#[test]
+fn test_cloth_drapes_under_gravity() {
+    let mut solver = Solver::new(25);
+    solver.config.collisions_enabled = true;
+    solver.config.substeps = 2;
+    solver.config.solver_iterations = 3;
+    solver.config.shape_strength = 0.0; // no shape attraction
+    solver.create_cloth(0, 5, 5, 0.1, 0.001, 0.01);
+
+    // Pin top-left and top-right corners
+    solver.particles.phase[0] = Phase::Static;
+    solver.particles.phase[4] = Phase::Static;
+
+    let initial_y = solver.particles.position[12].y; // center particle
+
+    // Step several times
+    for t in 0..20 {
+        solver.step(0.016, t as f32 * 0.016);
+    }
+
+    // Center should have dropped due to gravity
+    let final_y = solver.particles.position[12].y;
+    assert!(
+        final_y < initial_y,
+        "Cloth should drape: initial_y={}, final_y={}",
+        initial_y,
+        final_y
+    );
 }

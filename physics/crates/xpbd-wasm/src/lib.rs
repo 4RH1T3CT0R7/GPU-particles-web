@@ -139,6 +139,32 @@ impl PhysicsWorld {
     }
 
     #[wasm_bindgen]
+    pub fn create_cloth(
+        &mut self,
+        start_idx: u32,
+        width: u32,
+        height: u32,
+        spacing: f32,
+        stiffness: f32,
+        bending_stiffness: f32,
+    ) {
+        self.solver.create_cloth(
+            start_idx as usize,
+            width as usize,
+            height as usize,
+            spacing,
+            stiffness,
+            bending_stiffness,
+        );
+        self.write_gpu_output();
+    }
+
+    #[wasm_bindgen]
+    pub fn clear_constraints(&mut self) {
+        self.solver.clear_constraints();
+    }
+
+    #[wasm_bindgen]
     pub fn reinitialize(&mut self, seed: u32) {
         self.solver.reinitialize(seed);
         self.write_gpu_output();
