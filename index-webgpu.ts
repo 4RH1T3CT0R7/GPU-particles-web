@@ -599,6 +599,9 @@ import { initPhysicsEngine, stepPhysics, getGpuBufferView, type PhysicsEngine } 
         0, 0, -1 // view direction (camera forward)
     );
 
+    // Solver config (collisions disabled by default)
+    physicsEngine.world.set_solver_config(1, 3, false);
+
     // 1. WASM physics step (replaces GPU simulation compute pass)
     stepPhysics(physicsEngine, deltaTime, time);
 

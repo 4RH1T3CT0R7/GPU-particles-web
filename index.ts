@@ -476,6 +476,9 @@ import { lights, animateLights } from './src/app/lights.ts';
       audioState.energy
     );
 
+    // Solver config (collisions disabled by default)
+    physicsEngine.world.set_solver_config(1, 3, false);
+
     // Step physics
     stepPhysics(physicsEngine, dt, t);
 

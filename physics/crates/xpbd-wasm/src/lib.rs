@@ -127,6 +127,18 @@ impl PhysicsWorld {
     }
 
     #[wasm_bindgen]
+    pub fn set_solver_config(
+        &mut self,
+        substeps: u32,
+        solver_iterations: u32,
+        collisions_enabled: bool,
+    ) {
+        self.solver.config.substeps = substeps;
+        self.solver.config.solver_iterations = solver_iterations;
+        self.solver.config.collisions_enabled = collisions_enabled;
+    }
+
+    #[wasm_bindgen]
     pub fn reinitialize(&mut self, seed: u32) {
         self.solver.reinitialize(seed);
         self.write_gpu_output();
