@@ -4,10 +4,15 @@
   "description": "GPU particle system with WebGL2 and WebGPU ray tracing",
   "private": true,
   "scripts": {
-    "build": "esbuild index.ts --bundle --outfile=dist/index.js --format=esm --sourcemap && esbuild index-webgpu.ts --bundle --outfile=dist/index-webgpu.js --format=esm --sourcemap",
-    "build:watch": "npm run build -- --watch",
+    "build:wasm": "cd physics && wasm-pack build crates/xpbd-wasm --target web --out-dir ../../../wasm/pkg",
+    "build:wasm:debug": "cd physics && wasm-pack build crates/xpbd-wasm --target web --dev --out-dir ../../../wasm/pkg",
+    "build:ts": "esbuild index.ts --bundle --outfile=dist/index.js --format=esm --sourcemap && esbuild index-webgpu.ts --bundle --outfile=dist/index-webgpu.js --format=esm --sourcemap",
+    "build": "npm run build:wasm && npm run build:ts",
+    "build:watch": "npm run build:ts -- --watch",
     "typecheck": "tsc --noEmit",
-    "dev": "npm run build && python3 -m http.server 8080"
+    "dev": "npm run build && node serve.mjs",
+    "test:rust": "cd physics && cargo test",
+    "bench:rust": "cd physics && cargo bench"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.69",

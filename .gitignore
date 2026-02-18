@@ -3,3 +3,5 @@ CLAUDE.MD
 .claude
 node_modules
 dist
+wasm/pkg/
+physics/target/
