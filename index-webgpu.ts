@@ -8,6 +8,7 @@ import { initializePipelines } from './src/gpu/pipelines.ts';
 import { DPR } from './src/config/constants.ts';
 import { MAX_DELTA_TIME } from './src/config/physics.ts';
 import { lights, animateLightsGPU } from './src/app/lights.ts';
+import { initPhysicsEngine, stepPhysics, getGpuBufferView, type PhysicsEngine } from './src/physics/wasm-loader.ts';
 
 (async function() {
   console.log('🚀 Starting WebGPU GPU Particles with Ray Tracing...');
@@ -48,6 +49,10 @@ import { lights, animateLightsGPU } from './src/app/lights.ts';
   console.log('📦 Initializing pipelines...');
   const pipelines = initializePipelines(device, config);
 
+  // Initialize WASM physics engine
+  console.log('Loading WASM physics...');
+  const physicsEngine = await initPhysicsEngine(config.particleCount);
+
   // State
   let currentBufferIndex = 0;
   let frameCount = 0;
@@ -70,39 +75,20 @@ import { lights, animateLightsGPU } from './src/app/lights.ts';
   initializeParticles();
 
   function initializeParticles() {
-    const particleData = new Float32Array(config.particleCount * 8); // 8 floats per particle
-
-    for (let i = 0; i < config.particleCount; i++) {
-      const idx = i * 8;
-      const angle = (i / config.particleCount) * Math.PI * 2;
-      const radius = 2 + Math.random() * 2;
-      const height = (Math.random() - 0.5) * 4;
-
-      // Position
-      particleData[idx + 0] = Math.cos(angle) * radius;
-      particleData[idx + 1] = height;
-      particleData[idx + 2] = Math.sin(angle) * radius;
-      particleData[idx + 3] = 0.05 + Math.random() * 0.05; // radius
-
-      // Velocity
-      particleData[idx + 4] = (Math.random() - 0.5) * 0.1;
-      particleData[idx + 5] = (Math.random() - 0.5) * 0.1;
-      particleData[idx + 6] = (Math.random() - 0.5) * 0.1;
-      particleData[idx + 7] = 0.0; // padding
-    }
-
+    // WASM physics engine already has initial particle positions (spiral ring)
+    // Upload WASM output to both GPU particle buffers
+    const initialData = getGpuBufferView(physicsEngine);
     device.queue.writeBuffer(
       pipelines.simulation.buffers.particleA,
       0,
-      particleData.buffer
+      initialData
     );
     device.queue.writeBuffer(
       pipelines.simulation.buffers.particleB,
       0,
-      particleData.buffer
+      initialData
     );
-
-    console.log('✓ Particles initialized');
+    console.log('Particles initialized from WASM');
   }
 
   // Pre-allocated buffers for params (avoid GC pressure)
@@ -585,17 +571,20 @@ import { lights, animateLightsGPU } from './src/app/lights.ts';
       label: 'Frame Commands'
     });
 
-    // 1. Run particle simulation
-    const simPass = commandEncoder.beginComputePass({
-      label: 'Particle Simulation'
-    });
-    simPass.setPipeline(pipelines.simulation.pipeline);
-    simPass.setBindGroup(0, pipelines.simulation.bindGroups[currentBufferIndex]);
-    simPass.dispatchWorkgroups(pipelines.simulation.workgroupCount);
-    simPass.end();
+    // 1. WASM physics step (replaces GPU simulation compute pass)
+    stepPhysics(physicsEngine, deltaTime, time);
 
-    // Swap buffers
-    currentBufferIndex = 1 - currentBufferIndex;
+    // Upload WASM particle data to GPU buffer
+    // Always write to particleA — no ping-pong needed since WASM handles state internally
+    const wasmParticleData = getGpuBufferView(physicsEngine);
+    device.queue.writeBuffer(
+      pipelines.simulation.buffers.particleA,
+      0,
+      wasmParticleData
+    );
+
+    // Use buffer index 0 consistently (particleA) for all downstream passes
+    currentBufferIndex = 0;
 
     // 2. Build LBVH (Morton codes + bitonic sort + Karras tree)
     const bvhWG = pipelines.bvh.workgroupCount;
