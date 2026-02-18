@@ -234,12 +234,12 @@ import { lights, animateLightsGPU } from './src/app/lights.ts';
     const dz = camera.position[2] - prevCameraPos[2];
     const cameraMoved = (dx * dx + dy * dy + dz * dz) > 0.0001;
 
+    const shouldReset = cameraMoved || temporalNeedsReset || frameCount === 0;
+
     if (cameraMoved || temporalNeedsReset) {
       temporalNeedsReset = false;
       prevCameraPos.set(camera.position);
     }
-
-    const shouldReset = cameraMoved || frameCount === 0;
 
     // TemporalParams struct layout (matching temporal-accumulation.wgsl):
     // offset 0: alpha: f32
@@ -398,16 +398,8 @@ import { lights, animateLightsGPU } from './src/app/lights.ts';
     try {
       console.log('🔧 Setting up ray tracing pipeline...');
 
-      // Load and compile ray tracing shader (with cache busting)
-      const response = await fetch('./src/shaders-wgsl/ray-trace.wgsl?t=' + Date.now());
-      const shaderCode = await response.text();
-
-      console.log('🔍 Compiling ray tracing shader...');
-      const shaderModule = device.createShaderModule({
-        label: 'Ray Tracing Compute',
-        code: shaderCode
-      });
-      console.log('✓ Ray tracing shader compiled');
+      // Use pre-compiled shader module from initializePipelines
+      const shaderModule = pipelines.rayTracing.shaderModule;
 
     // Create bind group layout
     const bindGroupLayout = device.createBindGroupLayout({

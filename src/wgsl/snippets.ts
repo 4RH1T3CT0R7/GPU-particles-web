@@ -112,7 +112,11 @@ fn pcgFloat(state: ptr<function, u32>) -> f32 {
 }
 
 fn pcgSeed(pixel: vec2<u32>, frame: u32) -> u32 {
-    return pixel.x * 1973u + pixel.y * 9277u + frame * 26699u + 1u;
+    var s = (pixel.x * 1973u + pixel.y * 9277u + frame * 26699u) | 1u;
+    // Extra scramble pass to break linear correlation
+    s = s * 747796405u + 2891336453u;
+    let word = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+    return (word >> 22u) ^ word;
 }`;
 
 export const FN_HASH13 = /* wgsl */`

@@ -47,16 +47,18 @@ void main(){
   float vig = smoothstep(1.3, 0.4, length(p));
   col *= vig;
 
-  // Gamma
-  col = pow(col, vec3(1.0 / 2.2));
-
-  // Background + grain
+  // Background gradient (added before gamma so it gets correct sRGB encoding)
   vec3 gradient = mix(vec3(0.02, 0.03, 0.07), vec3(0.05, 0.07, 0.12), uv.y);
   float radial = 1.0 - length(uv - 0.5) * 1.2;
   gradient += max(0.0, radial) * vec3(0.03, 0.02, 0.05);
+  col += gradient * 0.6;
 
+  // Gamma
+  col = pow(col, vec3(1.0 / 2.2));
+
+  // Grain (applied in sRGB space for perceptual uniformity)
   float grain = hash(uv * u_time) * 0.01 - 0.005;
-  col += gradient * 0.6 + grain;
+  col += grain;
 
   o_col = vec4(col, 1.0);
 }

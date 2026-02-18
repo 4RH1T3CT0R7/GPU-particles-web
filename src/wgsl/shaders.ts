@@ -699,15 +699,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
         if (bounceHit.hit) {
             let bounceMaterial = getMaterial(bounceHit.particleIdx);
-            let NdotL = max(dot(hit.normal, bounceDir), 0.0);
-            let brdf = material.albedo / 3.14159;
-            let indirectLight = brdf * NdotL * 2.0;
+            // Cosine-weighted sampling: PDF = cos(theta)/pi, BRDF = albedo/pi
+            // Estimator = (BRDF * Li * cos(theta)) / PDF = albedo * Li
             let bounceEmissive = bounceMaterial.albedo * bounceMaterial.emissive;
-            color += (indirectLight * bounceMaterial.albedo + bounceEmissive) * 0.4;
+            let bounceDirect = calculateDirectLighting(bounceHit, -bounceDir, bounceMaterial.albedo, bounceMaterial.roughness, bounceMaterial.metallic);
+            color += material.albedo * (bounceDirect + bounceEmissive) * 0.4;
         } else {
-            let NdotL = max(dot(hit.normal, bounceDir), 0.0);
+            // Sky contribution: estimator = albedo * skyColor (PDF already cancelled)
             let skyColor = mix(vec3<f32>(0.03, 0.04, 0.08), vec3<f32>(0.06, 0.08, 0.15), bounceDir.y * 0.5 + 0.5);
-            color += material.albedo * skyColor * NdotL * 0.3;
+            color += material.albedo * skyColor * 0.3;
         }
     } else {
         let t = 0.5 * (rayDir.y + 1.0);

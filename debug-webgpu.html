@@ -345,67 +345,9 @@
                     addLog('❌ Test shader failed: ' + err.message, 'error');
                 }
 
-                // Test shader loading from files
-                addSection('📂 Testing Shader File Loading');
-
-                const shaderFiles = [
-                    './src/shaders-wgsl/particle-sim.wgsl',
-                    './src/shaders-wgsl/bvh-simple.wgsl',
-                    './src/shaders-wgsl/ray-trace.wgsl',
-                    './src/shaders-wgsl/temporal-accumulation.wgsl',
-                    './src/shaders-wgsl/blit.wgsl'
-                ];
-
-                for (const file of shaderFiles) {
-                    try {
-                        addLog(`Loading ${file}...`, 'info');
-                        // Add cache-busting parameter to force fresh download
-                        const response = await fetch(file + '?t=' + Date.now());
-
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                        }
-
-                        const shaderCode = await response.text();
-
-                        // Check if it's actually WGSL (not HTML error page)
-                        if (shaderCode.includes('<!DOCTYPE') || shaderCode.includes('<html')) {
-                            throw new Error('Received HTML instead of WGSL shader code (404 error page)');
-                        }
-
-                        addLog(`  ✓ Fetched (${shaderCode.length} chars)`, 'success');
-
-                        // Try to compile it
-                        try {
-                            const shaderModule = device.createShaderModule({
-                                label: file.split('/').pop(),
-                                code: shaderCode
-                            });
-
-                            // Wait for compilation
-                            const compilationInfo = await shaderModule.getCompilationInfo();
-
-                            let hasErrors = false;
-                            for (const message of compilationInfo.messages) {
-                                if (message.type === 'error') {
-                                    hasErrors = true;
-                                    addLog(`  ❌ Line ${message.lineNum}: ${message.message}`, 'error');
-                                } else if (message.type === 'warning') {
-                                    addLog(`  ⚠ Line ${message.lineNum}: ${message.message}`, 'warning');
-                                }
-                            }
-
-                            if (!hasErrors) {
-                                addLog(`  ✓ Compiled successfully`, 'success');
-                            }
-                        } catch (compileErr) {
-                            addLog(`  ❌ Compilation error: ${compileErr.message}`, 'error');
-                        }
-
-                    } catch (err) {
-                        addLog(`  ❌ Failed: ${err.message}`, 'error');
-                    }
-                }
+                // Note: WGSL shaders are now bundled inline via TypeScript (src/wgsl/shaders.ts)
+                // The .wgsl files no longer exist — shaders are compiled at pipeline init time
+                addLog('ℹ WGSL shaders are bundled inline (no separate .wgsl files)', 'info');
 
                 // Test context configuration
                 addSection('🖼️ Testing Canvas Context');

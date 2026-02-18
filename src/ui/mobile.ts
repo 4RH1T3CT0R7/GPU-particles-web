@@ -43,14 +43,14 @@ export function initMobileMenu(): MobileMenuControls | undefined {
 
   menuOverlay.addEventListener('click', closeMenu);
 
-  if (window.innerWidth <= 768) {
-    const actionButtons: NodeListOf<Element> = document.querySelectorAll('.shape-buttons button, #resetFlow, #scatterFlow');
-    actionButtons.forEach((btn: Element) => {
-      btn.addEventListener('click', () => {
-        setTimeout(closeMenu, 300);
-      });
-    });
-  }
+  // Use event delegation so dynamically-created buttons (e.g. shape buttons) are captured
+  controls.addEventListener('click', (e: MouseEvent) => {
+    if (window.innerWidth > 768) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('.shape-buttons button, #resetFlow, #scatterFlow, .mode-buttons button')) {
+      setTimeout(closeMenu, 300);
+    }
+  });
 
   let resizeTimeout: ReturnType<typeof setTimeout>;
   window.addEventListener('resize', () => {

@@ -28,7 +28,7 @@ export function initParticleControls(ctx: UIControlsContext): ParticleControlsRe
   if (speedControl) {
     speedControl.addEventListener('change', (e: Event) => {
       const value: string = (e.target as HTMLSelectElement).value;
-      shapeState.controlMode = value === 'manual' ? 'manual' : 'preset';
+      shapeState.controlMode = value === 'manual' ? 'custom' : 'preset';
 
       if (value === 'slow') shapeState.transitionSpeed = 20;
       else if (value === 'normal') shapeState.transitionSpeed = 15;

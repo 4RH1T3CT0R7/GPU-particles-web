@@ -264,8 +264,10 @@ void main(){
       vec3 dipole = (3.0 * r * dot(axis, r) / r5) - (axis / max(1e-3, r3));
       dipole = clamp(dipole, -vec3(20.0), vec3(20.0));
 
-      // Field lines rotate around axis
-      vec3 swirlDir = normalize(cross(dipole, axis) + 0.5 * cross(dirP, axis));
+      // Field lines rotate around axis (guard against zero cross product → NaN)
+      vec3 swirlRaw = cross(dipole, axis) + 0.5 * cross(dirP, axis);
+      float swirlLen = length(swirlRaw);
+      vec3 swirlDir = swirlLen > 0.001 ? swirlRaw / swirlLen : vec3(dirP.y, -dirP.x, 0.0);
 
       // Stronger falloff for closer particles
       float fluxFalloff = 1.0 / (1.0 + pow(rLen / (radius * 1.5), 1.5));

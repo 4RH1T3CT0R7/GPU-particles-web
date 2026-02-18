@@ -39,6 +39,7 @@ export function createAudioAnalyzer(): AudioAnalyzer {
   let audioEnabled: boolean = false;
   let audioReactivityEnabled: boolean = false;
   let mediaElementSource: MediaElementAudioSourceNode | null = null; // Cache to prevent InvalidStateError on re-connect
+  let currentMediaStream: MediaStream | null = null; // Track for cleanup
 
   const audioSensitivity: AudioSensitivity = {
     bass: 1.0,
@@ -70,6 +71,11 @@ export function createAudioAnalyzer(): AudioAnalyzer {
     if (audioSource) {
       audioSource.disconnect();
     }
+    // Stop previous microphone tracks to release hardware
+    if (currentMediaStream) {
+      currentMediaStream.getTracks().forEach(t => t.stop());
+    }
+    currentMediaStream = stream;
 
     audioAnalyser = audioContext.createAnalyser();
     audioAnalyser.fftSize = 512;
@@ -86,6 +92,9 @@ export function createAudioAnalyzer(): AudioAnalyzer {
   const initAudioFromFile = (audioElement: HTMLAudioElement): void => {
     if (!audioContext) {
       audioContext = new AudioContext();
+    }
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
     }
 
     if (audioSource) {

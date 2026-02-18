@@ -168,11 +168,12 @@ import { lights, animateLights } from './src/app/lights.ts';
     gl.viewport(0, 0, simState.texSize, simState.texSize);
     gl.useProgram(progInit);
 
-    // Initialize both FBOs to ensure consistent state
+    // Initialize both FBOs with same seed to ensure consistent state (avoids 1-frame flash)
+    const seed = Math.random() * 1000;
     for (let i = 0; i < 2; i++) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, simState.simFBO[i]);
       gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
-      gl.uniform1f(gl.getUniformLocation(progInit, 'u_seed'), Math.random() * 1000);
+      gl.uniform1f(gl.getUniformLocation(progInit, 'u_seed'), seed);
       gl.uniform1f(gl.getUniformLocation(progInit, 'u_pattern'), pattern);
       drawQuad(gl, quadVAO);
     }
@@ -365,6 +366,36 @@ import { lights, animateLights } from './src/app/lights.ts';
   });
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // Touch events for mobile pointer interaction
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      mouse.x = (touch.clientX - rect.left) / rect.width;
+      mouse.y = (touch.clientY - rect.top) / rect.height;
+      mouse.leftDown = true;
+      computePointerWorld();
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1) {
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      mouse.x = (touch.clientX - rect.left) / rect.width;
+      mouse.y = (touch.clientY - rect.top) / rect.height;
+      computePointerWorld();
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', () => {
+    mouse.leftDown = false;
+  });
+
+  canvas.addEventListener('touchcancel', () => {
+    mouse.leftDown = false;
+  });
 
   // Zoom with mouse wheel
   window.addEventListener('wheel', (e) => {

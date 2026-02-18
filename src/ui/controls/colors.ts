@@ -42,8 +42,8 @@ export function initColorControls(ctx: UIControlsContext): void {
       colorManager.rebuildColorStops(palette);
 
       if (palettePreview) {
-        const gradA: string = `rgb(${palette.a.map((v: number) => Math.round(v * 80)).join(',')})`;
-        const gradB: string = `rgb(${palette.b.map((v: number) => Math.round(v * 80)).join(',')})`;
+        const gradA: string = `rgb(${palette.a.map((v: number) => Math.round(v * 255)).join(',')})`;
+        const gradB: string = `rgb(${palette.b.map((v: number) => Math.round(v * 255)).join(',')})`;
         palettePreview.style.setProperty('--preview-gradient', `linear-gradient(90deg, ${gradA}, ${gradB})`);
       }
       if (paletteLabel) {
@@ -58,8 +58,8 @@ export function initColorControls(ctx: UIControlsContext): void {
   }
   if (palettePreview) {
     const palette = colorPalettes[0];
-    const gradA: string = `rgb(${palette.a.map((v: number) => Math.round(v * 80)).join(',')})`;
-    const gradB: string = `rgb(${palette.b.map((v: number) => Math.round(v * 80)).join(',')})`;
+    const gradA: string = `rgb(${palette.a.map((v: number) => Math.round(v * 255)).join(',')})`;
+    const gradB: string = `rgb(${palette.b.map((v: number) => Math.round(v * 255)).join(',')})`;
     palettePreview.style.setProperty('--preview-gradient', `linear-gradient(90deg, ${gradA}, ${gradB})`);
   }
 }
