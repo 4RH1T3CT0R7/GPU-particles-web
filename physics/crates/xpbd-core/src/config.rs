@@ -11,6 +11,16 @@ pub struct PhysicsConfig {
     /// Enable particle-particle collision constraints (opt-in).
     /// When false, the solver uses the original integration path.
     pub collisions_enabled: bool,
+    /// Rest density for fluid particles (rho_0, kg/m^3).
+    pub fluid_rest_density: f32,
+    /// XSPH viscosity coefficient for fluid smoothing.
+    pub fluid_viscosity: f32,
+    /// Vorticity confinement strength for fluid particles.
+    pub fluid_vorticity: f32,
+    /// SPH smoothing kernel radius h.
+    pub smoothing_radius: f32,
+    /// Enable Macklin tensile instability correction.
+    pub tensile_correction: bool,
 }
 
 impl Default for PhysicsConfig {
@@ -24,6 +34,11 @@ impl Default for PhysicsConfig {
             boundary_radius: 4.5,
             shape_strength: 0.85,
             collisions_enabled: false,
+            fluid_rest_density: 1000.0,
+            fluid_viscosity: 0.01,
+            fluid_vorticity: 0.1,
+            smoothing_radius: 0.1,
+            tensile_correction: true,
         }
     }
 }
