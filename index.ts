@@ -12,8 +12,7 @@ import { PBR_ROUGHNESS, PBR_METALLIC, BLOOM_STRENGTH, BLOOM_THRESHOLD, EXPOSURE 
 import { initWebGL } from './src/core/webgl.ts';
 import { link, createQuadVAO, drawQuad, bindTex } from './src/core/utils.ts';
 import { simVS } from './src/shaders/common.ts';
-import { simFS } from './src/shaders/simulation.ts';
-import { initFS } from './src/shaders/init.ts';
+import { initPhysicsEngine, stepPhysics, getWebGLBuffers, type PhysicsEngine } from './src/physics/wasm-loader.ts';
 import { particleVS, particleFS } from './src/shaders/particle.ts';
 import { blitFS } from './src/shaders/blit.ts';
 import { bloomFS } from './src/shaders/bloom.ts';
@@ -26,7 +25,7 @@ import { createSimulationState, createShapeState, createFractalState, createPoin
 import { createRenderPipeline, createColorManager } from './src/rendering/pipeline.ts';
 import { lights, animateLights } from './src/app/lights.ts';
 
-(function () {
+(async function () {
   console.log('🚀 Starting modular GPU Particles application...');
 
   // Initialize WebGL
@@ -40,8 +39,6 @@ import { lights, animateLights } from './src/app/lights.ts';
 
   // Compile shaders and link programs
   console.log('🔧 Compiling shaders...');
-  const progSim = link(gl, simVS, simFS);
-  const progInit = link(gl, simVS, initFS);
   const progParticles = link(gl, particleVS, particleFS);
   const progPresent = link(gl, simVS, blitFS);
   const progBloom = link(gl, simVS, bloomFS);
@@ -49,21 +46,6 @@ import { lights, animateLights } from './src/app/lights.ts';
 
   // Cache uniform locations (avoid 40+ string lookups per frame)
   const loc = (prog: WebGLProgram, name: string): WebGLUniformLocation | null => gl.getUniformLocation(prog, name);
-  const simLocs = {
-    dt: loc(progSim, 'u_dt'), time: loc(progSim, 'u_time'),
-    speedMultiplier: loc(progSim, 'u_speedMultiplier'),
-    shapeA: loc(progSim, 'u_shapeA'), shapeB: loc(progSim, 'u_shapeB'),
-    morph: loc(progSim, 'u_morph'), shapeStrength: loc(progSim, 'u_shapeStrength'),
-    simSize: loc(progSim, 'u_simSize'),
-    pointerPos: loc(progSim, 'u_pointerPos'), pointerStrength: loc(progSim, 'u_pointerStrength'),
-    pointerRadius: loc(progSim, 'u_pointerRadius'), pointerMode: loc(progSim, 'u_pointerMode'),
-    pointerActive: loc(progSim, 'u_pointerActive'), pointerPress: loc(progSim, 'u_pointerPress'),
-    pointerPulse: loc(progSim, 'u_pointerPulse'), viewDir: loc(progSim, 'u_viewDir'),
-    fractalSeeds0: loc(progSim, 'u_fractalSeeds[0]'), fractalSeeds1: loc(progSim, 'u_fractalSeeds[1]'),
-    audioBass: loc(progSim, 'u_audioBass'), audioMid: loc(progSim, 'u_audioMid'),
-    audioTreble: loc(progSim, 'u_audioTreble'), audioEnergy: loc(progSim, 'u_audioEnergy'),
-    rotMatA: loc(progSim, 'u_rotMatA'), rotMatB: loc(progSim, 'u_rotMatB'),
-  };
   const particleLocs = {
     texSize: loc(progParticles, 'u_texSize'), proj: loc(progParticles, 'u_proj'),
     view: loc(progParticles, 'u_view'), time: loc(progParticles, 'u_time'),
@@ -126,6 +108,8 @@ import { lights, animateLights } from './src/app/lights.ts';
   // Initialize simulation
   simState.initSimulation(256);
 
+  const physicsEngine = await initPhysicsEngine(simState.N);
+
   // Initialize first color palette
   colorManager.rebuildColorStops(colorPalettes[0]);
 
@@ -163,23 +147,22 @@ import { lights, animateLights } from './src/app/lights.ts';
   resize();
   window.addEventListener('resize', resize);
 
-  // Initialize particles (run init shader) - writes to both FBOs like original
-  function reinitializeParticles(pattern = 0.0) {
-    gl.viewport(0, 0, simState.texSize, simState.texSize);
-    gl.useProgram(progInit);
-
-    // Initialize both FBOs with same seed to ensure consistent state (avoids 1-frame flash)
-    const seed = Math.random() * 1000;
+  // Initialize particles via WASM physics engine
+  function reinitializeParticles(_pattern = 0.0) {
+    physicsEngine.world.reinitialize(Math.floor(Math.random() * 0xFFFFFFFF));
+    // Upload WASM output to both sets of position/velocity textures
+    const { pos, vel } = getWebGLBuffers(physicsEngine);
     for (let i = 0; i < 2; i++) {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, simState.simFBO[i]);
-      gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
-      gl.uniform1f(gl.getUniformLocation(progInit, 'u_seed'), seed);
-      gl.uniform1f(gl.getUniformLocation(progInit, 'u_pattern'), pattern);
-      drawQuad(gl, quadVAO);
+      gl.bindTexture(gl.TEXTURE_2D, simState.posTex[i]);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, simState.texSize, simState.texSize,
+        gl.RGBA, gl.FLOAT, pos);
+      gl.bindTexture(gl.TEXTURE_2D, simState.velTex[i]);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, simState.texSize, simState.texSize,
+        gl.RGBA, gl.FLOAT, vel);
     }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
     simState.simRead = 0;
-    console.log('✓ Particles initialized');
+    console.log('Particles reinitialized via WASM');
   }
 
   reinitializeParticles();
@@ -448,54 +431,64 @@ import { lights, animateLights } from './src/app/lights.ts';
     // Lerp shape strength
     shapeState.shapeStrength += (shapeState.targetShapeStrength - shapeState.shapeStrength) * 0.1;
 
-    // Run simulation
-    gl.useProgram(progSim);
-    gl.uniform1f(simLocs.dt, dt);
-    gl.uniform1f(simLocs.time, t);
-    gl.uniform1f(simLocs.speedMultiplier, uiControls.getSpeedMultiplier());
-    gl.uniform1i(simLocs.shapeA, shapeState.shapeA);
-    gl.uniform1i(simLocs.shapeB, shapeState.shapeB);
-    gl.uniform1f(simLocs.morph, shapeState.morph);
-    gl.uniform1f(simLocs.shapeStrength, shapeState.shapeStrength);
-    gl.uniform2f(simLocs.simSize, simState.texSize, simState.texSize);
-    gl.uniform3fv(simLocs.pointerPos, pointerWorld);
-    gl.uniform1f(simLocs.pointerStrength, pointerState.strength);
-    gl.uniform1f(simLocs.pointerRadius, pointerState.radius);
-    gl.uniform1i(simLocs.pointerMode, POINTER_MODES.indexOf(pointerState.mode));
-    gl.uniform1f(simLocs.pointerActive, pointerState.enabled && mouse.leftDown ? 1.0 : 0.0);
-    gl.uniform1f(simLocs.pointerPress, mouse.leftDown ? 1.0 : 0.0);
-    gl.uniform1f(simLocs.pointerPulse, pointerState.pulse ? 1.0 : 0.0);
-    gl.uniform3fv(simLocs.viewDir, viewDir);
-    fractalSeedsA.set(fractalState.seedA);
-    fractalSeedsB.set(fractalState.seedB);
-    gl.uniform4fv(simLocs.fractalSeeds0, fractalSeedsA);
-    gl.uniform4fv(simLocs.fractalSeeds1, fractalSeedsB);
-    gl.uniform1f(simLocs.audioBass, audioState.bass);
-    gl.uniform1f(simLocs.audioMid, audioState.mid);
-    gl.uniform1f(simLocs.audioTreble, audioState.treble);
-    gl.uniform1f(simLocs.audioEnergy, audioState.energy);
+    // ==== WASM Physics Step ====
+    // Pass all parameters to WASM
+    physicsEngine.world.set_shapes(
+      shapeState.shapeA,
+      shapeState.shapeB,
+      shapeState.morph,
+      shapeState.shapeStrength,
+      uiControls.getSpeedMultiplier()
+    );
 
-    // Pre-compute rotation matrices on CPU (saves 12 trig calls per particle)
-    const tA = t * 0.55; // time base for targetFor shapeA
-    const tB = t * 0.58 + 2.5; // time base for targetFor shapeB
+    // Build rotation matrices (reuse pre-allocated arrays)
+    const tA = t * 0.55;
+    const tB = t * 0.58 + 2.5;
     const sA = shapeState.shapeA, sB = shapeState.shapeB;
     const effA = sA === 11 ? tA * 0.25 + fractalState.seedA[3] : tA * (ROT_MULTS[sA] || 0);
     const effB = sB === 11 ? tB * 0.25 + fractalState.seedB[3] : tB * (ROT_MULTS[sB] || 0);
     buildRotMat(effA, rotMatA);
     buildRotMat(effB, rotMatB);
-    gl.uniformMatrix3fv(simLocs.rotMatA, false, rotMatA);
-    gl.uniformMatrix3fv(simLocs.rotMatB, false, rotMatB);
+    physicsEngine.world.set_shape_rotations(rotMatA, rotMatB);
 
-    // Read from current textures, write to alternate FBO (which writes to other texture set)
-    const read = simState.simRead;
-    bindTex(gl, progSim, 'u_pos', simState.posTex[read], 0);
-    bindTex(gl, progSim, 'u_vel', simState.velTex[read], 1);
+    // Fractal seeds
+    fractalSeedsA.set(fractalState.seedA);
+    fractalSeedsB.set(fractalState.seedB);
+    physicsEngine.world.set_fractal_seeds(fractalSeedsA, fractalSeedsB);
 
-    // FBO[read] writes to the opposite texture set (see FBO creation)
-    gl.bindFramebuffer(gl.FRAMEBUFFER, simState.simFBO[read]);
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
-    gl.viewport(0, 0, simState.texSize, simState.texSize);
-    drawQuad(gl, quadVAO);
+    // Pointer
+    physicsEngine.world.set_pointer(
+      pointerState.enabled && mouse.leftDown,
+      POINTER_MODES.indexOf(pointerState.mode),
+      pointerWorld[0], pointerWorld[1], pointerWorld[2],
+      pointerState.strength,
+      pointerState.radius,
+      mouse.leftDown,
+      pointerState.pulse,
+      viewDir[0], viewDir[1], viewDir[2]
+    );
+
+    // Audio
+    physicsEngine.world.set_audio(
+      audioState.bass,
+      audioState.mid,
+      audioState.treble,
+      audioState.energy
+    );
+
+    // Step physics
+    stepPhysics(physicsEngine, dt, t);
+
+    // Upload WASM output to WebGL textures
+    const { pos, vel } = getWebGLBuffers(physicsEngine);
+    const writeIdx = 1 - simState.simRead;
+    gl.bindTexture(gl.TEXTURE_2D, simState.posTex[writeIdx]);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, simState.texSize, simState.texSize,
+      gl.RGBA, gl.FLOAT, pos);
+    gl.bindTexture(gl.TEXTURE_2D, simState.velTex[writeIdx]);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, simState.texSize, simState.texSize,
+      gl.RGBA, gl.FLOAT, vel);
+    gl.bindTexture(gl.TEXTURE_2D, null);
     simState.swapBuffers();
 
     // Render particles
