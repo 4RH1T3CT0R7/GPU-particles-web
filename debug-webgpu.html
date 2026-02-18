@@ -2,6 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
     <title>Debug WebGPU - GPU Particles</title>
     <style>
         body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
@@ -95,7 +96,7 @@
         }
 
         window.clearLogs = function() {
-            log.innerHTML = '';
+            log.textContent = '';
             logCount = 0;
             logCache.clear();
             errorCount = 0;
@@ -127,7 +128,11 @@
 
                 // Если сообщение повторилось слишком много раз, показываем warning и останавливаем логирование
                 if (cached.count === MAX_REPEAT_COUNT) {
-                    cached.element.innerHTML = `<span style="color:#666">[${new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span> ${msg} <span style="color:#f00">(×${cached.count} - STOPPED)</span>`;
+                    const ts0 = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    cached.element.textContent = '';
+                    const tsSpan0 = document.createElement('span'); tsSpan0.style.color = '#666'; tsSpan0.textContent = `[${ts0}] `;
+                    const stopSpan = document.createElement('span'); stopSpan.style.color = '#f00'; stopSpan.textContent = ` (\u00d7${cached.count} - STOPPED)`;
+                    cached.element.append(tsSpan0, msg, stopSpan);
                     log.appendChild(cached.element);
                     originalWarn.call(console, `⚠ Message repeated ${MAX_REPEAT_COUNT} times, stopping further updates:`, msg);
                     return cached.element;
@@ -138,7 +143,10 @@
 
                 // Обновляем существующий элемент
                 const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                cached.element.innerHTML = `<span style="color:#666">[${timestamp}]</span> ${msg} <span style="color:#666">(×${cached.count})</span>`;
+                cached.element.textContent = '';
+                const tsSpan1 = document.createElement('span'); tsSpan1.style.color = '#666'; tsSpan1.textContent = `[${timestamp}] `;
+                const countSpan = document.createElement('span'); countSpan.style.color = '#666'; countSpan.textContent = ` (\u00d7${cached.count})`;
+                cached.element.append(tsSpan1, msg, countSpan);
 
                 // Перемещаем в конец
                 log.appendChild(cached.element);
@@ -171,8 +179,9 @@
 
             const div = document.createElement('div');
             div.className = type;
-            const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            div.innerHTML = `<span style="color:#666">[${timestamp}]</span> ${msg}`;
+            const timestamp2 = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const tsSpan2 = document.createElement('span'); tsSpan2.style.color = '#666'; tsSpan2.textContent = `[${timestamp2}] `;
+            div.append(tsSpan2, msg);
             log.appendChild(div);
             // Используем оригинальный console.log, чтобы избежать бесконечной рекурсии
             originalLog.call(console, `[${type.toUpperCase()}] ${msg}`);
@@ -199,14 +208,19 @@
             log.appendChild(h3);
         }
 
-        function addCollapsible(title, content) {
+        function addCollapsible(title, lines) {
             const titleDiv = document.createElement('div');
             titleDiv.className = 'collapsible';
             titleDiv.textContent = title;
 
             const contentDiv = document.createElement('div');
             contentDiv.className = 'content';
-            contentDiv.innerHTML = content;
+            for (const line of lines) {
+                const d = document.createElement('div');
+                d.className = 'debug';
+                d.textContent = line;
+                contentDiv.appendChild(d);
+            }
 
             titleDiv.onclick = () => {
                 titleDiv.classList.toggle('collapsed');
@@ -247,27 +261,27 @@
                 if (typeof adapter.requestAdapterInfo === 'function') {
                     try {
                         const adapterInfo = await adapter.requestAdapterInfo();
-                        addCollapsible('Adapter Info', `
-                            <div class="debug">Vendor: ${adapterInfo.vendor || 'Unknown'}</div>
-                            <div class="debug">Architecture: ${adapterInfo.architecture || 'Unknown'}</div>
-                            <div class="debug">Device: ${adapterInfo.device || 'Unknown'}</div>
-                            <div class="debug">Description: ${adapterInfo.description || 'Unknown'}</div>
-                        `);
+                        addCollapsible('Adapter Info', [
+                            `Vendor: ${adapterInfo.vendor || 'Unknown'}`,
+                            `Architecture: ${adapterInfo.architecture || 'Unknown'}`,
+                            `Device: ${adapterInfo.device || 'Unknown'}`,
+                            `Description: ${adapterInfo.description || 'Unknown'}`
+                        ]);
                     } catch (err) {
                         addLog('⚠ Could not get adapter info: ' + err.message, 'warning');
                     }
                 } else {
                     addLog('⚠ adapter.requestAdapterInfo() not available (older WebGPU version)', 'warning');
-                    addCollapsible('Adapter Info', `
-                        <div class="debug">requestAdapterInfo() not supported in this browser version</div>
-                        <div class="debug">Consider updating to latest Chrome Canary for full diagnostics</div>
-                    `);
+                    addCollapsible('Adapter Info', [
+                        'requestAdapterInfo() not supported in this browser version',
+                        'Consider updating to latest Chrome Canary for full diagnostics'
+                    ]);
                 }
 
                 // Log adapter features
                 const features = Array.from(adapter.features);
                 addCollapsible('Adapter Features (' + features.length + ')',
-                    features.map(f => `<div class="debug">• ${f}</div>`).join('')
+                    features.map(f => `\u2022 ${f}`)
                 );
 
                 // Log adapter limits
@@ -280,7 +294,7 @@
                     'maxComputeInvocationsPerWorkgroup'
                 ];
                 addCollapsible('Adapter Limits',
-                    importantLimits.map(l => `<div class="debug">${l}: ${limits[l]}</div>`).join('')
+                    importantLimits.map(l => `${l}: ${limits[l]}`)
                 );
 
                 // Request device
@@ -430,7 +444,7 @@
                 };
 
                 try {
-                    await import('./index-webgpu.js');
+                    await import('./dist/index-webgpu.js');
                     addLog('✓ Application module loaded', 'success');
                 } catch (err) {
                     addLog('❌ Application failed: ' + err.message, 'error');
