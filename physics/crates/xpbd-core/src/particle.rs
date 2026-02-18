@@ -7,6 +7,10 @@ pub struct ParticleSet {
     pub velocity: Vec<Vec3>,
     pub radius: Vec<f32>,
     pub hash: Vec<f32>,
+    /// Morphing target position (computed each step from shape generators)
+    pub target_pos: Vec<Vec3>,
+    /// Per-particle affinity to shape [0..1]
+    pub target_weight: Vec<f32>,
 }
 
 impl ParticleSet {
@@ -17,6 +21,8 @@ impl ParticleSet {
             velocity: vec![Vec3::ZERO; count],
             radius: vec![0.05; count],
             hash: vec![0.0; count],
+            target_pos: vec![Vec3::ZERO; count],
+            target_weight: vec![0.0; count],
         }
     }
 }
