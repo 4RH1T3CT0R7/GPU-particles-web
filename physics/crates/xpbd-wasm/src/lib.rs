@@ -143,6 +143,52 @@ impl PhysicsWorld {
         self.solver.reinitialize(seed);
         self.write_gpu_output();
     }
+
+    #[wasm_bindgen]
+    pub fn set_fluid_config(
+        &mut self,
+        rest_density: f32,
+        viscosity: f32,
+        vorticity: f32,
+        smoothing_radius: f32,
+    ) {
+        self.solver.config.fluid_rest_density = rest_density;
+        self.solver.config.fluid_viscosity = viscosity;
+        self.solver.config.fluid_vorticity = vorticity;
+        self.solver.config.smoothing_radius = smoothing_radius;
+    }
+
+    #[wasm_bindgen]
+    pub fn set_particle_phase(&mut self, index: usize, phase: u8) {
+        if index < self.solver.particles.count {
+            self.solver.particles.phase[index] = match phase {
+                1 => xpbd_core::particle::Phase::Fluid,
+                2 => xpbd_core::particle::Phase::Cloth,
+                3 => xpbd_core::particle::Phase::Rigid,
+                4 => xpbd_core::particle::Phase::Granular,
+                5 => xpbd_core::particle::Phase::Gas,
+                6 => xpbd_core::particle::Phase::Static,
+                _ => xpbd_core::particle::Phase::Free,
+            };
+        }
+    }
+
+    /// Set all particles to a given phase at once (for bulk mode changes).
+    #[wasm_bindgen]
+    pub fn set_all_particles_phase(&mut self, phase: u8) {
+        let p = match phase {
+            1 => xpbd_core::particle::Phase::Fluid,
+            2 => xpbd_core::particle::Phase::Cloth,
+            3 => xpbd_core::particle::Phase::Rigid,
+            4 => xpbd_core::particle::Phase::Granular,
+            5 => xpbd_core::particle::Phase::Gas,
+            6 => xpbd_core::particle::Phase::Static,
+            _ => xpbd_core::particle::Phase::Free,
+        };
+        for i in 0..self.solver.particles.count {
+            self.solver.particles.phase[i] = p;
+        }
+    }
 }
 
 impl PhysicsWorld {

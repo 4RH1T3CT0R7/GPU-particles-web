@@ -479,6 +479,9 @@ import { lights, animateLights } from './src/app/lights.ts';
     // Solver config (collisions disabled by default)
     physicsEngine.world.set_solver_config(1, 3, false);
 
+    // PBF fluid config (defaults preserve current non-fluid behavior)
+    physicsEngine.world.set_fluid_config(1000.0, 0.01, 0.1, 0.1);
+
     // Step physics
     stepPhysics(physicsEngine, dt, t);
 

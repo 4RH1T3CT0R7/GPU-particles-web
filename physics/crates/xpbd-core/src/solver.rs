@@ -3,7 +3,7 @@ use crate::constraints::contact::{detect_contacts, solve_contacts, ContactConstr
 use crate::forces::pointer::{compute_pointer_force, PointerParams};
 use crate::grid::SpatialHashGrid;
 use crate::math::{curl, ease_in_out_cubic, hash12, noise, smoothstep};
-use crate::particle::ParticleSet;
+use crate::particle::{ParticleSet, Phase};
 use crate::shapes::dispatcher::target_for;
 use glam::Vec3;
 
@@ -82,6 +82,11 @@ impl Solver {
         }
     }
 
+    /// Returns true if any particle has Phase::Fluid or Phase::Gas.
+    fn has_fluid_particles(&self) -> bool {
+        self.particles.phase.iter().any(|p| matches!(p, Phase::Fluid | Phase::Gas))
+    }
+
     /// Step the full particle physics simulation.
     ///
     /// `dt` is the frame delta time in seconds. `time` is the accumulated
@@ -104,6 +109,7 @@ impl Solver {
         if self.config.collisions_enabled {
             // --- XPBD path: substeps with prediction + constraint solving ---
             let sub_dt = sim_dt / self.config.substeps.max(1) as f32;
+            let has_fluid = self.has_fluid_particles();
 
             for _substep in 0..self.config.substeps {
                 // STEP 1: Apply forces -> update velocities
@@ -140,6 +146,17 @@ impl Solver {
                         &mut self.particles.correction_counts,
                     );
 
+                    // PBF density constraints for Fluid/Gas particles
+                    if has_fluid {
+                        crate::constraints::density::solve_density_constraints(
+                            &mut self.particles,
+                            &self.grid,
+                            self.config.fluid_rest_density,
+                            self.config.smoothing_radius,
+                            self.config.tensile_correction,
+                        );
+                    }
+
                     // Solve boundary constraint
                     self.solve_boundary_constraint();
 
@@ -157,6 +174,23 @@ impl Solver {
                     self.particles.velocity[i] =
                         (self.particles.predicted[i] - self.particles.position[i]) / sub_dt;
                     self.particles.position[i] = self.particles.predicted[i];
+                }
+
+                // Post-velocity corrections (fluid only)
+                if has_fluid {
+                    crate::fluids::vorticity::apply_vorticity_confinement(
+                        &mut self.particles,
+                        &self.grid,
+                        self.config.fluid_vorticity,
+                        self.config.smoothing_radius,
+                        sub_dt,
+                    );
+                    crate::fluids::viscosity::apply_xsph_viscosity(
+                        &mut self.particles,
+                        &self.grid,
+                        self.config.fluid_viscosity,
+                        self.config.smoothing_radius,
+                    );
                 }
             }
         } else {

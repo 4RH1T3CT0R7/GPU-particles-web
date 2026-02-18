@@ -1,5 +1,6 @@
 use glam::Vec3;
 use xpbd_core::forces::pointer::PointerParams;
+use xpbd_core::particle::Phase;
 use xpbd_core::solver::Solver;
 
 #[test]
@@ -160,4 +161,38 @@ fn test_collisions_push_apart() {
     // After collision resolution, particles should be pushed apart
     let dist = (solver.particles.position[1] - solver.particles.position[0]).length();
     assert!(dist > 0.08, "particles should be pushed apart: dist={}", dist);
+}
+
+#[test]
+fn test_fluid_particles_get_density_corrections() {
+    // Create a solver with collisions enabled
+    let mut solver = Solver::new(8);
+    solver.config.collisions_enabled = true;
+    solver.config.substeps = 1;
+    solver.config.solver_iterations = 1;
+
+    // Set all particles to Fluid phase, place in a tight cluster
+    for i in 0..8 {
+        solver.particles.phase[i] = Phase::Fluid;
+        let x = (i % 2) as f32 * 0.05;
+        let y = ((i / 2) % 2) as f32 * 0.05;
+        let z = (i / 4) as f32 * 0.05;
+        solver.particles.position[i] = Vec3::new(x, y, z);
+    }
+
+    solver.step(0.016, 0.0);
+
+    // Verify particles moved (corrections were applied)
+    let mut any_moved = false;
+    for i in 0..8 {
+        let pos = solver.particles.position[i];
+        let orig_x = (i % 2) as f32 * 0.05;
+        let orig_y = ((i / 2) % 2) as f32 * 0.05;
+        let orig_z = (i / 4) as f32 * 0.05;
+        let orig = Vec3::new(orig_x, orig_y, orig_z);
+        if (pos - orig).length() > 0.001 {
+            any_moved = true;
+        }
+    }
+    assert!(any_moved, "Fluid particles should have moved due to density corrections");
 }
