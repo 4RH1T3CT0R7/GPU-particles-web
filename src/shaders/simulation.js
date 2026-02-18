@@ -249,7 +249,7 @@ void main(){
       vel *= 0.992;
       float speed = length(vel);
       if (speed > 3.5) vel = vel / speed * 3.5;
-    } else {
+    } else if (u_pointerMode == 5) {
       // Magnetic flow - powerful arc field lines
       vec3 axis = normalize(u_viewDir * 0.7 + vec3(0.0, 1.0, 0.5));
       vec3 r = pos - u_pointerPos;
@@ -302,7 +302,7 @@ void main(){
     acc *= audioBoost;
 
     float bassForce = u_audioBass * 4.5;
-    vec3 outward = normalize(pos - desired) + vec3(0.001);
+    vec3 outward = normalize(pos - desired + vec3(0.001));
     acc += outward * bassForce;
     vel += outward * u_audioBass * 0.8;
 

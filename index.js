@@ -42,6 +42,46 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
   const progPresent = link(gl, simVS, blitFS);
   console.log('✓ All shaders compiled successfully');
 
+  // Cache uniform locations (avoid 40+ string lookups per frame)
+  const loc = (prog, name) => gl.getUniformLocation(prog, name);
+  const simLocs = {
+    dt: loc(progSim, 'u_dt'), time: loc(progSim, 'u_time'),
+    speedMultiplier: loc(progSim, 'u_speedMultiplier'),
+    shapeA: loc(progSim, 'u_shapeA'), shapeB: loc(progSim, 'u_shapeB'),
+    morph: loc(progSim, 'u_morph'), shapeStrength: loc(progSim, 'u_shapeStrength'),
+    simSize: loc(progSim, 'u_simSize'),
+    pointerPos: loc(progSim, 'u_pointerPos'), pointerStrength: loc(progSim, 'u_pointerStrength'),
+    pointerRadius: loc(progSim, 'u_pointerRadius'), pointerMode: loc(progSim, 'u_pointerMode'),
+    pointerActive: loc(progSim, 'u_pointerActive'), pointerPress: loc(progSim, 'u_pointerPress'),
+    pointerPulse: loc(progSim, 'u_pointerPulse'), viewDir: loc(progSim, 'u_viewDir'),
+    fractalSeeds0: loc(progSim, 'u_fractalSeeds[0]'), fractalSeeds1: loc(progSim, 'u_fractalSeeds[1]'),
+    audioBass: loc(progSim, 'u_audioBass'), audioMid: loc(progSim, 'u_audioMid'),
+    audioTreble: loc(progSim, 'u_audioTreble'), audioEnergy: loc(progSim, 'u_audioEnergy'),
+  };
+  const particleLocs = {
+    texSize: loc(progParticles, 'u_texSize'), proj: loc(progParticles, 'u_proj'),
+    view: loc(progParticles, 'u_view'), time: loc(progParticles, 'u_time'),
+    colors: loc(progParticles, 'u_colors'), colorCount: loc(progParticles, 'u_colorCount'),
+    cameraPos: loc(progParticles, 'u_cameraPos'),
+    roughness: loc(progParticles, 'u_roughness'), metallic: loc(progParticles, 'u_metallic'),
+    pbrStrength: loc(progParticles, 'u_pbrStrength'),
+    lightPositions: loc(progParticles, 'u_lightPositions'), lightColors: loc(progParticles, 'u_lightColors'),
+    lightIntensities: loc(progParticles, 'u_lightIntensities'), lightRadii: loc(progParticles, 'u_lightRadii'),
+    lightCount: loc(progParticles, 'u_lightCount'),
+  };
+  const presentLocs = {
+    resolution: loc(progPresent, 'u_resolution'), time: loc(progPresent, 'u_time'),
+    exposure: loc(progPresent, 'u_exposure'), bloomStrength: loc(progPresent, 'u_bloomStrength'),
+  };
+
+  // Pre-allocated typed arrays (avoid allocations in render loop)
+  const lightPositions = new Float32Array(8 * 3);
+  const lightColors = new Float32Array(8 * 3);
+  const lightIntensities = new Float32Array(8);
+  const lightRadii = new Float32Array(8);
+  const fractalSeedsA = new Float32Array(4);
+  const fractalSeedsB = new Float32Array(4);
+
   // Initialize state managers
   const simState = createSimulationState(gl, 256);
   const shapeState = createShapeState();
@@ -212,7 +252,7 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     const nx = mouse.x * 2 - 1;
     const ny = 1 - mouse.y * 2;
     const aspect = canvas.width / canvas.height;
-    const fov = Math.PI / 4;
+    const fov = camera.fov * Math.PI / 180;
     const depth = camera.distance * 0.8;
 
     // Forward direction from camera to target
@@ -357,28 +397,30 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
 
     // Run simulation
     gl.useProgram(progSim);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_dt'), dt);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_time'), t);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_speedMultiplier'), uiControls.getSpeedMultiplier());
-    gl.uniform1i(gl.getUniformLocation(progSim, 'u_shapeA'), shapeState.shapeA);
-    gl.uniform1i(gl.getUniformLocation(progSim, 'u_shapeB'), shapeState.shapeB);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_morph'), shapeState.morph);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_shapeStrength'), shapeState.shapeStrength);
-    gl.uniform2f(gl.getUniformLocation(progSim, 'u_simSize'), simState.texSize, simState.texSize);
-    gl.uniform3fv(gl.getUniformLocation(progSim, 'u_pointerPos'), pointerWorld);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerStrength'), pointerState.strength);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerRadius'), pointerState.radius);
-    gl.uniform1i(gl.getUniformLocation(progSim, 'u_pointerMode'), POINTER_MODES.indexOf(pointerState.mode));
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerActive'), pointerState.enabled && mouse.leftDown ? 1.0 : 0.0);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerPress'), mouse.leftDown ? 1.0 : 0.0);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_pointerPulse'), pointerState.pulse ? 1.0 : 0.0);
-    gl.uniform3fv(gl.getUniformLocation(progSim, 'u_viewDir'), viewDir);
-    gl.uniform4fv(gl.getUniformLocation(progSim, 'u_fractalSeeds[0]'), new Float32Array(fractalState.seedA));
-    gl.uniform4fv(gl.getUniformLocation(progSim, 'u_fractalSeeds[1]'), new Float32Array(fractalState.seedB));
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_audioBass'), audioState.bass);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_audioMid'), audioState.mid);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_audioTreble'), audioState.treble);
-    gl.uniform1f(gl.getUniformLocation(progSim, 'u_audioEnergy'), audioState.energy);
+    gl.uniform1f(simLocs.dt, dt);
+    gl.uniform1f(simLocs.time, t);
+    gl.uniform1f(simLocs.speedMultiplier, uiControls.getSpeedMultiplier());
+    gl.uniform1i(simLocs.shapeA, shapeState.shapeA);
+    gl.uniform1i(simLocs.shapeB, shapeState.shapeB);
+    gl.uniform1f(simLocs.morph, shapeState.morph);
+    gl.uniform1f(simLocs.shapeStrength, shapeState.shapeStrength);
+    gl.uniform2f(simLocs.simSize, simState.texSize, simState.texSize);
+    gl.uniform3fv(simLocs.pointerPos, pointerWorld);
+    gl.uniform1f(simLocs.pointerStrength, pointerState.strength);
+    gl.uniform1f(simLocs.pointerRadius, pointerState.radius);
+    gl.uniform1i(simLocs.pointerMode, POINTER_MODES.indexOf(pointerState.mode));
+    gl.uniform1f(simLocs.pointerActive, pointerState.enabled && mouse.leftDown ? 1.0 : 0.0);
+    gl.uniform1f(simLocs.pointerPress, mouse.leftDown ? 1.0 : 0.0);
+    gl.uniform1f(simLocs.pointerPulse, pointerState.pulse ? 1.0 : 0.0);
+    gl.uniform3fv(simLocs.viewDir, viewDir);
+    fractalSeedsA.set(fractalState.seedA);
+    fractalSeedsB.set(fractalState.seedB);
+    gl.uniform4fv(simLocs.fractalSeeds0, fractalSeedsA);
+    gl.uniform4fv(simLocs.fractalSeeds1, fractalSeedsB);
+    gl.uniform1f(simLocs.audioBass, audioState.bass);
+    gl.uniform1f(simLocs.audioMid, audioState.mid);
+    gl.uniform1f(simLocs.audioTreble, audioState.treble);
+    gl.uniform1f(simLocs.audioEnergy, audioState.energy);
 
     // Read from current textures, write to alternate FBO (which writes to other texture set)
     const read = simState.simRead;
@@ -404,25 +446,19 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
     bindTex(gl, progParticles, 'u_pos', simState.posTex[simState.simRead], 0);
-    gl.uniform2f(gl.getUniformLocation(progParticles, 'u_texSize'), simState.texSize, simState.texSize);
-    gl.uniformMatrix4fv(gl.getUniformLocation(progParticles, 'u_proj'), false, camera.projMat);
-    gl.uniformMatrix4fv(gl.getUniformLocation(progParticles, 'u_view'), false, camera.viewMat);
-    gl.uniform1f(gl.getUniformLocation(progParticles, 'u_time'), t);
-    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_colors'), colorManager.colorStops);
-    gl.uniform1i(gl.getUniformLocation(progParticles, 'u_colorCount'), colorManager.colorStopCount);
-    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_cameraPos'), camera.eye);
-    gl.uniform1f(gl.getUniformLocation(progParticles, 'u_roughness'), 0.4);
-    gl.uniform1f(gl.getUniformLocation(progParticles, 'u_metallic'), 0.3);
-    gl.uniform1f(gl.getUniformLocation(progParticles, 'u_pbrStrength'), 0.7);
+    gl.uniform2f(particleLocs.texSize, simState.texSize, simState.texSize);
+    gl.uniformMatrix4fv(particleLocs.proj, false, camera.projMat);
+    gl.uniformMatrix4fv(particleLocs.view, false, camera.viewMat);
+    gl.uniform1f(particleLocs.time, t);
+    gl.uniform3fv(particleLocs.colors, colorManager.colorStops);
+    gl.uniform1i(particleLocs.colorCount, colorManager.colorStopCount);
+    gl.uniform3fv(particleLocs.cameraPos, camera.eye);
+    gl.uniform1f(particleLocs.roughness, 0.4);
+    gl.uniform1f(particleLocs.metallic, 0.3);
+    gl.uniform1f(particleLocs.pbrStrength, 0.7);
 
-    // Animate lights and send to shader
-    const lightPositions = new Float32Array(8 * 3);
-    const lightColors = new Float32Array(8 * 3);
-    const lightIntensities = new Float32Array(8);
-    const lightRadii = new Float32Array(8);
-
+    // Animate lights (using pre-allocated arrays)
     for (let i = 0; i < lights.length; i++) {
-      // Gentle orbital animation
       const angle = t * 0.3 + i * Math.PI * 0.5;
       const offset = Math.sin(t * 0.5 + i) * 0.5;
       lightPositions[i * 3 + 0] = lights[i].pos[0] * Math.cos(angle) - lights[i].pos[2] * Math.sin(angle);
@@ -437,11 +473,11 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
       lightRadii[i] = lights[i].radius;
     }
 
-    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_lightPositions'), lightPositions);
-    gl.uniform3fv(gl.getUniformLocation(progParticles, 'u_lightColors'), lightColors);
-    gl.uniform1fv(gl.getUniformLocation(progParticles, 'u_lightIntensities'), lightIntensities);
-    gl.uniform1fv(gl.getUniformLocation(progParticles, 'u_lightRadii'), lightRadii);
-    gl.uniform1i(gl.getUniformLocation(progParticles, 'u_lightCount'), lights.length);
+    gl.uniform3fv(particleLocs.lightPositions, lightPositions);
+    gl.uniform3fv(particleLocs.lightColors, lightColors);
+    gl.uniform1fv(particleLocs.lightIntensities, lightIntensities);
+    gl.uniform1fv(particleLocs.lightRadii, lightRadii);
+    gl.uniform1i(particleLocs.lightCount, lights.length);
 
     gl.bindVertexArray(simState.idxVAO);
     gl.drawArrays(gl.POINTS, 0, simState.N);
@@ -454,10 +490,10 @@ import { createRenderPipeline, createColorManager } from './src/rendering/pipeli
     gl.viewport(0, 0, size.w, size.h);
     gl.useProgram(progPresent);
     bindTex(gl, progPresent, 'u_tex', renderTarget.tex, 0);
-    gl.uniform2f(gl.getUniformLocation(progPresent, 'u_resolution'), size.w, size.h);
-    gl.uniform1f(gl.getUniformLocation(progPresent, 'u_time'), t);
-    gl.uniform1f(gl.getUniformLocation(progPresent, 'u_exposure'), 0.2);
-    gl.uniform1f(gl.getUniformLocation(progPresent, 'u_bloomStrength'), 0.35);
+    gl.uniform2f(presentLocs.resolution, size.w, size.h);
+    gl.uniform1f(presentLocs.time, t);
+    gl.uniform1f(presentLocs.exposure, 0.2);
+    gl.uniform1f(presentLocs.bloomStrength, 0.35);
     drawQuad(gl, quadVAO);
   }
 

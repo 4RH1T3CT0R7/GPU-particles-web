@@ -4,7 +4,7 @@
 
 struct Particle {
     position: vec3<f32>,
-    _pad0: f32,
+    radius: f32,
     velocity: vec3<f32>,
     _pad1: f32,
 }
@@ -212,7 +212,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     vel += acc * params.deltaTime * params.speedMultiplier;
     pos += vel * params.deltaTime * params.speedMultiplier;
 
-    // Write output
+    // Write output (preserve radius from input)
     particlesOut[idx].position = pos;
+    particlesOut[idx].radius = particle.radius;
     particlesOut[idx].velocity = vel;
 }

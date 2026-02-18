@@ -9,6 +9,7 @@ export function createAudioAnalyzer() {
   let audioSource = null;
   let audioEnabled = false;
   let audioReactivityEnabled = false;
+  let mediaElementSource = null; // Cache to prevent InvalidStateError on re-connect
 
   const audioSensitivity = {
     bass: 1.0,
@@ -67,7 +68,11 @@ export function createAudioAnalyzer() {
     const bufferLength = audioAnalyser.frequencyBinCount;
     audioDataArray = new Uint8Array(bufferLength);
 
-    audioSource = audioContext.createMediaElementSource(audioElement);
+    // Reuse existing MediaElementSourceNode (can only be created once per element)
+    if (!mediaElementSource) {
+      mediaElementSource = audioContext.createMediaElementSource(audioElement);
+    }
+    audioSource = mediaElementSource;
     audioSource.connect(audioAnalyser);
     audioAnalyser.connect(audioContext.destination);
 

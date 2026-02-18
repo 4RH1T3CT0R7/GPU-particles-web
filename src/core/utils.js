@@ -16,10 +16,17 @@ export function compile(gl, type, src) {
 
 export function link(gl, vsSrc, fsSrc, xfbVaryings) {
   const prog = gl.createProgram();
-  gl.attachShader(prog, compile(gl, gl.VERTEX_SHADER, vsSrc));
-  gl.attachShader(prog, compile(gl, gl.FRAGMENT_SHADER, fsSrc));
+  const vs = compile(gl, gl.VERTEX_SHADER, vsSrc);
+  const fs = compile(gl, gl.FRAGMENT_SHADER, fsSrc);
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
   if (xfbVaryings) gl.transformFeedbackVaryings(prog, xfbVaryings, gl.SEPARATE_ATTRIBS);
   gl.linkProgram(prog);
+  // Detach and delete shaders after linking (prevent leak)
+  gl.detachShader(prog, vs);
+  gl.detachShader(prog, fs);
+  gl.deleteShader(vs);
+  gl.deleteShader(fs);
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
     const log = gl.getProgramInfoLog(prog);
     gl.deleteProgram(prog);

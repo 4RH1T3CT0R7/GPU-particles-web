@@ -350,6 +350,10 @@ export function initUIControls(context) {
         const audioStatusLabel = document.getElementById('audioStatusLabel');
 
         if (audioElement) {
+          // Revoke previous blob URL to prevent memory leak
+          if (audioElement.src && audioElement.src.startsWith('blob:')) {
+            URL.revokeObjectURL(audioElement.src);
+          }
           const url = URL.createObjectURL(file);
           audioElement.src = url;
           audioAnalyzer.initAudioFromFile(audioElement);

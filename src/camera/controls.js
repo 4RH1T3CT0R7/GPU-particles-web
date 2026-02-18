@@ -12,24 +12,29 @@ export function createCamera() {
     near: 0.1,
     far: 100,
     viewMat: new Float32Array(16),
-    projMat: new Float32Array(16)
+    projMat: new Float32Array(16),
+    angle: { x: 0.5, y: 0.5 },
+    distance: 3.5,
+    targetDistance: 3.5,
+    _dirty: true,
+    _prevAngleX: NaN, _prevAngleY: NaN,
+    _prevDistance: NaN, _prevAspect: NaN,
   };
 
   return camera;
 }
 
-export function mat4perspective(fov, aspect, near, far) {
+export function mat4perspective(out, fov, aspect, near, far) {
   const f = 1.0 / Math.tan(fov / 2);
   const nf = 1 / (near - far);
-  return new Float32Array([
-    f / aspect, 0, 0, 0,
-    0, f, 0, 0,
-    0, 0, (far + near) * nf, -1,
-    0, 0, 2 * far * near * nf, 0
-  ]);
+  out[0] = f / aspect; out[1] = 0; out[2] = 0; out[3] = 0;
+  out[4] = 0; out[5] = f; out[6] = 0; out[7] = 0;
+  out[8] = 0; out[9] = 0; out[10] = (far + near) * nf; out[11] = -1;
+  out[12] = 0; out[13] = 0; out[14] = 2 * far * near * nf; out[15] = 0;
+  return out;
 }
 
-export function mat4lookAt(eye, target, up) {
+export function mat4lookAt(out, eye, target, up) {
   const z0 = eye[0] - target[0], z1 = eye[1] - target[1], z2 = eye[2] - target[2];
   let len = 1 / Math.hypot(z0, z1, z2);
   const zx = z0 * len, zy = z1 * len, zz = z2 * len;
@@ -44,19 +49,30 @@ export function mat4lookAt(eye, target, up) {
   const yy = zz * xx - zx * xz;
   const yz = zx * xy - zy * xx;
 
-  return new Float32Array([
-    xx, yx, zx, 0,
-    xy, yy, zy, 0,
-    xz, yz, zz, 0,
-    -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
-    -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
-    -(zx * eye[0] + zy * eye[1] + zz * eye[2]),
-    1
-  ]);
+  out[0] = xx; out[1] = yx; out[2] = zx; out[3] = 0;
+  out[4] = xy; out[5] = yy; out[6] = zy; out[7] = 0;
+  out[8] = xz; out[9] = yz; out[10] = zz; out[11] = 0;
+  out[12] = -(xx * eye[0] + xy * eye[1] + xz * eye[2]);
+  out[13] = -(yx * eye[0] + yy * eye[1] + yz * eye[2]);
+  out[14] = -(zx * eye[0] + zy * eye[1] + zz * eye[2]);
+  out[15] = 1;
+  return out;
 }
 
 export function updateCameraMatrix(camera) {
-  // Update camera position based on angles and distance
+  // Skip recomputation if nothing changed
+  if (camera.angle.x === camera._prevAngleX &&
+      camera.angle.y === camera._prevAngleY &&
+      camera.distance === camera._prevDistance &&
+      camera.aspect === camera._prevAspect) {
+    return;
+  }
+
+  camera._prevAngleX = camera.angle.x;
+  camera._prevAngleY = camera.angle.y;
+  camera._prevDistance = camera.distance;
+  camera._prevAspect = camera.aspect;
+
   const cx = Math.cos(camera.angle.x);
   const sx = Math.sin(camera.angle.x);
   const cy = Math.cos(camera.angle.y);
@@ -66,6 +82,6 @@ export function updateCameraMatrix(camera) {
   camera.eye[1] = sx * camera.distance;
   camera.eye[2] = cy * cx * camera.distance;
 
-  camera.viewMat = mat4lookAt(camera.eye, camera.target, camera.up);
-  camera.projMat = mat4perspective(camera.fov * Math.PI / 180, camera.aspect, camera.near, camera.far);
+  mat4lookAt(camera.viewMat, camera.eye, camera.target, camera.up);
+  mat4perspective(camera.projMat, camera.fov * Math.PI / 180, camera.aspect, camera.near, camera.far);
 }

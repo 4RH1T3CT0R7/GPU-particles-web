@@ -49,9 +49,7 @@ import { DPR } from './src/config/constants.js';
   // State
   let currentBufferIndex = 0;
   let frameCount = 0;
-  let renderLoopActive = true;
-  let validationErrorCount = 0;
-  const MAX_VALIDATION_ERRORS = 10; // Emergency stop after 10 errors
+  // Emergency stop is handled via window.__webgpu_render_stopped in device.js
 
   // Camera state
   const camera = {
@@ -61,6 +59,9 @@ import { DPR } from './src/config/constants.js';
     up: new Float32Array([0, 1, 0]),
     fov: Math.PI / 4,
   };
+  // Track previous camera for temporal accumulation reset
+  const prevCameraPos = new Float32Array([0, 0, 10]);
+  let temporalNeedsReset = true;
 
   // Lights
   const lights = [
@@ -110,122 +111,289 @@ import { DPR } from './src/config/constants.js';
     console.log('✓ Particles initialized');
   }
 
+  // Pre-allocated buffers for params (avoid GC pressure)
+  const simParamsBuffer = new ArrayBuffer(256);
+  const simParamsF32 = new Float32Array(simParamsBuffer);
+  const simParamsView = new DataView(simParamsBuffer);
+
+  const rtParamsBuffer = new ArrayBuffer(256);
+  const rtParamsView = new DataView(rtParamsBuffer);
+
+  const lightDataBuffer = new Float32Array(lights.length * 12);
+
+  const temporalParamsBuffer = new ArrayBuffer(16);
+  const temporalParamsView = new DataView(temporalParamsBuffer);
+
   // Update simulation params
   function updateSimulationParams(time, deltaTime) {
-    const params = new Float32Array(64); // 256 bytes / 4 = 64 floats
-    params[0] = deltaTime;
-    params[1] = time;
-    params[2] = config.particleCount;
-    params[3] = 1.0; // speedMultiplier
+    // SimParams struct layout (matching particle-sim.wgsl):
+    // offset 0:  deltaTime: f32
+    // offset 4:  time: f32
+    // offset 8:  particleCount: u32
+    // offset 12: speedMultiplier: f32
+    // offset 16: shapeA: u32
+    // offset 20: shapeB: u32
+    // offset 24: morph: f32
+    // offset 28: shapeStrength: f32
+    // offset 32: pointerPos: vec3<f32> (32, 36, 40)
+    // offset 44: pointerStrength: f32
+    // offset 48: pointerRadius: f32
+    // offset 52: pointerMode: u32
+    // offset 56: pointerActive: f32
+    // offset 60: pointerPress: f32
+    // offset 64: audioBass: f32
+    // offset 68: audioMid: f32
+    // offset 72: audioTreble: f32
+    // offset 76: audioEnergy: f32
+    simParamsF32.fill(0);
+    const v = simParamsView;
+    const LE = true; // little-endian
+    v.setFloat32(0, deltaTime, LE);
+    v.setFloat32(4, time, LE);
+    v.setUint32(8, config.particleCount, LE);
+    v.setFloat32(12, 1.0, LE); // speedMultiplier
 
-    // Shape params (simplified for now)
-    params[4] = 0; // shapeA
-    params[5] = 1; // shapeB
-    params[6] = Math.sin(time * 0.5) * 0.5 + 0.5; // morph
-    params[7] = 0.5; // shapeStrength
+    v.setUint32(16, 0, LE); // shapeA
+    v.setUint32(20, 1, LE); // shapeB
+    v.setFloat32(24, Math.sin(time * 0.5) * 0.5 + 0.5, LE); // morph
+    v.setFloat32(28, 0.5, LE); // shapeStrength
 
-    // Pointer (disabled for now)
-    params[8] = 0;
-    params[9] = 0;
-    params[10] = 0;
-    params[11] = 0;
+    // Pointer (disabled for now) -- offsets 32-60 stay zero
 
     device.queue.writeBuffer(
       pipelines.simulation.buffers.params,
       0,
-      params.buffer
+      simParamsBuffer
     );
   }
 
   // Update ray tracing params
   function updateRayTracingParams(time) {
-    const params = new Float32Array(64);
+    // RayTraceParams struct layout (matching ray-trace.wgsl):
+    // offset 0:  cameraPos: vec3<f32> + _pad0
+    // offset 16: cameraForward: vec3<f32> + _pad1
+    // offset 32: cameraRight: vec3<f32> + _pad2
+    // offset 48: cameraUp: vec3<f32> + fov: f32
+    // offset 64: lightCount: u32
+    // offset 68: particleCount: u32
+    // offset 72: maxBounces: u32
+    // offset 76: samplesPerPixel: u32
+    // offset 80: time: f32
+    // offset 84: frameCount: u32
+    // offset 88: _pad3: u32
+    // offset 92: _pad4: u32
+    const v = rtParamsView;
+    const LE = true;
 
-    // Camera
-    params.set(camera.position, 0); // cameraPos
-    params.set(camera.forward, 4); // cameraForward
-    params.set(camera.right, 8); // cameraRight
-    params.set(camera.up, 12); // cameraUp
-    params[15] = camera.fov;
+    // Zero out
+    for (let i = 0; i < 256; i += 4) v.setFloat32(i, 0, LE);
 
-    // Counts
-    params[16] = lights.length;
-    params[17] = config.particleCount;
-    params[18] = 2; // maxBounces
-    params[19] = 1; // samplesPerPixel
+    // Camera vectors (vec3 + padding)
+    v.setFloat32(0, camera.position[0], LE);
+    v.setFloat32(4, camera.position[1], LE);
+    v.setFloat32(8, camera.position[2], LE);
 
-    params[20] = time;
-    params[21] = frameCount;
+    v.setFloat32(16, camera.forward[0], LE);
+    v.setFloat32(20, camera.forward[1], LE);
+    v.setFloat32(24, camera.forward[2], LE);
+
+    v.setFloat32(32, camera.right[0], LE);
+    v.setFloat32(36, camera.right[1], LE);
+    v.setFloat32(40, camera.right[2], LE);
+
+    v.setFloat32(48, camera.up[0], LE);
+    v.setFloat32(52, camera.up[1], LE);
+    v.setFloat32(56, camera.up[2], LE);
+    v.setFloat32(60, camera.fov, LE);
+
+    // Counts (u32 fields)
+    v.setUint32(64, lights.length, LE);
+    v.setUint32(68, config.particleCount, LE);
+    v.setUint32(72, 2, LE); // maxBounces
+    v.setUint32(76, 1, LE); // samplesPerPixel
+
+    v.setFloat32(80, time, LE);
+    v.setUint32(84, frameCount, LE);
 
     device.queue.writeBuffer(
       pipelines.rayTracing.buffers.params,
       0,
-      params.buffer
+      rtParamsBuffer
     );
 
-    // Update lights
-    const lightData = new Float32Array(lights.length * 12); // 48 bytes = 12 floats per light
+    // Update lights (reuse pre-allocated buffer)
+    lightDataBuffer.fill(0);
     lights.forEach((light, i) => {
       const idx = i * 12;
       const angle = time * 0.3 + i * Math.PI * 0.5;
       const offset = Math.sin(time * 0.5 + i) * 0.5;
 
       // Animated position
-      lightData[idx + 0] = light.pos[0] * Math.cos(angle) - light.pos[2] * Math.sin(angle);
-      lightData[idx + 1] = light.pos[1] + offset;
-      lightData[idx + 2] = light.pos[0] * Math.sin(angle) + light.pos[2] * Math.cos(angle);
+      lightDataBuffer[idx + 0] = light.pos[0] * Math.cos(angle) - light.pos[2] * Math.sin(angle);
+      lightDataBuffer[idx + 1] = light.pos[1] + offset;
+      lightDataBuffer[idx + 2] = light.pos[0] * Math.sin(angle) + light.pos[2] * Math.cos(angle);
 
       // Color
-      lightData[idx + 4] = light.color[0];
-      lightData[idx + 5] = light.color[1];
-      lightData[idx + 6] = light.color[2];
+      lightDataBuffer[idx + 4] = light.color[0];
+      lightDataBuffer[idx + 5] = light.color[1];
+      lightDataBuffer[idx + 6] = light.color[2];
 
       // Properties
-      lightData[idx + 7] = light.intensity * (0.9 + 0.1 * Math.sin(time * 2.0 + i * 1.5));
-      lightData[idx + 8] = light.radius;
+      lightDataBuffer[idx + 7] = light.intensity * (0.9 + 0.1 * Math.sin(time * 2.0 + i * 1.5));
+      lightDataBuffer[idx + 8] = light.radius;
     });
 
     device.queue.writeBuffer(
       pipelines.rayTracing.buffers.lights,
       0,
-      lightData.buffer
+      lightDataBuffer.buffer
     );
   }
 
   // Update temporal accumulation params
   function updateTemporalParams() {
-    const params = new Float32Array(4);
-    params[0] = 0.1; // alpha (blend factor)
-    params[1] = frameCount; // frameCount
-    params[2] = frameCount === 0 ? 1 : 0; // reset on first frame
-    params[3] = 0; // padding
+    // Detect camera movement to reset temporal accumulation
+    const dx = camera.position[0] - prevCameraPos[0];
+    const dy = camera.position[1] - prevCameraPos[1];
+    const dz = camera.position[2] - prevCameraPos[2];
+    const cameraMoved = (dx * dx + dy * dy + dz * dz) > 0.0001;
+
+    if (cameraMoved || temporalNeedsReset) {
+      temporalNeedsReset = false;
+      prevCameraPos.set(camera.position);
+    }
+
+    const shouldReset = cameraMoved || frameCount === 0;
+
+    // TemporalParams struct layout (matching temporal-accumulation.wgsl):
+    // offset 0: alpha: f32
+    // offset 4: frameCount: u32
+    // offset 8: reset: u32
+    // offset 12: _pad: u32
+    const v = temporalParamsView;
+    const LE = true;
+    v.setFloat32(0, 0.1, LE); // alpha
+    v.setUint32(4, frameCount, LE); // frameCount
+    v.setUint32(8, shouldReset ? 1 : 0, LE); // reset when camera moves
+    v.setUint32(12, 0, LE); // padding
 
     device.queue.writeBuffer(
       pipelines.temporal.paramsBuffer,
       0,
-      params.buffer
+      temporalParamsBuffer
     );
   }
 
-  // Resize handler
+  // Resize handler — recreates all resolution-dependent textures and bind groups
   function resize() {
     const width = Math.floor(canvas.clientWidth * DPR);
     const height = Math.floor(canvas.clientHeight * DPR);
 
     if (config.width === width && config.height === height) return;
+    if (width === 0 || height === 0) return;
 
     config.width = width;
     config.height = height;
     resizeWebGPU(gpuContext, width, height);
 
-    console.log(`✓ Resized to ${width}x${height}`);
+    // Destroy old textures
+    pipelines.rayTracing.outputTexture.destroy();
+    pipelines.temporal.textures.history.destroy();
+    pipelines.temporal.textures.output.destroy();
+
+    // Recreate ray tracing output texture
+    pipelines.rayTracing.outputTexture = device.createTexture({
+      label: 'Ray Trace Output',
+      size: { width, height },
+      format: 'rgba16float',
+      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
+    });
+
+    // Recreate temporal textures
+    pipelines.temporal.textures.history = device.createTexture({
+      label: 'Temporal History',
+      size: { width, height },
+      format: 'rgba16float',
+      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC,
+    });
+
+    pipelines.temporal.textures.output = device.createTexture({
+      label: 'Temporal Output',
+      size: { width, height },
+      format: 'rgba16float',
+      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
+    });
+
+    // Update workgroup counts
+    pipelines.rayTracing.workgroupCount = {
+      x: Math.ceil(width / 8),
+      y: Math.ceil(height / 8),
+    };
+    pipelines.temporal.workgroupCount = {
+      x: Math.ceil(width / 8),
+      y: Math.ceil(height / 8),
+    };
+
+    // Recreate ray tracing bind groups (reference outputTexture)
+    rayTracingBindGroups[0] = device.createBindGroup({
+      label: 'Ray Tracing Bind Group A',
+      layout: rayTracingBindGroupLayout,
+      entries: [
+        { binding: 0, resource: { buffer: pipelines.simulation.buffers.particleA } },
+        { binding: 1, resource: { buffer: pipelines.bvh.buffers.bvh } },
+        { binding: 2, resource: { buffer: pipelines.rayTracing.buffers.lights } },
+        { binding: 3, resource: { buffer: pipelines.rayTracing.buffers.params } },
+        { binding: 4, resource: pipelines.rayTracing.outputTexture.createView() }
+      ]
+    });
+    rayTracingBindGroups[1] = device.createBindGroup({
+      label: 'Ray Tracing Bind Group B',
+      layout: rayTracingBindGroupLayout,
+      entries: [
+        { binding: 0, resource: { buffer: pipelines.simulation.buffers.particleB } },
+        { binding: 1, resource: { buffer: pipelines.bvh.buffers.bvh } },
+        { binding: 2, resource: { buffer: pipelines.rayTracing.buffers.lights } },
+        { binding: 3, resource: { buffer: pipelines.rayTracing.buffers.params } },
+        { binding: 4, resource: pipelines.rayTracing.outputTexture.createView() }
+      ]
+    });
+
+    // Recreate temporal bind group (references all 3 textures)
+    temporalBindGroup = device.createBindGroup({
+      label: 'Temporal Accumulation Bind Group',
+      layout: pipelines.temporal.bindGroupLayout,
+      entries: [
+        { binding: 0, resource: pipelines.rayTracing.outputTexture.createView() },
+        { binding: 1, resource: pipelines.temporal.textures.history.createView() },
+        { binding: 2, resource: pipelines.temporal.textures.output.createView() },
+        { binding: 3, resource: { buffer: pipelines.temporal.paramsBuffer } }
+      ]
+    });
+
+    // Recreate blit bind group (references temporal output)
+    blitBindGroup = device.createBindGroup({
+      label: 'Blit Bind Group',
+      layout: pipelines.blit.pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: pipelines.temporal.textures.output.createView() },
+        { binding: 1, resource: pipelines.blit.sampler },
+        { binding: 2, resource: { buffer: pipelines.blit.uniformsBuffer } }
+      ]
+    });
+
+    // Reset temporal accumulation for new resolution
+    temporalNeedsReset = true;
+
+    console.log(`✓ Resized to ${width}x${height} (textures + bind groups recreated)`);
   }
 
   window.addEventListener('resize', resize);
 
   // Create ray tracing and blit bind groups
   let rayTracingPipeline = null;
+  let rayTracingBindGroupLayout = null;
   let rayTracingBindGroups = [null, null]; // Two bind groups for ping-pong buffering
+  let temporalBindGroup = null;
   let blitBindGroup = null;
 
   async function setupRayTracing() {
@@ -254,6 +422,9 @@ import { DPR } from './src/config/constants.js';
         { binding: 4, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: 'rgba16float' } } // output
       ]
     });
+
+    // Store layout for resize recreation
+    rayTracingBindGroupLayout = bindGroupLayout;
 
     // Create pipeline
     rayTracingPipeline = device.createComputePipeline({
@@ -322,53 +493,38 @@ import { DPR } from './src/config/constants.js';
     return;
   }
 
-  // Setup BVH build bind groups (two sets for ping-pong buffering)
-  const bvhInitBindGroups = [
+  // Setup LBVH data bind groups (two sets for ping-pong particle buffers)
+  const lbvhDataBindGroups = [
     device.createBindGroup({
-      label: 'BVH Init Bind Group A',
-      layout: pipelines.bvh.layouts.initFlat,
+      label: 'LBVH Data Bind Group A',
+      layout: pipelines.bvh.layouts.data,
       entries: [
         { binding: 0, resource: { buffer: pipelines.simulation.buffers.particleA } },
         { binding: 1, resource: { buffer: pipelines.bvh.buffers.bvh } },
-        { binding: 2, resource: { buffer: pipelines.bvh.buffers.particleCount } }
+        { binding: 2, resource: { buffer: pipelines.bvh.buffers.mortonKeys } },
+        { binding: 3, resource: { buffer: pipelines.bvh.buffers.mortonVals } },
+        { binding: 4, resource: { buffer: pipelines.bvh.buffers.atomicFlags } },
+        { binding: 5, resource: { buffer: pipelines.bvh.buffers.parentOf } },
       ]
     }),
     device.createBindGroup({
-      label: 'BVH Init Bind Group B',
-      layout: pipelines.bvh.layouts.initFlat,
+      label: 'LBVH Data Bind Group B',
+      layout: pipelines.bvh.layouts.data,
       entries: [
         { binding: 0, resource: { buffer: pipelines.simulation.buffers.particleB } },
         { binding: 1, resource: { buffer: pipelines.bvh.buffers.bvh } },
-        { binding: 2, resource: { buffer: pipelines.bvh.buffers.particleCount } }
+        { binding: 2, resource: { buffer: pipelines.bvh.buffers.mortonKeys } },
+        { binding: 3, resource: { buffer: pipelines.bvh.buffers.mortonVals } },
+        { binding: 4, resource: { buffer: pipelines.bvh.buffers.atomicFlags } },
+        { binding: 5, resource: { buffer: pipelines.bvh.buffers.parentOf } },
       ]
     })
   ];
 
-  const bvhRootBindGroups = [
-    device.createBindGroup({
-      label: 'BVH Root Bind Group A',
-      layout: pipelines.bvh.layouts.buildRoot,
-      entries: [
-        { binding: 0, resource: { buffer: pipelines.simulation.buffers.particleA } },
-        { binding: 1, resource: { buffer: pipelines.bvh.buffers.bvh } },
-        { binding: 2, resource: { buffer: pipelines.bvh.buffers.particleCount } }
-      ]
-    }),
-    device.createBindGroup({
-      label: 'BVH Root Bind Group B',
-      layout: pipelines.bvh.layouts.buildRoot,
-      entries: [
-        { binding: 0, resource: { buffer: pipelines.simulation.buffers.particleB } },
-        { binding: 1, resource: { buffer: pipelines.bvh.buffers.bvh } },
-        { binding: 2, resource: { buffer: pipelines.bvh.buffers.particleCount } }
-      ]
-    })
-  ];
-
-  console.log('✓ BVH build bind groups created');
+  console.log('✓ LBVH bind groups created');
 
   // Setup temporal accumulation bind group
-  const temporalBindGroup = device.createBindGroup({
+  temporalBindGroup = device.createBindGroup({
     label: 'Temporal Accumulation Bind Group',
     layout: pipelines.temporal.bindGroupLayout,
     entries: [
@@ -430,24 +586,70 @@ import { DPR } from './src/config/constants.js';
     // Swap buffers
     currentBufferIndex = 1 - currentBufferIndex;
 
-    // 2. Build BVH (simplified flat structure) - use current buffer
-    // 2a. Initialize leaf nodes from particles
-    const bvhInitPass = commandEncoder.beginComputePass({
-      label: 'BVH Init Leaves'
-    });
-    bvhInitPass.setPipeline(pipelines.bvh.pipelines.initFlat);
-    bvhInitPass.setBindGroup(0, bvhInitBindGroups[currentBufferIndex]);
-    bvhInitPass.dispatchWorkgroups(pipelines.bvh.workgroupCount);
-    bvhInitPass.end();
+    // 2. Build LBVH (Morton codes + bitonic sort + Karras tree)
+    const bvhWG = pipelines.bvh.workgroupCount;
+    const bvhDataBG = lbvhDataBindGroups[currentBufferIndex];
+    const bvhParamsBG = pipelines.bvh.paramsBindGroup;
 
-    // 2b. Build root node bounds
-    const bvhRootPass = commandEncoder.beginComputePass({
-      label: 'BVH Build Root'
-    });
-    bvhRootPass.setPipeline(pipelines.bvh.pipelines.buildRoot);
-    bvhRootPass.setBindGroup(0, bvhRootBindGroups[currentBufferIndex]);
-    bvhRootPass.dispatchWorkgroups(pipelines.bvh.workgroupCount);
-    bvhRootPass.end();
+    // 2a. Compute Morton codes
+    {
+      const p = commandEncoder.beginComputePass({ label: 'LBVH Morton Codes' });
+      p.setPipeline(pipelines.bvh.pipelines.computeMortonCodes);
+      p.setBindGroup(0, bvhDataBG);
+      p.setBindGroup(1, bvhParamsBG, [0]); // offset 0 = base params
+      p.dispatchWorkgroups(bvhWG);
+      p.end();
+    }
+
+    // 2b. Bitonic sort — local (stages 0-7)
+    {
+      const p = commandEncoder.beginComputePass({ label: 'LBVH Sort Local' });
+      p.setPipeline(pipelines.bvh.pipelines.bitonicSortLocal);
+      p.setBindGroup(0, bvhDataBG);
+      p.setBindGroup(1, bvhParamsBG, [0]);
+      p.dispatchWorkgroups(bvhWG);
+      p.end();
+    }
+
+    // 2c. Bitonic sort — global merge steps
+    for (let i = 0; i < pipelines.bvh.sortSteps.length; i++) {
+      const p = commandEncoder.beginComputePass({ label: `LBVH Sort Global ${i}` });
+      p.setPipeline(pipelines.bvh.pipelines.bitonicSortGlobal);
+      p.setBindGroup(0, bvhDataBG);
+      p.setBindGroup(1, bvhParamsBG, [(i + 1) * 256]); // offset to sort step entry
+      p.dispatchWorkgroups(bvhWG);
+      p.end();
+    }
+
+    // 2d. Build leaf nodes from sorted order
+    {
+      const p = commandEncoder.beginComputePass({ label: 'LBVH Build Leaves' });
+      p.setPipeline(pipelines.bvh.pipelines.buildLeaves);
+      p.setBindGroup(0, bvhDataBG);
+      p.setBindGroup(1, bvhParamsBG, [0]);
+      p.dispatchWorkgroups(bvhWG);
+      p.end();
+    }
+
+    // 2e. Build internal nodes (Karras 2012)
+    {
+      const p = commandEncoder.beginComputePass({ label: 'LBVH Build Tree' });
+      p.setPipeline(pipelines.bvh.pipelines.buildInternalNodes);
+      p.setBindGroup(0, bvhDataBG);
+      p.setBindGroup(1, bvhParamsBG, [0]);
+      p.dispatchWorkgroups(bvhWG);
+      p.end();
+    }
+
+    // 2f. Bottom-up AABB propagation
+    {
+      const p = commandEncoder.beginComputePass({ label: 'LBVH Compute Bounds' });
+      p.setPipeline(pipelines.bvh.pipelines.computeNodeBounds);
+      p.setBindGroup(0, bvhDataBG);
+      p.setBindGroup(1, bvhParamsBG, [0]);
+      p.dispatchWorkgroups(bvhWG);
+      p.end();
+    }
 
     // 3. Ray tracing pass (use current buffer after simulation)
     const rayTracePass = commandEncoder.beginComputePass({

@@ -395,8 +395,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
 
-    // Generate primary ray
-    let uv = (vec2<f32>(pixelCoord) + 0.5) / vec2<f32>(texSize);
+    // Generate primary ray with sub-pixel jitter for temporal convergence
+    let pixelSeed = vec3<f32>(f32(pixelCoord.x), f32(pixelCoord.y), params.time * 100.0 + f32(params.frameCount));
+    let jitterX = hash13(pixelSeed) - 0.5;
+    let jitterY = hash13(pixelSeed + vec3<f32>(57.13, 91.71, 0.0)) - 0.5;
+    let uv = (vec2<f32>(pixelCoord) + 0.5 + vec2<f32>(jitterX, jitterY)) / vec2<f32>(texSize);
     let ndc = uv * 2.0 - 1.0;
     let aspect = f32(texSize.x) / f32(texSize.y);
 
