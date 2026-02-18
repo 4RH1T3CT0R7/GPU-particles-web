@@ -587,6 +587,18 @@ import { initPhysicsEngine, stepPhysics, getGpuBufferView, type PhysicsEngine } 
     physicsEngine.world.set_fractal_seeds(defaultFractalSeed, defaultFractalSeed);
     physicsEngine.world.set_audio(0, 0, 0, 0);
 
+    // Pointer (disabled for now — will be wired to input system later)
+    physicsEngine.world.set_pointer(
+        false,  // active
+        0,      // mode (attract)
+        0, 0, 0, // position
+        1.0,    // strength
+        0.5,    // radius
+        false,  // pressing
+        false,  // pulse
+        0, 0, -1 // view direction (camera forward)
+    );
+
     // 1. WASM physics step (replaces GPU simulation compute pass)
     stepPhysics(physicsEngine, deltaTime, time);
 

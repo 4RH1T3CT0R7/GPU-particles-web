@@ -101,6 +101,36 @@ impl PhysicsWorld {
         self.solver.shape_params.audio_treble = treble;
         self.solver.shape_params.audio_energy = energy;
     }
+
+    #[wasm_bindgen]
+    pub fn set_pointer(
+        &mut self,
+        active: bool,
+        mode: u32,
+        x: f32, y: f32, z: f32,
+        strength: f32,
+        radius: f32,
+        pressing: bool,
+        pulse: bool,
+        view_dir_x: f32, view_dir_y: f32, view_dir_z: f32,
+    ) {
+        self.solver.pointer_params = xpbd_core::forces::pointer::PointerParams {
+            active,
+            mode,
+            position: glam::Vec3::new(x, y, z),
+            strength,
+            radius,
+            pressing,
+            pulse,
+            view_dir: glam::Vec3::new(view_dir_x, view_dir_y, view_dir_z),
+        };
+    }
+
+    #[wasm_bindgen]
+    pub fn reinitialize(&mut self, seed: u32) {
+        self.solver.reinitialize(seed);
+        self.write_gpu_output();
+    }
 }
 
 impl PhysicsWorld {
