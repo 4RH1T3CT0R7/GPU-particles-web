@@ -1,4 +1,5 @@
 pub mod config;
+pub mod constraints;
 pub mod forces;
 pub mod grid;
 pub mod math;
