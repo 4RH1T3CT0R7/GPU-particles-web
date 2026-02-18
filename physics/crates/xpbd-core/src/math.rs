@@ -2,7 +2,7 @@
 /// Unlike `f32::fract()` which can return negative values for negative inputs,
 /// this always returns a value in [0, 1).
 #[inline]
-fn fract(x: f32) -> f32 {
+pub fn fract(x: f32) -> f32 {
     x - x.floor()
 }
 
