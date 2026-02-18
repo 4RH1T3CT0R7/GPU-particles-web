@@ -136,3 +136,28 @@ fn test_repel_pushes_away() {
         solver.particles.position[0]
     );
 }
+
+#[test]
+fn test_collisions_push_apart() {
+    let mut solver = Solver::new(2);
+    solver.config.shape_strength = 0.0;
+    solver.config.collisions_enabled = true;
+    solver.config.substeps = 1;
+    solver.config.solver_iterations = 3;
+
+    // Place two particles overlapping
+    solver.particles.position[0] = Vec3::new(0.0, 0.0, 0.0);
+    solver.particles.position[1] = Vec3::new(0.05, 0.0, 0.0);
+    solver.particles.velocity[0] = Vec3::ZERO;
+    solver.particles.velocity[1] = Vec3::ZERO;
+    solver.particles.radius[0] = 0.05;
+    solver.particles.radius[1] = 0.05;
+    solver.particles.hash[0] = 0.5;
+    solver.particles.hash[1] = 0.6;
+
+    solver.step(0.016, 1.0);
+
+    // After collision resolution, particles should be pushed apart
+    let dist = (solver.particles.position[1] - solver.particles.position[0]).length();
+    assert!(dist > 0.08, "particles should be pushed apart: dist={}", dist);
+}

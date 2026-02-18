@@ -1,5 +1,7 @@
 use crate::config::PhysicsConfig;
+use crate::constraints::contact::{detect_contacts, solve_contacts, ContactConstraint};
 use crate::forces::pointer::{compute_pointer_force, PointerParams};
+use crate::grid::SpatialHashGrid;
 use crate::math::{curl, ease_in_out_cubic, hash12, noise, smoothstep};
 use crate::particle::ParticleSet;
 use crate::shapes::dispatcher::target_for;
@@ -45,6 +47,8 @@ pub struct Solver {
     pub config: PhysicsConfig,
     pub shape_params: ShapeParams,
     pub pointer_params: PointerParams,
+    grid: SpatialHashGrid,
+    contacts: Vec<ContactConstraint>,
 }
 
 impl Solver {
@@ -73,6 +77,8 @@ impl Solver {
             config: PhysicsConfig::default(),
             shape_params: ShapeParams::default(),
             pointer_params: PointerParams::default(),
+            grid: SpatialHashGrid::new(0.2, 131072, particle_count),
+            contacts: Vec::new(),
         }
     }
 
@@ -82,7 +88,6 @@ impl Solver {
     /// simulation time used for animated noise and shape parameters.
     pub fn step(&mut self, dt: f32, time: f32) {
         let sp = &self.shape_params;
-        let shape_strength = self.config.shape_strength;
         let speed_multiplier = sp.speed_multiplier;
         let sim_dt = dt * speed_multiplier;
 
@@ -93,10 +98,85 @@ impl Solver {
         let count = self.particles.count;
         let tex_size = (count as f32).sqrt().ceil() as usize;
 
-        // Pre-compute morph blend
-        let morph_blend = ease_in_out_cubic(sp.morph);
+        // Compute shape targets ONCE (they don't change within substeps)
+        self.compute_shape_targets(time, tex_size);
 
-        // Snapshot shape params to avoid borrow issues
+        if self.config.collisions_enabled {
+            // --- XPBD path: substeps with prediction + constraint solving ---
+            let sub_dt = sim_dt / self.config.substeps.max(1) as f32;
+
+            for _substep in 0..self.config.substeps {
+                // STEP 1: Apply forces -> update velocities
+                self.apply_forces(sub_dt, time, tex_size);
+
+                // STEP 2: Predict positions
+                for i in 0..count {
+                    self.particles.predicted[i] =
+                        self.particles.position[i] + self.particles.velocity[i] * sub_dt;
+                }
+
+                // STEP 3: Build grid and solve constraints
+                self.grid.build(&self.particles.predicted, count);
+
+                self.contacts = detect_contacts(
+                    &self.particles.predicted,
+                    &self.particles.radius,
+                    count,
+                    &self.grid,
+                );
+
+                for _iter in 0..self.config.solver_iterations {
+                    // Reset corrections
+                    for i in 0..count {
+                        self.particles.corrections[i] = Vec3::ZERO;
+                        self.particles.correction_counts[i] = 0;
+                    }
+
+                    // Solve contact constraints
+                    solve_contacts(
+                        &self.contacts,
+                        &self.particles.predicted,
+                        &mut self.particles.corrections,
+                        &mut self.particles.correction_counts,
+                    );
+
+                    // Solve boundary constraint
+                    self.solve_boundary_constraint();
+
+                    // Apply averaged corrections
+                    for i in 0..count {
+                        if self.particles.correction_counts[i] > 0 {
+                            self.particles.predicted[i] += self.particles.corrections[i]
+                                / self.particles.correction_counts[i] as f32;
+                        }
+                    }
+                }
+
+                // STEP 4: Update velocities from position change and finalize
+                for i in 0..count {
+                    self.particles.velocity[i] =
+                        (self.particles.predicted[i] - self.particles.position[i]) / sub_dt;
+                    self.particles.position[i] = self.particles.predicted[i];
+                }
+            }
+        } else {
+            // --- Original path: single-pass integration (preserves exact behavior) ---
+            self.apply_forces(sim_dt, time, tex_size);
+
+            for i in 0..count {
+                self.particles.position[i] +=
+                    self.particles.velocity[i] * sim_dt;
+            }
+        }
+    }
+
+    /// Compute shape targets for all particles (Phase 1).
+    ///
+    /// This is called once per step (not per substep) since shape targets
+    /// don't change within a frame.
+    fn compute_shape_targets(&mut self, time: f32, tex_size: usize) {
+        let sp = &self.shape_params;
+        let morph_blend = ease_in_out_cubic(sp.morph);
         let shape_a = sp.shape_a;
         let shape_b = sp.shape_b;
         let rot_a = sp.rot_a;
@@ -106,18 +186,8 @@ impl Solver {
         let audio_bass = sp.audio_bass;
         let audio_mid = sp.audio_mid;
         let audio_treble = sp.audio_treble;
-        let audio_energy = sp.audio_energy;
-        let roam_radius = self.config.boundary_radius;
+        let count = self.particles.count;
 
-        // Derived constants from shape_strength
-        let structure = smoothstep(0.1, 0.9, shape_strength);
-        let calm_factor = smoothstep(0.5, 1.0, shape_strength);
-
-        let is_equalizer_mode = shape_a == 12 || shape_b == 12;
-        // Free flight when shape_strength < 0.05
-        let is_free_flight = shape_strength < 0.05;
-
-        // --- Phase 1: compute shape targets ---
         for i in 0..count {
             let id_x = (i % tex_size) as f32 / tex_size as f32;
             let id_y = (i / tex_size) as f32 / tex_size as f32;
@@ -137,8 +207,37 @@ impl Solver {
             self.particles.target_pos[i] = target_a.lerp(target_b, morph_blend);
             self.particles.target_weight[i] = smoothstep(0.03, 0.9, self.particles.hash[i]);
         }
+    }
 
-        // --- Phase 2: per-particle physics ---
+    /// Apply all forces to particle velocities (Phase 2).
+    ///
+    /// This computes flow forces, shape attraction, pointer interaction,
+    /// boundary push, audio reactivity, and free-flight forces, then
+    /// integrates acceleration into velocity with damping and speed cap.
+    ///
+    /// Position update is NOT done here; it happens in the caller
+    /// (either simple Euler or XPBD prediction).
+    fn apply_forces(&mut self, sub_dt: f32, time: f32, tex_size: usize) {
+        let shape_strength = self.config.shape_strength;
+        let speed_multiplier = self.shape_params.speed_multiplier;
+        let roam_radius = self.config.boundary_radius;
+        let count = self.particles.count;
+
+        // Snapshot audio params to avoid borrow issues
+        let audio_bass = self.shape_params.audio_bass;
+        let audio_mid = self.shape_params.audio_mid;
+        let audio_treble = self.shape_params.audio_treble;
+        let audio_energy = self.shape_params.audio_energy;
+        let shape_a = self.shape_params.shape_a;
+        let shape_b = self.shape_params.shape_b;
+
+        // Derived constants from shape_strength
+        let structure = smoothstep(0.1, 0.9, shape_strength);
+        let calm_factor = smoothstep(0.5, 1.0, shape_strength);
+
+        let is_equalizer_mode = shape_a == 12 || shape_b == 12;
+        let is_free_flight = shape_strength < 0.05;
+
         for i in 0..count {
             let pos = self.particles.position[i];
             let mut vel = self.particles.velocity[i];
@@ -363,8 +462,8 @@ impl Solver {
                 );
             }
 
-            // ==== 6. INTEGRATION ====
-            vel += acc * sim_dt;
+            // ==== 6. INTEGRATION (velocity only) ====
+            vel += acc * sub_dt;
             // Additional damping when speed multiplier is active
             vel *= mix_f32(1.0, 0.915, step_f32(0.0001, speed_multiplier));
             // Speed cap
@@ -372,10 +471,24 @@ impl Solver {
             if speed > 18.0 {
                 vel = vel / speed * 18.0;
             }
-            let new_pos = pos + vel * sim_dt;
 
-            self.particles.position[i] = new_pos;
             self.particles.velocity[i] = vel;
+        }
+    }
+
+    /// Solve boundary constraint for XPBD mode.
+    ///
+    /// Pushes predicted positions back inside the boundary sphere.
+    fn solve_boundary_constraint(&mut self) {
+        let boundary = self.config.boundary_radius;
+        for i in 0..self.particles.count {
+            let pos = self.particles.predicted[i];
+            let dist = pos.length();
+            if dist > boundary {
+                let correction = pos / dist * (boundary - dist);
+                self.particles.corrections[i] += correction;
+                self.particles.correction_counts[i] += 1;
+            }
         }
     }
 

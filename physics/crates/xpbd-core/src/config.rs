@@ -8,6 +8,9 @@ pub struct PhysicsConfig {
     pub max_velocity: f32,
     pub boundary_radius: f32,
     pub shape_strength: f32,
+    /// Enable particle-particle collision constraints (opt-in).
+    /// When false, the solver uses the original integration path.
+    pub collisions_enabled: bool,
 }
 
 impl Default for PhysicsConfig {
@@ -20,6 +23,7 @@ impl Default for PhysicsConfig {
             max_velocity: 18.0,
             boundary_radius: 4.5,
             shape_strength: 0.85,
+            collisions_enabled: false,
         }
     }
 }

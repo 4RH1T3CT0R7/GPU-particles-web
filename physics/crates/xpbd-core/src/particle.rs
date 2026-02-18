@@ -11,6 +11,13 @@ pub struct ParticleSet {
     pub target_pos: Vec<Vec3>,
     /// Per-particle affinity to shape [0..1]
     pub target_weight: Vec<f32>,
+    // XPBD solver buffers
+    /// Predicted positions for constraint solving
+    pub predicted: Vec<Vec3>,
+    /// Accumulated position corrections (Jacobi)
+    pub corrections: Vec<Vec3>,
+    /// Number of corrections per particle (for averaging)
+    pub correction_counts: Vec<u32>,
 }
 
 impl ParticleSet {
@@ -23,6 +30,9 @@ impl ParticleSet {
             hash: vec![0.0; count],
             target_pos: vec![Vec3::ZERO; count],
             target_weight: vec![0.0; count],
+            predicted: vec![Vec3::ZERO; count],
+            corrections: vec![Vec3::ZERO; count],
+            correction_counts: vec![0u32; count],
         }
     }
 }
