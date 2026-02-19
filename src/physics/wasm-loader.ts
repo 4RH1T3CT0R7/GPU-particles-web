@@ -18,7 +18,7 @@ let wasmMemory: WebAssembly.Memory | null = null;
  * Call once at startup before the render loop begins.
  */
 export async function initPhysicsEngine(particleCount: number): Promise<PhysicsEngine> {
-    const wasm = await init();
+    const wasm = await init('/wasm/pkg/xpbd_wasm_bg.wasm');
     wasmMemory = wasm.memory;
 
     const world = new PhysicsWorld(particleCount);
