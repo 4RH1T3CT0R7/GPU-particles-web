@@ -3,6 +3,7 @@ use glam::Vec3;
 use crate::grid::SpatialHashGrid;
 
 /// A detected contact between two particles
+#[derive(Clone)]
 pub struct ContactConstraint {
     pub i: u32,           // particle A index
     pub j: u32,           // particle B index
@@ -46,14 +47,23 @@ pub fn detect_contacts(
 
 /// Solve contact constraints using Jacobi-style position corrections.
 /// Pushes overlapping particles apart proportionally to penetration depth.
+/// Applies Coulomb friction to tangential relative velocity.
 ///
 /// `corrections` and `correction_counts` are accumulation buffers (same length as positions).
 /// They must be zeroed before the first call in a solver iteration.
+///
+/// `predicted` are the current predicted positions. `previous` are the positions
+/// before prediction (used to estimate velocity for friction).
+/// `friction` is the Coulomb friction coefficient (0 = frictionless).
+/// `dt` is the substep time step.
 pub fn solve_contacts(
     contacts: &[ContactConstraint],
-    _positions: &[Vec3],
+    predicted: &[Vec3],
+    previous: &[Vec3],
     corrections: &mut [Vec3],
     correction_counts: &mut [u32],
+    friction: f32,
+    dt: f32,
 ) {
     for contact in contacts {
         let i = contact.i as usize;
@@ -62,6 +72,26 @@ pub fn solve_contacts(
         let correction = contact.normal * contact.penetration * 0.5;
         corrections[i] -= correction; // push A away from B
         corrections[j] += correction; // push B away from A
+
+        // Coulomb friction: reduce tangential relative velocity
+        if friction > 0.0 && dt > 1e-10 {
+            let vel_i = (predicted[i] - previous[i]) / dt;
+            let vel_j = (predicted[j] - previous[j]) / dt;
+            let rel_vel = vel_i - vel_j;
+            let vn = rel_vel.dot(contact.normal);
+            let vt = rel_vel - contact.normal * vn;
+            let vt_len = vt.length();
+            if vt_len > 1e-8 {
+                // Coulomb: tangential impulse <= mu * normal impulse
+                let max_friction = friction * contact.penetration * 0.5;
+                let friction_mag = (vt_len * dt).min(max_friction);
+                let tangent = vt / vt_len;
+                let friction_correction = tangent * friction_mag * 0.5;
+                corrections[i] -= friction_correction;
+                corrections[j] += friction_correction;
+            }
+        }
+
         correction_counts[i] += 1;
         correction_counts[j] += 1;
     }

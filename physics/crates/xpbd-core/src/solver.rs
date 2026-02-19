@@ -2,6 +2,7 @@ use crate::config::PhysicsConfig;
 use crate::constraints::bending::{self, BendingConstraint};
 use crate::constraints::contact::{detect_contacts, solve_contacts, ContactConstraint};
 use crate::constraints::distance::{self, DistanceConstraint};
+use crate::constraints::shape_matching::{ShapeMatchGroup, solve_shape_matching};
 use crate::forces::pointer::{compute_pointer_force, PointerParams};
 use crate::grid::SpatialHashGrid;
 use crate::math::{curl, ease_in_out_cubic, hash12, noise, smoothstep};
@@ -51,6 +52,7 @@ pub struct Solver {
     pub pointer_params: PointerParams,
     pub distance_constraints: Vec<DistanceConstraint>,
     pub bending_constraints: Vec<BendingConstraint>,
+    pub shape_match_groups: Vec<ShapeMatchGroup>,
     grid: SpatialHashGrid,
     contacts: Vec<ContactConstraint>,
 }
@@ -83,6 +85,7 @@ impl Solver {
             pointer_params: PointerParams::default(),
             distance_constraints: Vec::new(),
             bending_constraints: Vec::new(),
+            shape_match_groups: Vec::new(),
             grid: SpatialHashGrid::new(0.2, 131072, particle_count),
             contacts: Vec::new(),
         }
@@ -148,12 +151,15 @@ impl Solver {
                         self.particles.correction_counts[i] = 0;
                     }
 
-                    // Solve contact constraints
+                    // Solve contact constraints (with Coulomb friction)
                     solve_contacts(
                         &self.contacts,
                         &self.particles.predicted,
+                        &self.particles.position,
                         &mut self.particles.corrections,
                         &mut self.particles.correction_counts,
+                        self.config.friction,
+                        sub_dt,
                     );
 
                     // PBF density constraints for Fluid/Gas particles
@@ -182,6 +188,14 @@ impl Solver {
                             &mut self.bending_constraints,
                             &mut self.particles,
                             sub_dt,
+                        );
+                    }
+
+                    // Shape matching (rigid bodies)
+                    if !self.shape_match_groups.is_empty() {
+                        solve_shape_matching(
+                            &self.shape_match_groups,
+                            &mut self.particles,
                         );
                     }
 
@@ -675,10 +689,27 @@ impl Solver {
         }
     }
 
+    /// Create a rigid body from particles [start_idx .. start_idx + count].
+    ///
+    /// Sets particles to Phase::Rigid and creates a ShapeMatchGroup
+    /// from their current positions.
+    pub fn create_rigid_body(&mut self, start_idx: usize, count: usize, stiffness: f32) {
+        if start_idx + count > self.particles.count {
+            return;
+        }
+        for i in start_idx..start_idx + count {
+            self.particles.phase[i] = Phase::Rigid;
+        }
+        let indices: Vec<u32> = (start_idx..start_idx + count).map(|i| i as u32).collect();
+        let group = ShapeMatchGroup::from_particles(indices, &self.particles.position, stiffness);
+        self.shape_match_groups.push(group);
+    }
+
     /// Clear all constraints and reset particles to Phase::Free.
     pub fn clear_constraints(&mut self) {
         self.distance_constraints.clear();
         self.bending_constraints.clear();
+        self.shape_match_groups.clear();
         for i in 0..self.particles.count {
             self.particles.phase[i] = Phase::Free;
         }

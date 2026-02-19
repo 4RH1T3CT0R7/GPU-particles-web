@@ -160,6 +160,11 @@ impl PhysicsWorld {
     }
 
     #[wasm_bindgen]
+    pub fn create_rigid_body(&mut self, start_idx: u32, count: u32, stiffness: f32) {
+        self.solver.create_rigid_body(start_idx as usize, count as usize, stiffness);
+    }
+
+    #[wasm_bindgen]
     pub fn clear_constraints(&mut self) {
         self.solver.clear_constraints();
     }

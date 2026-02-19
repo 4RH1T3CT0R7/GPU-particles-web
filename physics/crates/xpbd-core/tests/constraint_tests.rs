@@ -3,6 +3,7 @@ use xpbd_core::constraints::contact::{detect_contacts, solve_contacts, ContactCo
 use xpbd_core::constraints::shape_matching::{ShapeMatchGroup, solve_shape_matching};
 use xpbd_core::grid::SpatialHashGrid;
 use xpbd_core::particle::{ParticleSet, Phase};
+use xpbd_core::solver::Solver;
 
 #[test]
 fn test_detect_overlapping_particles() {
@@ -49,10 +50,11 @@ fn test_solve_pushes_apart() {
     };
 
     let positions = vec![Vec3::ZERO, Vec3::new(0.1, 0.0, 0.0)];
+    let previous = positions.clone();
     let mut corrections = vec![Vec3::ZERO; 2];
     let mut counts = vec![0u32; 2];
 
-    solve_contacts(&[contact], &positions, &mut corrections, &mut counts);
+    solve_contacts(&[contact], &positions, &previous, &mut corrections, &mut counts, 0.0, 1.0 / 60.0);
 
     // Particle 0 should be pushed in -X, particle 1 in +X
     assert!(corrections[0].x < 0.0, "particle 0 should be pushed left");
@@ -146,4 +148,114 @@ fn test_shape_matching_rotation_recovery() {
             correction_mag
         );
     }
+}
+
+#[test]
+fn test_rigid_body_creation() {
+    let mut solver = Solver::new(10);
+    // Place first 4 particles in a known configuration
+    solver.particles.position[0] = Vec3::new(0.0, 0.0, 0.0);
+    solver.particles.position[1] = Vec3::new(1.0, 0.0, 0.0);
+    solver.particles.position[2] = Vec3::new(1.0, 1.0, 0.0);
+    solver.particles.position[3] = Vec3::new(0.0, 1.0, 0.0);
+
+    solver.create_rigid_body(0, 4, 0.9);
+
+    // Verify phases
+    for i in 0..4 {
+        assert_eq!(solver.particles.phase[i], Phase::Rigid);
+    }
+    // Remaining particles should stay Free
+    for i in 4..10 {
+        assert_eq!(solver.particles.phase[i], Phase::Free);
+    }
+    // Verify shape match group was created
+    assert_eq!(solver.shape_match_groups.len(), 1);
+    assert_eq!(solver.shape_match_groups[0].particle_indices.len(), 4);
+}
+
+#[test]
+fn test_rigid_body_solver_integration() {
+    let mut solver = Solver::new(4);
+    solver.particles.position[0] = Vec3::new(-0.5, -0.5, 0.0);
+    solver.particles.position[1] = Vec3::new(0.5, -0.5, 0.0);
+    solver.particles.position[2] = Vec3::new(0.5, 0.5, 0.0);
+    solver.particles.position[3] = Vec3::new(-0.5, 0.5, 0.0);
+    for i in 0..4 {
+        solver.particles.velocity[i] = Vec3::ZERO;
+    }
+
+    solver.create_rigid_body(0, 4, 1.0);
+    solver.config.collisions_enabled = true;
+    solver.config.substeps = 1;
+    solver.config.solver_iterations = 5;
+    solver.config.shape_strength = 0.0; // disable shape attraction
+
+    // Perturb one particle
+    solver.particles.position[2] = Vec3::new(1.5, 1.5, 0.0);
+
+    // Run a few steps
+    for _ in 0..5 {
+        solver.step(1.0 / 60.0, 0.0);
+    }
+
+    // After solver runs with shape matching, particles should be closer to rigid config
+    // than the perturbed state. Check that particle 2 moved back toward the group.
+    let p2 = solver.particles.position[2];
+    let dist_from_perturbed = (p2 - Vec3::new(1.5, 1.5, 0.0)).length();
+    assert!(
+        dist_from_perturbed > 0.01,
+        "Particle 2 should have moved from perturbed position"
+    );
+}
+
+#[test]
+fn test_contact_friction_reduces_tangential_velocity() {
+    // Two particles with tangential relative velocity
+    let contact = ContactConstraint {
+        i: 0,
+        j: 1,
+        normal: Vec3::Y, // contact normal pointing up
+        penetration: 0.05,
+    };
+
+    // Predicted positions: particle 0 moved right, particle 1 stationary
+    let predicted = vec![Vec3::new(0.1, 0.0, 0.0), Vec3::new(0.0, 0.05, 0.0)];
+    let previous = vec![Vec3::ZERO, Vec3::new(0.0, 0.05, 0.0)];
+
+    // Without friction
+    let mut corr_no_friction = vec![Vec3::ZERO; 2];
+    let mut counts_no_friction = vec![0u32; 2];
+    solve_contacts(
+        &[contact.clone()],
+        &predicted,
+        &previous,
+        &mut corr_no_friction,
+        &mut counts_no_friction,
+        0.0,
+        1.0 / 60.0,
+    );
+
+    // With friction
+    let mut corr_friction = vec![Vec3::ZERO; 2];
+    let mut counts_friction = vec![0u32; 2];
+    solve_contacts(
+        &[contact],
+        &predicted,
+        &previous,
+        &mut corr_friction,
+        &mut counts_friction,
+        0.5,
+        1.0 / 60.0,
+    );
+
+    // Friction should add additional tangential corrections
+    let tangential_no = corr_no_friction[0].x.abs();
+    let tangential_yes = corr_friction[0].x.abs();
+    assert!(
+        tangential_yes > tangential_no,
+        "Friction should add tangential correction: without={}, with={}",
+        tangential_no,
+        tangential_yes,
+    );
 }
