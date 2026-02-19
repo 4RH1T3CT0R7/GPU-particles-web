@@ -39,6 +39,8 @@ pub struct ParticleSet {
     pub density: Vec<f32>,
     /// Vorticity vector for vorticity confinement
     pub vorticity: Vec<Vec3>,
+    /// Per-particle electric charge for electromagnetic forces
+    pub charge: Vec<f32>,
 }
 
 impl ParticleSet {
@@ -58,6 +60,7 @@ impl ParticleSet {
             lambda: vec![0.0; count],
             density: vec![0.0; count],
             vorticity: vec![Vec3::ZERO; count],
+            charge: vec![0.0; count],
         }
     }
 }

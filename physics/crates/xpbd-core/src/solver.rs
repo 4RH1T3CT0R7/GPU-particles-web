@@ -3,6 +3,8 @@ use crate::constraints::bending::{self, BendingConstraint};
 use crate::constraints::contact::{detect_contacts, solve_contacts, ContactConstraint};
 use crate::constraints::distance::{self, DistanceConstraint};
 use crate::constraints::shape_matching::{ShapeMatchGroup, solve_shape_matching};
+use crate::forces::electromagnetic::apply_electromagnetic_forces;
+use crate::forces::gravity::apply_nbody_gravity;
 use crate::forces::pointer::{compute_pointer_force, PointerParams};
 use crate::grid::SpatialHashGrid;
 use crate::math::{curl, ease_in_out_cubic, hash12, noise, smoothstep};
@@ -123,6 +125,34 @@ impl Solver {
             for _substep in 0..self.config.substeps {
                 // STEP 1: Apply forces -> update velocities
                 self.apply_forces(sub_dt, time, tex_size);
+
+                // N-body gravity (Barnes-Hut)
+                if self.config.nbody_enabled {
+                    apply_nbody_gravity(
+                        &self.particles.position,
+                        &mut self.particles.velocity,
+                        count,
+                        self.config.nbody_g,
+                        self.config.nbody_softening,
+                        self.config.nbody_theta,
+                        sub_dt,
+                    );
+                }
+
+                // Electromagnetic forces (Coulomb + Lorentz)
+                if self.config.em_enabled {
+                    apply_electromagnetic_forces(
+                        &self.particles.position,
+                        &mut self.particles.velocity,
+                        &self.particles.charge,
+                        count,
+                        self.config.em_coulomb_k,
+                        self.config.em_magnetic_field,
+                        0.01, // softening
+                        self.config.boundary_radius * 2.0, // max range
+                        sub_dt,
+                    );
+                }
 
                 // STEP 2: Predict positions
                 for i in 0..count {

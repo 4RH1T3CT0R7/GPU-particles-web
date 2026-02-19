@@ -204,6 +204,41 @@ impl PhysicsWorld {
         }
     }
 
+    #[wasm_bindgen]
+    pub fn set_nbody_config(
+        &mut self,
+        enabled: bool,
+        gravitational_constant: f32,
+        softening: f32,
+        theta: f32,
+    ) {
+        self.solver.config.nbody_enabled = enabled;
+        self.solver.config.nbody_g = gravitational_constant;
+        self.solver.config.nbody_softening = softening;
+        self.solver.config.nbody_theta = theta;
+    }
+
+    #[wasm_bindgen]
+    pub fn set_em_config(
+        &mut self,
+        enabled: bool,
+        coulomb_k: f32,
+        magnetic_bx: f32,
+        magnetic_by: f32,
+        magnetic_bz: f32,
+    ) {
+        self.solver.config.em_enabled = enabled;
+        self.solver.config.em_coulomb_k = coulomb_k;
+        self.solver.config.em_magnetic_field = glam::Vec3::new(magnetic_bx, magnetic_by, magnetic_bz);
+    }
+
+    #[wasm_bindgen]
+    pub fn set_particle_charge(&mut self, index: usize, charge: f32) {
+        if index < self.solver.particles.count {
+            self.solver.particles.charge[index] = charge;
+        }
+    }
+
     /// Set all particles to a given phase at once (for bulk mode changes).
     #[wasm_bindgen]
     pub fn set_all_particles_phase(&mut self, phase: u8) {

@@ -25,6 +25,22 @@ pub struct PhysicsConfig {
     pub cloth_stiffness: f32,
     /// Compliance for cloth bending constraints (lower = stiffer).
     pub cloth_bending: f32,
+    /// Coulomb friction coefficient for contact constraints.
+    pub friction: f32,
+    /// Enable N-body gravitational interaction.
+    pub nbody_enabled: bool,
+    /// Gravitational constant for N-body.
+    pub nbody_g: f32,
+    /// Softening parameter to prevent singularity at r=0.
+    pub nbody_softening: f32,
+    /// Barnes-Hut opening angle. 0.0 = exact O(N^2), 0.7 = typical, higher = faster.
+    pub nbody_theta: f32,
+    /// Enable electromagnetic forces.
+    pub em_enabled: bool,
+    /// Coulomb electrostatic constant.
+    pub em_coulomb_k: f32,
+    /// External magnetic field vector for Lorentz force.
+    pub em_magnetic_field: Vec3,
 }
 
 impl Default for PhysicsConfig {
@@ -45,6 +61,14 @@ impl Default for PhysicsConfig {
             tensile_correction: true,
             cloth_stiffness: 0.001,
             cloth_bending: 0.01,
+            friction: 0.3,
+            nbody_enabled: false,
+            nbody_g: 0.001,
+            nbody_softening: 0.01,
+            nbody_theta: 0.7,
+            em_enabled: false,
+            em_coulomb_k: 1.0,
+            em_magnetic_field: Vec3::ZERO,
         }
     }
 }
