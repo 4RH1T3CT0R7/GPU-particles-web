@@ -6,5 +6,6 @@ pub mod grid;
 pub mod math;
 pub mod particle;
 pub mod quality;
+pub mod materials;
 pub mod shapes;
 pub mod solver;

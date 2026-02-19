@@ -1,6 +1,6 @@
 use glam::{Mat3, Vec3};
 
-use crate::particle::{ParticleSet, Phase};
+use crate::particle::ParticleSet;
 
 /// Rigid body shape matching group.
 ///
@@ -72,33 +72,35 @@ pub fn solve_shape_matching(groups: &[ShapeMatchGroup], particles: &mut Particle
             continue;
         }
 
-        // Step 1: Current center of mass (uniform mass, skip static particles)
+        // Step 1: Current center of mass (mass-weighted, skip static particles)
         let mut com = Vec3::ZERO;
-        let mut non_static: usize = 0;
+        let mut total_mass = 0.0_f32;
         for &idx in &group.particle_indices {
             let i = idx as usize;
-            if particles.phase[i] == Phase::Static {
+            if particles.inv_mass[i] == 0.0 {
                 continue;
             }
-            com += particles.predicted[i];
-            non_static += 1;
+            let mass = 1.0 / particles.inv_mass[i];
+            com += particles.predicted[i] * mass;
+            total_mass += mass;
         }
-        if non_static == 0 {
+        if total_mass < 1e-10 {
             continue;
         }
-        com /= non_static as f32;
+        com /= total_mass;
 
-        // Step 2: Build A_pq cross-covariance matrix
+        // Step 2: Build A_pq cross-covariance matrix (mass-weighted)
         let mut a_pq = Mat3::ZERO;
         for (k, &idx) in group.particle_indices.iter().enumerate() {
             let i = idx as usize;
-            if particles.phase[i] == Phase::Static {
+            if particles.inv_mass[i] == 0.0 {
                 continue;
             }
+            let mass = 1.0 / particles.inv_mass[i];
             let q = particles.predicted[i] - com; // current relative position
             let p = group.rest_positions[k]; // rest relative position
-            // A_pq += q * p^T (outer product, mass = 1)
-            a_pq += mat3_outer(q, p);
+            // A_pq += q * mass * p^T (mass-weighted outer product)
+            a_pq += mat3_outer(q * mass, p);
         }
 
         // Regularise A_pq so that degenerate configurations (e.g. all
@@ -113,7 +115,7 @@ pub fn solve_shape_matching(groups: &[ShapeMatchGroup], particles: &mut Particle
         let stiffness = group.stiffness;
         for (k, &idx) in group.particle_indices.iter().enumerate() {
             let i = idx as usize;
-            if particles.phase[i] == Phase::Static {
+            if particles.inv_mass[i] == 0.0 {
                 continue;
             }
 

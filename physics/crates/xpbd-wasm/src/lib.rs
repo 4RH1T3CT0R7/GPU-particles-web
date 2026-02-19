@@ -219,7 +219,7 @@ impl PhysicsWorld {
     #[wasm_bindgen]
     pub fn set_particle_phase(&mut self, index: usize, phase: u8) {
         if index < self.solver.particles.count {
-            self.solver.particles.phase[index] = match phase {
+            let p = match phase {
                 1 => xpbd_core::particle::Phase::Fluid,
                 2 => xpbd_core::particle::Phase::Cloth,
                 3 => xpbd_core::particle::Phase::Rigid,
@@ -228,6 +228,8 @@ impl PhysicsWorld {
                 6 => xpbd_core::particle::Phase::Static,
                 _ => xpbd_core::particle::Phase::Free,
             };
+            self.solver.particles.phase[index] = p;
+            self.solver.particles.inv_mass[index] = if p == xpbd_core::particle::Phase::Static { 0.0 } else { 1.0 };
         }
     }
 
@@ -278,9 +280,74 @@ impl PhysicsWorld {
             6 => xpbd_core::particle::Phase::Static,
             _ => xpbd_core::particle::Phase::Free,
         };
+        let inv_m = if p == xpbd_core::particle::Phase::Static { 0.0 } else { 1.0 };
         for i in 0..self.solver.particles.count {
             self.solver.particles.phase[i] = p;
+            self.solver.particles.inv_mass[i] = inv_m;
         }
+    }
+
+    #[wasm_bindgen]
+    pub fn resize(&mut self, new_count: usize) {
+        self.solver = Solver::new(new_count);
+        self.gpu_buffer = vec![GpuParticle {
+            position: [0.0; 3],
+            radius: 0.05,
+            velocity: [0.0; 3],
+            _pad: 0.0,
+        }; new_count];
+        self.write_gpu_output();
+    }
+
+    #[wasm_bindgen]
+    pub fn set_collision_config(&mut self, enabled: bool, friction: f32, restitution: f32, boundary_stiffness: f32) {
+        self.solver.config.collisions_enabled = enabled;
+        self.solver.config.friction = friction;
+        self.solver.config.restitution = restitution;
+        self.solver.config.boundary_stiffness = boundary_stiffness;
+    }
+
+    #[wasm_bindgen]
+    pub fn set_particle_mass(&mut self, start: u32, count: u32, mass: f32) {
+        let inv_m = if mass <= 0.0 { 0.0 } else { 1.0 / mass };
+        let end = ((start + count) as usize).min(self.solver.particles.count);
+        for i in (start as usize)..end {
+            self.solver.particles.inv_mass[i] = inv_m;
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn set_particle_radius(&mut self, start: u32, count: u32, radius: f32) {
+        let end = ((start + count) as usize).min(self.solver.particles.count);
+        for i in (start as usize)..end {
+            self.solver.particles.radius[i] = radius;
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn write_webgl_buffers(&self, pos_out: &js_sys::Float32Array, vel_out: &js_sys::Float32Array) {
+        for i in 0..self.solver.particles.count {
+            let off = (i * 4) as u32;
+            let pos = self.solver.particles.position[i];
+            let vel = self.solver.particles.velocity[i];
+            pos_out.set_index(off, pos.x);
+            pos_out.set_index(off + 1, pos.y);
+            pos_out.set_index(off + 2, pos.z);
+            pos_out.set_index(off + 3, self.solver.particles.radius[i]);
+            vel_out.set_index(off, vel.x);
+            vel_out.set_index(off + 1, vel.y);
+            vel_out.set_index(off + 2, vel.z);
+            vel_out.set_index(off + 3, 0.0);
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn get_perf_stats(&self) -> String {
+        let s = &self.solver.last_stats;
+        format!(
+            r#"{{"step_ms":{:.2},"substeps":{},"iterations":{},"particle_count":{},"contact_count":{}}}"#,
+            s.total_ms, s.substeps, s.iterations, s.particle_count, s.contact_count
+        )
     }
 }
 

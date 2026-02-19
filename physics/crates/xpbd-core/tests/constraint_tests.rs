@@ -54,7 +54,8 @@ fn test_solve_pushes_apart() {
     let mut corrections = vec![Vec3::ZERO; 2];
     let mut counts = vec![0u32; 2];
 
-    solve_contacts(&[contact], &positions, &previous, &mut corrections, &mut counts, 0.0, 1.0 / 60.0);
+    let inv_mass = vec![1.0f32; 2];
+    solve_contacts(&[contact], &positions, &previous, &inv_mass, &mut corrections, &mut counts, 0.0, 1.0 / 60.0);
 
     // Particle 0 should be pushed in -X, particle 1 in +X
     assert!(corrections[0].x < 0.0, "particle 0 should be pushed left");
@@ -223,6 +224,8 @@ fn test_contact_friction_reduces_tangential_velocity() {
     let predicted = vec![Vec3::new(0.1, 0.0, 0.0), Vec3::new(0.0, 0.05, 0.0)];
     let previous = vec![Vec3::ZERO, Vec3::new(0.0, 0.05, 0.0)];
 
+    let inv_mass = vec![1.0f32; 2];
+
     // Without friction
     let mut corr_no_friction = vec![Vec3::ZERO; 2];
     let mut counts_no_friction = vec![0u32; 2];
@@ -230,6 +233,7 @@ fn test_contact_friction_reduces_tangential_velocity() {
         &[contact.clone()],
         &predicted,
         &previous,
+        &inv_mass,
         &mut corr_no_friction,
         &mut counts_no_friction,
         0.0,
@@ -243,6 +247,7 @@ fn test_contact_friction_reduces_tangential_velocity() {
         &[contact],
         &predicted,
         &previous,
+        &inv_mass,
         &mut corr_friction,
         &mut counts_friction,
         0.5,

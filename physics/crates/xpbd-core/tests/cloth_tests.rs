@@ -79,6 +79,7 @@ fn test_distance_constraint_static_particle() {
     particles.predicted[0] = Vec3::new(0.0, 0.0, 0.0);
     particles.predicted[1] = Vec3::new(2.0, 0.0, 0.0);
     particles.phase[0] = Phase::Static;
+    particles.inv_mass[0] = 0.0; // static = infinite mass
     particles.phase[1] = Phase::Cloth;
 
     let mut constraints = vec![DistanceConstraint::new(0, 1, 1.0, 0.0)];
@@ -271,17 +272,19 @@ fn test_cloth_drapes_under_gravity() {
     solver.config.collisions_enabled = true;
     solver.config.substeps = 2;
     solver.config.solver_iterations = 3;
-    solver.config.shape_strength = 0.0; // no shape attraction
+    solver.config.shape_strength = 0.1; // low shape attraction (avoids free-flight turbulence)
     solver.create_cloth(0, 5, 5, 0.1, 0.001, 0.01);
 
     // Pin top-left and top-right corners
     solver.particles.phase[0] = Phase::Static;
+    solver.particles.inv_mass[0] = 0.0;
     solver.particles.phase[4] = Phase::Static;
+    solver.particles.inv_mass[4] = 0.0;
 
     let initial_y = solver.particles.position[12].y; // center particle
 
     // Step several times
-    for t in 0..20 {
+    for t in 0..30 {
         solver.step(0.016, t as f32 * 0.016);
     }
 

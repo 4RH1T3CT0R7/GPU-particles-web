@@ -1,4 +1,4 @@
-use crate::particle::{ParticleSet, Phase};
+use crate::particle::ParticleSet;
 
 /// XPBD distance constraint for cloth edges.
 ///
@@ -54,17 +54,9 @@ pub fn solve_distance_constraints(
         let i = c.i as usize;
         let j = c.j as usize;
 
-        // Inverse mass: 0.0 for Static (immovable), 1.0 for everything else
-        let w_i = if particles.phase[i] == Phase::Static {
-            0.0
-        } else {
-            1.0
-        };
-        let w_j = if particles.phase[j] == Phase::Static {
-            0.0
-        } else {
-            1.0
-        };
+        // Inverse mass from particle data (0.0 = static/immovable)
+        let w_i = particles.inv_mass[i];
+        let w_j = particles.inv_mass[j];
         let w_sum = w_i + w_j;
         if w_sum < 1e-10 {
             continue;

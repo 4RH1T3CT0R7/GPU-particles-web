@@ -46,7 +46,7 @@ pub fn solve_density_constraints(
 ) {
     let count = particles.count;
     let h = smoothing_radius;
-    let inv_rho0 = 1.0 / rest_density;
+    let inv_rho0 = 1.0 / rest_density.max(1.0);
 
     // Precompute the tensile reference kernel value (poly6 at delta_q distance).
     let poly6_dq = if tensile_correction {

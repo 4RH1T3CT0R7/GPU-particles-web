@@ -19,6 +19,8 @@ pub struct ParticleSet {
     pub position: Vec<Vec3>,
     pub velocity: Vec<Vec3>,
     pub radius: Vec<f32>,
+    /// Inverse mass (0.0 = static/infinite mass, 1.0 = unit mass).
+    pub inv_mass: Vec<f32>,
     pub hash: Vec<f32>,
     /// Morphing target position (computed each step from shape generators)
     pub target_pos: Vec<Vec3>,
@@ -50,6 +52,7 @@ impl ParticleSet {
             position: vec![Vec3::ZERO; count],
             velocity: vec![Vec3::ZERO; count],
             radius: vec![0.05; count],
+            inv_mass: vec![1.0; count],
             hash: vec![0.0; count],
             target_pos: vec![Vec3::ZERO; count],
             target_weight: vec![0.0; count],

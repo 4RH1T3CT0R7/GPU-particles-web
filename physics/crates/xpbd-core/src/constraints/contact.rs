@@ -60,6 +60,7 @@ pub fn solve_contacts(
     contacts: &[ContactConstraint],
     predicted: &[Vec3],
     previous: &[Vec3],
+    inv_mass: &[f32],
     corrections: &mut [Vec3],
     correction_counts: &mut [u32],
     friction: f32,
@@ -68,10 +69,18 @@ pub fn solve_contacts(
     for contact in contacts {
         let i = contact.i as usize;
         let j = contact.j as usize;
-        // Each particle gets pushed half the penetration distance
-        let correction = contact.normal * contact.penetration * 0.5;
-        corrections[i] -= correction; // push A away from B
-        corrections[j] += correction; // push B away from A
+
+        let w_i = inv_mass[i];
+        let w_j = inv_mass[j];
+        let w_sum = w_i + w_j;
+        if w_sum < 1e-10 {
+            continue; // both static
+        }
+
+        // Mass-weighted normal correction
+        let correction = contact.normal * contact.penetration / w_sum;
+        corrections[i] -= correction * w_i;
+        corrections[j] += correction * w_j;
 
         // Coulomb friction: reduce tangential relative velocity
         if friction > 0.0 && dt > 1e-10 {
@@ -86,9 +95,10 @@ pub fn solve_contacts(
                 let max_friction = friction * contact.penetration * 0.5;
                 let friction_mag = (vt_len * dt).min(max_friction);
                 let tangent = vt / vt_len;
-                let friction_correction = tangent * friction_mag * 0.5;
-                corrections[i] -= friction_correction;
-                corrections[j] += friction_correction;
+                let friction_correction_i = tangent * friction_mag * w_i / w_sum;
+                let friction_correction_j = tangent * friction_mag * w_j / w_sum;
+                corrections[i] -= friction_correction_i;
+                corrections[j] += friction_correction_j;
             }
         }
 

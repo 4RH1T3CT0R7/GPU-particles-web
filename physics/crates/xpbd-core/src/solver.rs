@@ -3,7 +3,9 @@ use crate::constraints::bending::{self, BendingConstraint};
 use crate::constraints::contact::{detect_contacts, solve_contacts, ContactConstraint};
 use crate::constraints::distance::{self, DistanceConstraint};
 use crate::constraints::shape_matching::{ShapeMatchGroup, solve_shape_matching};
+use crate::forces::audio::{audio_boost_factor, compute_audio_force};
 use crate::forces::electromagnetic::apply_electromagnetic_forces;
+use crate::forces::flow::compute_flow_force;
 use crate::forces::gravity::apply_nbody_gravity;
 use crate::forces::pointer::{compute_pointer_force, PointerParams};
 use crate::grid::SpatialHashGrid;
@@ -11,6 +13,7 @@ use crate::math::{curl, ease_in_out_cubic, hash12, noise, smoothstep};
 use crate::particle::{ParticleSet, Phase};
 use crate::quality::{AdaptiveQuality, StepStats};
 use crate::shapes::dispatcher::target_for;
+use crate::shapes::morph::solve_shape_targets;
 use glam::Vec3;
 
 /// Parameters controlling shape morphing, rotation, fractals, and audio.
@@ -167,6 +170,10 @@ impl Solver {
 
                 // STEP 2: Predict positions
                 for i in 0..count {
+                    if self.particles.inv_mass[i] == 0.0 {
+                        self.particles.predicted[i] = self.particles.position[i];
+                        continue;
+                    }
                     self.particles.predicted[i] =
                         self.particles.position[i] + self.particles.velocity[i] * sub_dt;
                 }
@@ -198,6 +205,7 @@ impl Solver {
                         &self.contacts,
                         &self.particles.predicted,
                         &self.particles.position,
+                        &self.particles.inv_mass,
                         &mut self.particles.corrections,
                         &mut self.particles.correction_counts,
                         self.config.friction,
@@ -241,6 +249,17 @@ impl Solver {
                         );
                     }
 
+                    // Shape target constraints (morphing attraction as XPBD)
+                    if self.config.shape_strength > 0.001 {
+                        solve_shape_targets(
+                            &mut self.particles,
+                            self.config.shape_strength,
+                            self.config.shape_compliance_at_zero,
+                            self.config.shape_compliance_at_one,
+                            sub_dt,
+                        );
+                    }
+
                     // Solve boundary constraint
                     self.solve_boundary_constraint();
 
@@ -255,6 +274,7 @@ impl Solver {
 
                 // STEP 4: Update velocities from position change and finalize
                 for i in 0..count {
+                    if self.particles.inv_mass[i] == 0.0 { continue; }
                     self.particles.velocity[i] =
                         (self.particles.predicted[i] - self.particles.position[i]) / sub_dt;
                     self.particles.position[i] = self.particles.predicted[i];
@@ -357,6 +377,7 @@ impl Solver {
         let is_free_flight = shape_strength < 0.05;
 
         for i in 0..count {
+            if self.particles.inv_mass[i] == 0.0 { continue; }
             let pos = self.particles.position[i];
             let mut vel = self.particles.velocity[i];
             let id_hash = self.particles.hash[i];
@@ -365,51 +386,9 @@ impl Solver {
             let layer_hash = hash12(id_x * 23.7, id_y * 23.7);
 
             // ==== 1. FLOW FORCES ====
-            // Curl noise for organic movement (large + mid + fine)
-            let (curl_lx, curl_ly) = curl(pos.x * 0.4 + time * 0.1, pos.y * 0.4 + time * 0.1);
-            let curl_large = (curl_lx * 0.7, curl_ly * 0.7);
-
-            let (curl_mx, curl_my) = curl(
-                pos.x * 1.0 + pos.z * 0.3 - time * 0.12,
-                pos.y * 1.0 + pos.z * 0.3 - time * 0.12,
-            );
-            let curl_mid = (curl_mx * 0.5, curl_my * 0.5);
-
-            let (curl_fx, curl_fy) = curl(
-                pos.x * 2.5 + time * 0.2 + id_hash * 3.0,
-                pos.y * 2.5 + time * 0.2 + id_hash * 3.0,
-            );
-            let curl_fine = (curl_fx * 0.25, curl_fy * 0.25);
-
-            let curl_z = noise(pos.x * 1.5 + time * 0.15, pos.y * 1.5 + time * 0.15) - 0.5;
-
-            let swirl_x = curl_large.0 + curl_mid.0 + curl_fine.0;
-            let swirl_y = curl_large.1 + curl_mid.1 + curl_fine.1;
-
-            // Vortex
-            let vortex_cx = (time * 0.08).sin() * 0.4;
-            let vortex_cy = (time * 0.1).cos() * 0.4;
-            let rel_x = pos.x - vortex_cx;
-            let rel_y = pos.y - vortex_cy;
-            let r2 = (rel_x * rel_x + rel_y * rel_y).max(0.15);
-            let vortex_x = -rel_y / r2 * 0.35;
-            let vortex_y = rel_x / r2 * 0.35;
-
-            let base_flow_x = swirl_x * 0.55 + vortex_x * 0.35;
-            let base_flow_y = swirl_y * 0.55 + vortex_y * 0.35;
-
-            let damped_flow_x = mix_f32(base_flow_x, swirl_x * 0.25, calm_factor);
-            let damped_flow_y = mix_f32(base_flow_y, swirl_y * 0.25, calm_factor);
-
-            let mut flow_z = curl_z * 0.4;
-            flow_z += (time * 0.25 + pos.x * 1.2 + pos.y * 0.8).sin() * 0.35;
-
+            let flow_raw = compute_flow_force(pos, id_hash, time, calm_factor);
             let flow_scale = mix_f32(0.35, 0.55, 1.0 - structure);
-            let mut acc = Vec3::new(
-                damped_flow_x * flow_scale,
-                damped_flow_y * flow_scale,
-                flow_z * flow_scale,
-            );
+            let mut acc = flow_raw * flow_scale;
             acc.y -= 0.04; // gravity
 
             let vel_mag = vel.length();
@@ -468,40 +447,13 @@ impl Solver {
 
             // ==== 4. AUDIO REACTIVITY (equalizer mode) ====
             if is_equalizer_mode {
-                let audio_boost = 1.0 + audio_energy * 1.2;
-                acc *= audio_boost;
-
-                let bass_force = audio_bass * 4.5;
-                let outward_raw = pos - desired + Vec3::new(0.001, 0.0, 0.0);
-                let outward_len = outward_raw.length().max(0.001);
-                let outward = outward_raw / outward_len;
-                acc += outward * bass_force;
-                vel += outward * audio_bass * 0.8;
-
-                let mid_angle = audio_mid * std::f32::consts::PI + time;
-                let mid_swirl_x = mid_angle.cos();
-                let mid_swirl_y = mid_angle.sin();
-                acc += Vec3::new(
-                    mid_swirl_x * audio_mid * 3.2,
-                    mid_swirl_y * audio_mid * 3.2,
-                    0.0,
+                acc *= audio_boost_factor(audio_energy);
+                let (audio_acc, audio_vel) = compute_audio_force(
+                    pos, desired, id_hash, layer_hash, time,
+                    audio_bass, audio_mid, audio_treble, audio_energy,
                 );
-                let mid_tangent = Vec3::new(
-                    -mid_swirl_y,
-                    mid_swirl_x,
-                    (time * 2.0).sin() * 0.5,
-                );
-                acc += mid_tangent * audio_mid * 2.0;
-
-                acc.y += audio_treble * 3.8;
-                acc.z += (time * 5.0 + id_hash * std::f32::consts::TAU).sin()
-                    * audio_treble * 2.5;
-                let sparkle = Vec3::new(
-                    (time * 7.0 + id_hash * 12.56).sin(),
-                    (time * 8.0 + layer_hash * 9.42).cos(),
-                    (time * 6.0 + id_hash * 15.7).sin(),
-                ) * audio_treble * 1.8;
-                acc += sparkle;
+                acc += audio_acc;
+                vel += audio_vel;
             }
 
             // ==== 5. FREE-FLIGHT MODE ====
@@ -766,6 +718,7 @@ impl Solver {
             self.particles.position[i] =
                 Vec3::new(angle.cos() * r, (t - 0.5) * 2.0, angle.sin() * r);
             self.particles.velocity[i] = Vec3::ZERO;
+            self.particles.inv_mass[i] = 1.0;
         }
     }
 }

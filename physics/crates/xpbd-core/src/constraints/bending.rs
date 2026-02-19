@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::particle::{ParticleSet, Phase};
+use crate::particle::ParticleSet;
 
 /// Dihedral bending constraint for cloth simulation.
 ///
@@ -122,27 +122,11 @@ pub fn solve_bending_constraints(
             continue;
         }
 
-        // Inverse masses: static particles are immovable.
-        let w_i = if particles.phase[ii] == Phase::Static {
-            0.0
-        } else {
-            1.0_f32
-        };
-        let w_j = if particles.phase[jj] == Phase::Static {
-            0.0
-        } else {
-            1.0
-        };
-        let w_k = if particles.phase[kk] == Phase::Static {
-            0.0
-        } else {
-            1.0
-        };
-        let w_l = if particles.phase[ll] == Phase::Static {
-            0.0
-        } else {
-            1.0
-        };
+        // Inverse masses from particle data (0.0 = static/immovable).
+        let w_i = particles.inv_mass[ii];
+        let w_j = particles.inv_mass[jj];
+        let w_k = particles.inv_mass[kk];
+        let w_l = particles.inv_mass[ll];
         let w_sum = w_i + w_j + w_k + w_l;
         if w_sum < 1e-10 {
             continue;

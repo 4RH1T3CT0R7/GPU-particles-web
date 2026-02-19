@@ -5,3 +5,4 @@
 pub mod primitives;
 pub mod fractal;
 pub mod dispatcher;
+pub mod morph;
