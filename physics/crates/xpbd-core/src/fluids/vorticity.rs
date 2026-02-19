@@ -34,6 +34,9 @@ pub fn apply_vorticity_confinement(
         grid.query_neighbors(pos_i, |j| {
             let j = j as usize;
             if j == i { return; }
+            if particles.phase[j] != Phase::Fluid && particles.phase[j] != Phase::Gas {
+                return;
+            }
 
             let r = pos_i - particles.predicted[j];
             let r_len = r.length();
@@ -68,6 +71,9 @@ pub fn apply_vorticity_confinement(
         grid.query_neighbors(pos_i, |j| {
             let j = j as usize;
             if j == i { return; }
+            if particles.phase[j] != Phase::Fluid && particles.phase[j] != Phase::Gas {
+                return;
+            }
 
             let r = pos_i - particles.predicted[j];
             let r_len = r.length();

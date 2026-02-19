@@ -122,8 +122,14 @@ pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
 }
 
 /// Smooth interpolation -- port of GLSL `smoothstep`.
+///
+/// When `edge0 == edge1` (degenerate range), returns 0.0 if `x < edge0`,
+/// otherwise 1.0, avoiding division by zero.
 #[inline]
 pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
+    if (edge1 - edge0).abs() < 1e-10 {
+        return if x < edge0 { 0.0 } else { 1.0 };
+    }
     let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
 }
