@@ -43,8 +43,10 @@ impl PhysicsWorld {
         let start = js_sys::Date::now();
         self.solver.step(dt, time);
         self.write_gpu_output();
-        let elapsed = js_sys::Date::now() - start;
-        elapsed as f32
+        let elapsed = (js_sys::Date::now() - start) as f32;
+        self.solver.last_stats.total_ms = elapsed;
+        self.solver.adaptive_quality.update(elapsed);
+        elapsed
     }
 
     #[wasm_bindgen]
@@ -126,6 +128,28 @@ impl PhysicsWorld {
         };
     }
 
+    /// Enable or disable adaptive quality control.
+    #[wasm_bindgen]
+    pub fn set_adaptive_quality(&mut self, enabled: bool, budget_ms: f32) {
+        self.solver.adaptive_quality.enabled = enabled;
+        if budget_ms > 0.0 {
+            self.solver.adaptive_quality.budget_ms = budget_ms;
+        }
+    }
+
+    /// Get current step statistics as [total_ms, substeps, iterations, particle_count, contact_count].
+    #[wasm_bindgen]
+    pub fn get_step_stats(&self) -> Vec<f32> {
+        let s = &self.solver.last_stats;
+        vec![
+            s.total_ms,
+            s.substeps as f32,
+            s.iterations as f32,
+            s.particle_count as f32,
+            s.contact_count as f32,
+        ]
+    }
+
     #[wasm_bindgen]
     pub fn set_solver_config(
         &mut self,
@@ -136,6 +160,9 @@ impl PhysicsWorld {
         self.solver.config.substeps = substeps;
         self.solver.config.solver_iterations = solver_iterations;
         self.solver.config.collisions_enabled = collisions_enabled;
+        // Sync adaptive quality max values
+        self.solver.adaptive_quality.max_substeps = substeps;
+        self.solver.adaptive_quality.max_iterations = solver_iterations;
     }
 
     #[wasm_bindgen]

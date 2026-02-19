@@ -5,5 +5,6 @@ pub mod forces;
 pub mod grid;
 pub mod math;
 pub mod particle;
+pub mod quality;
 pub mod shapes;
 pub mod solver;

@@ -9,6 +9,7 @@ use crate::forces::pointer::{compute_pointer_force, PointerParams};
 use crate::grid::SpatialHashGrid;
 use crate::math::{curl, ease_in_out_cubic, hash12, noise, smoothstep};
 use crate::particle::{ParticleSet, Phase};
+use crate::quality::{AdaptiveQuality, StepStats};
 use crate::shapes::dispatcher::target_for;
 use glam::Vec3;
 
@@ -55,6 +56,8 @@ pub struct Solver {
     pub distance_constraints: Vec<DistanceConstraint>,
     pub bending_constraints: Vec<BendingConstraint>,
     pub shape_match_groups: Vec<ShapeMatchGroup>,
+    pub adaptive_quality: AdaptiveQuality,
+    pub last_stats: StepStats,
     grid: SpatialHashGrid,
     contacts: Vec<ContactConstraint>,
 }
@@ -88,6 +91,8 @@ impl Solver {
             distance_constraints: Vec::new(),
             bending_constraints: Vec::new(),
             shape_match_groups: Vec::new(),
+            adaptive_quality: AdaptiveQuality::new(4, 3),
+            last_stats: StepStats::default(),
             grid: SpatialHashGrid::new(0.2, 131072, particle_count),
             contacts: Vec::new(),
         }
@@ -119,10 +124,16 @@ impl Solver {
 
         if self.config.collisions_enabled {
             // --- XPBD path: substeps with prediction + constraint solving ---
-            let sub_dt = sim_dt / self.config.substeps.max(1) as f32;
+            let substeps = self.adaptive_quality.substeps().max(1);
+            let iterations = self.adaptive_quality.iterations().max(1);
+            let sub_dt = sim_dt / substeps as f32;
             let has_fluid = self.has_fluid_particles();
 
-            for _substep in 0..self.config.substeps {
+            self.last_stats.substeps = substeps;
+            self.last_stats.iterations = iterations;
+            self.last_stats.particle_count = count as u32;
+
+            for _substep in 0..substeps {
                 // STEP 1: Apply forces -> update velocities
                 self.apply_forces(sub_dt, time, tex_size);
 
@@ -173,8 +184,9 @@ impl Solver {
                     count,
                     &self.grid,
                 );
+                self.last_stats.contact_count = self.contacts.len() as u32;
 
-                for _iter in 0..self.config.solver_iterations {
+                for _iter in 0..iterations {
                     // Reset corrections
                     for i in 0..count {
                         self.particles.corrections[i] = Vec3::ZERO;
