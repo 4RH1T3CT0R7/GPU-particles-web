@@ -1,444 +1,424 @@
-# ✨ GPU Particle Shapes
+# GPU Particle Shapes
 
 <div align="center">
 
 ![WebGL2](https://img.shields.io/badge/WebGL-2.0-990000?style=for-the-badge&logo=webgl&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![WebGPU](https://img.shields.io/badge/WebGPU-Ray_Tracing-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-WASM-DEA584?style=for-the-badge&logo=rust&logoColor=black)
+![WASM](https://img.shields.io/badge/WebAssembly-654FF0?style=for-the-badge&logo=webassembly&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Live-00D26A?style=for-the-badge)
 
-*A mesmerizing real-time GPU-accelerated particle system that morphs between mathematical shapes with stunning visual effects*
+**Система визуализации частиц в реальном времени с GPU-ускорением, двумя рендер-бекендами и физическим движком XPBD на Rust/WASM**
 
-[🎮 WebGL2 Demo](https://4RH1T3CT0R7.github.io/GPU-particles-web/index.html) • [⚡ WebGPU Demo](https://4RH1T3CT0R7.github.io/GPU-particles-web/index-webgpu.html) • [🔍 Debug Tools](#-debugging--troubleshooting)
-
-[Features](#-features) • [Getting Started](#-getting-started) • [Controls](#-interactive-controls)
+[WebGL2 Demo](https://4RH1T3CT0R7.github.io/GPU-particles-web/index.html) | [WebGPU Demo](https://4RH1T3CT0R7.github.io/GPU-particles-web/index-webgpu.html)
 
 ---
 
 </div>
 
-## 🌟 Overview
+## Обзор
 
-**GPU Particle Shapes** is an advanced particle visualization system with **two cutting-edge versions**: a stable **WebGL2** version and an experimental **WebGPU version featuring real-time ray tracing** with path-traced global illumination. Experience up to 65,000+ particles morphing between mathematical shapes with stunning visual effects and physically-based rendering.
+**GPU Particle Shapes** -- система визуализации частиц в реальном времени с двумя рендер-бекендами: стабильным **WebGL2** и экспериментальным **WebGPU с трассировкой лучей**. Физика реализована собственным движком **XPBD** на Rust, скомпилированным в WebAssembly.
 
-### ✨ Key Highlights
+Система обеспечивает рендеринг **65 000+ частиц** при 60 FPS, морфинг между 13 математическими формами, 7 режимов взаимодействия с курсором, аудиореактивность и физически корректное освещение (PBR).
+
+## Демонстрация
 
-#### WebGL2 Version (Stable)
-- 🚀 **GPU-Accelerated Rendering** - Leverages WebGL2 for ultra-smooth performance
-- 🎨 **Dynamic Color Palettes** - Multiple gradient schemes with live palette switching
-- 🔄 **Shape Morphing** - Seamless transitions between geometric forms
-- 🎯 **Interactive Cursor Effects** - 7 unique interaction modes (attract, repel, vortex, pulse, quasar, magnet)
-- 💫 **Particle Trails** - Soft glow effects with customizable persistence
-- 🎮 **Real-Time Controls** - Intuitive UI with live parameter adjustments
-- 📱 **Responsive Design** - Works across desktop and mobile devices
+| Версия | Ссылка | Описание |
+|--------|--------|----------|
+| WebGL2 (стабильная) | [Открыть](https://4RH1T3CT0R7.github.io/GPU-particles-web/index.html) | Полнофункциональная версия, все современные браузеры |
+| WebGPU (экспериментальная) | [Открыть](https://4RH1T3CT0R7.github.io/GPU-particles-web/index-webgpu.html) | Трассировка лучей, Chrome 113+ |
 
-#### WebGPU Version (Experimental - Ray Tracing) 🔥
-- ⚡ **Real-Time Ray Tracing** - Hardware-accelerated ray tracing with BVH acceleration
-- 🌍 **Path-Traced Global Illumination** - 1-bounce GI for realistic indirect lighting
-- ✨ **Per-Particle Materials** - Varied albedo, roughness, metallic, and emissive properties
-- 🎭 **Importance Sampling** - GGX distribution for specular reflections
-- 🔆 **Emissive Particles** - Dynamic light-emitting particles
-- 🎬 **Temporal Denoising** - Smooth, noise-free rendering via temporal accumulation
-- 💎 **PBR Shading** - Cook-Torrance BRDF with up to 8 dynamic lights
-- 🌈 **HDR + ACES Tone Mapping** - Cinematic color grading
+## Возможности
 
-📖 **[WebGPU Setup Guide](WEBGPU_SETUP.md)** - Complete installation and feature documentation
+### Рендеринг: WebGL2 (стабильный)
 
-## 🎨 Features
+- GPU-ускорение через GPGPU: Multiple Render Targets, ping-pong текстурные буферы
+- Текстуры с плавающей запятой RGBA32F для хранения состояния частиц (позиция + скорость)
+- Физически корректный рендеринг (PBR): Cook-Torrance BRDF, Fresnel-Schlick, GGX NDF
+- До 8 динамических источников света
+- HDR-рендеринг с тональным отображением ACES
+- Постобработка Bloom
+- 65 000+ частиц (текстура до 384x384)
 
-### Rendering Modes
+### Рендеринг: WebGPU (экспериментальный)
 
-| Mode | Description |
-|------|-------------|
-| **Shapes** | Particles morph between predefined mathematical shapes |
-| **Free Flight** | Particles move freely in 3D space with natural flow |
-| **Fractals** | Emergent fractal-like patterns from particle interactions |
-
-### Available Shapes (11 Total)
-
-The system includes a diverse collection of mathematical forms:
-
-- **Geometric Primitives:** Cube, Sphere
-- **Curved Surfaces:** Torus (donut), Helix (spiral)
-- **Platonic Solids:** Octahedron (8 faces), Icosahedron (20 faces)
-- **Parametric Forms:** Superformula, Rose curve, Wave surface
-- **Complex Shapes:** Ribbon (twisted curve), Polygon (configurable)
-
-### Interactive Cursor Modes
-
-- **Attract** - Pull particles toward cursor position
-- **Repel** - Push particles away and accelerate them
-- **Vortex (Left/Right)** - Create spinning vortex effects
-- **Pulse** - Emit pulsating waves from cursor
-- **Quasar** - Simulate quasar-like particle ejection
-- **Magnet** - Magnetic field-style particle flow
-
-### Customizable Parameters
-
-- Particle count (up to 384×384 texture = ~147,000 particles)
-- Morphing speed and automatic shape transitions
-- Shape attraction force
-- Cursor interaction strength and radius
-- Particle movement speed
-- Color palette selection (2-6 colors)
-- Pulse effects on click
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-#### WebGL2 Version
-- Modern web browser with WebGL2 support
-- No build tools or dependencies required!
-
-#### WebGPU Version (Ray Tracing)
-- Chrome Canary 113+ or Chrome Dev channel
-- Enable WebGPU: `chrome://flags/#enable-unsafe-webgpu`
-- Modern GPU (NVIDIA 10-series+, AMD RX 5000+, Intel Arc)
-- 4GB+ VRAM recommended
-
-📖 **See [WEBGPU_SETUP.md](WEBGPU_SETUP.md) for detailed WebGPU requirements and troubleshooting**
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/4RH1T3CT0R7/GPU-particles-web.git
-   cd GPU-particles-web
-   ```
-
-2. **Serve the files**
-
-   Use any local web server:
-
-   ```bash
-   # Python 3
-   python3 -m http.server 8080
-
-   # Node.js
-   npx http-server -p 8080
-
-   # PHP
-   php -S localhost:8080
-   ```
-
-3. **Open in browser**
-
-   - **WebGL2 Version:** `http://localhost:8080/index.html`
-   - **WebGPU Version:** `http://localhost:8080/index-webgpu.html`
-
-### Quick Start
-
-#### WebGL2 (Stable)
-No installation needed! Simply open `index.html` in any modern browser that supports WebGL2.
-
-#### WebGPU (Ray Tracing)
-1. Open `index-webgpu.html` in Chrome Canary
-2. If WebGPU is unavailable, automatically falls back to WebGL2
-3. See [WEBGPU_SETUP.md](WEBGPU_SETUP.md) for complete setup instructions
-
-## 🐛 Debugging & Troubleshooting
-
-If you encounter issues with either version, use the dedicated debug pages to diagnose problems:
-
-### Debug Pages
-
-#### WebGL2 Debug Page
-
-**Local:** `http://localhost:8080/debug.html`
-**Live Demo:** [🔍 WebGL2 Debug](https://4RH1T3CT0R7.github.io/GPU-particles-web/debug.html)
-
-**Features:**
-- ✅ WebGL2 context availability check
-- ✅ Extension support verification (EXT_color_buffer_float)
-- ✅ Basic shader compilation tests
-- ✅ Real-time error capture and logging
-- ✅ Stack traces for debugging
-
-#### WebGPU Debug Page
-
-**Local:** `http://localhost:8080/debug-webgpu.html`
-**Live Demo:** [🔍 WebGPU Debug](https://4RH1T3CT0R7.github.io/GPU-particles-web/debug-webgpu.html)
-
-**Features:**
-- ✅ WebGPU adapter & device detection
-- ✅ GPU capabilities and limits inspection
-- ✅ Shader file loading verification (checks for 404 errors)
-- ✅ WGSL shader compilation with detailed error messages
-- ✅ Real-time console log capture in UI overlay
-- ✅ Comprehensive error reporting with line numbers
-- ✅ Automatic HTML vs WGSL detection
-
-### How to Use Debug Pages
-
-**Option 1: Live Demo (Quick Test)**
-- Click the live demo links above to test in your browser immediately
-- No setup required, works directly from GitHub Pages
-
-**Option 2: Local Testing (Full Development)**
-
-1. **Start your local server**
-   ```bash
-   python3 -m http.server 8080
-   ```
-
-2. **Open the appropriate debug page**
-   - For WebGL2 issues: Open `http://localhost:8080/debug.html`
-   - For WebGPU issues: Open `http://localhost:8080/debug-webgpu.html`
-
-3. **Review the diagnostic output**
-   - Green ✓ messages indicate successful operations
-   - Red ❌ messages show errors with detailed information
-   - Yellow ⚠ messages display warnings
-
-4. **Common Issues**
-
-   **WebGPU Shader 404 Errors:**
-   - Ensure local server is running from project root
-   - Check that `src/shaders-wgsl/` directory exists
-   - Verify shader files use `.wgsl` extension
-
-   **WGSL Compilation Errors:**
-   - Check debug page for exact line numbers
-   - Look for unsupported syntax (e.g., ternary operators `?:`)
-   - Verify shader code doesn't contain HTML (404 page)
-
-   **WebGPU Not Available:**
-   - Enable in Chrome: `chrome://flags/#enable-unsafe-webgpu`
-   - Use Chrome Canary 113+ or Chrome Dev channel
-   - Verify GPU supports WebGPU (see [WEBGPU_SETUP.md](WEBGPU_SETUP.md))
-
-### Getting Help
-
-If debug pages don't resolve your issue:
-
-1. Check browser console for additional errors
-2. Review [WEBGPU_SETUP.md](WEBGPU_SETUP.md) for WebGPU-specific setup
-3. Open an issue on GitHub with:
-   - Debug page screenshot
-   - Browser version
-   - GPU model
-   - Operating system
-
-## 🎮 Interactive Controls
-
-### Mouse/Touch Controls
-
-- **Left Click + Drag** - Apply cursor interaction effect
-- **Right Click + Drag** - Rotate camera view
-- **Scroll Wheel** - Zoom in/out (if enabled)
-
-### Control Panel
-
-The left panel provides real-time control over:
-
-#### Shape & Flight
-- Select target shapes for morphing
-- Switch between rendering modes
-- Enable/disable automatic shape transitions
-
-#### Colors
-- Adjust number of colors in gradient (2-6)
-- Shuffle color palettes
-- Preview current gradient
-
-#### Shape Morphing
-- Toggle automatic shape switching
-- Set transition speed (4-30 seconds)
-- Adjust attraction force to target shape
-
-#### Active Cursor
-- Enable/disable cursor interaction
-- Choose interaction mode
-- Adjust cursor strength and radius
-- Toggle pulse effect on mouse down
-
-#### Particles
-- Set particle count
-- Adjust particle speed multiplier
-- Reset or scatter particles
-
-## 🛠️ Technical Details
-
-### Architecture
-
-#### WebGL2 Version
-- **WebGL2** - Hardware-accelerated graphics rendering
-- **Framebuffer-based GPGPU** - GPU-based particle physics using Multiple Render Targets (MRT)
-- **Ping-Pong Buffering** - Double-buffered texture swapping for efficient state updates
-- **Floating-Point Textures** - Particle state stored in RGBA32F textures (position & velocity)
-
-#### WebGPU Version (Ray Tracing)
-- **WebGPU Compute Shaders** - Modern GPU compute API
-- **Ray Tracing Pipeline** - BVH acceleration structure with iterative traversal
-- **Path Tracing** - Monte Carlo ray tracing with importance sampling
-- **Temporal Accumulation** - Frame-to-frame denoising via exponential moving average
-- **PBR Materials** - Cook-Torrance BRDF with metallic-roughness workflow
-- **HDR Rendering** - RGBA16F textures with ACES tone mapping
-
-**Render Pipeline (WebGPU):**
-1. Particle Simulation (Compute)
-2. BVH Construction (Compute)
-3. Ray Tracing with GI (Compute)
-4. Temporal Accumulation (Compute)
-5. Blit to Canvas with Tone Mapping (Render)
-
-📖 **[Technical Documentation](WEBGPU_SETUP.md#-technical-details)** - In-depth WebGPU architecture
-
-### Performance
-
-#### WebGL2 Version
-- Runs at **60 FPS** with 65,000+ particles on modern hardware
-- Optimized shader code for minimal GPU overhead
-- Efficient texture-based particle state management
-
-#### WebGPU Version
-- **60 FPS** with ray tracing on RTX 3080+ (1080p)
-- Dynamic BVH rebuilt every frame
-- Temporal accumulation smooths path tracing noise
-- Scales from 16K to 65K particles
-
-### Browser Compatibility
-
-#### WebGL2 Version
-
-| Browser | Version | Support |
-|---------|---------|---------|
-| Chrome | 56+ | ✅ Full Support |
-| Firefox | 51+ | ✅ Full Support |
-| Safari | 15+ | ✅ Full Support |
-| Edge | 79+ | ✅ Full Support |
-
-#### WebGPU Version
-
-| Browser | Version | Support |
-|---------|---------|---------|
-| Chrome Canary | 113+ | ✅ Full Support |
-| Chrome Dev | Latest | ✅ Full Support |
-| Chrome Stable | 113+ | ⚠️ Regional |
-| Firefox | - | 🔄 Coming Soon |
-| Safari TP | Latest | ⚠️ Partial |
-
-*WebGPU requires GPU with hardware ray tracing support for optimal performance*
-
-## 📁 Project Structure
+- Трассировка лучей в реальном времени с BVH-ускорением
+- Глобальное освещение методом трассировки путей (1-bounce GI)
+- Индивидуальные PBR-материалы для каждой частицы (albedo, roughness, metallic, emissive)
+- Importance sampling на основе GGX-распределения
+- Временное шумоподавление через экспоненциальное скользящее среднее
+- Конвейер: Симуляция -> BVH -> Трассировка лучей -> Временная аккумуляция -> Вывод
+
+### 13 математических форм
+
+| Категория | Формы |
+|-----------|-------|
+| Базовые | Cube, Sphere |
+| Криволинейные | Torus, Helix |
+| Многогранники | Octahedron, Icosahedron |
+| Параметрические | Superformula, Rose, Wave |
+| Комплексные | Ribbon, Polygon |
+| Специальные | Fractal, Equalizer |
+
+### 3 режима рендеринга
+
+| Режим | Описание |
+|-------|----------|
+| Shapes | Морфинг между математическими формами |
+| Free Flight | Свободное движение частиц в пространстве |
+| Fractals | Эмерджентные фрактальные паттерны |
+
+### 7 режимов взаимодействия с курсором
+
+| Режим | Описание |
+|-------|----------|
+| Attract | Притяжение частиц к курсору |
+| Repel | Отталкивание частиц от курсора |
+| Vortex Left | Вихрь против часовой стрелки |
+| Vortex Right | Вихрь по часовой стрелке |
+| Pulse | Пульсирующие волны от курсора |
+| Magnetic Flow | Магнитный поток |
+| Quasar | Квазароподобное выбрасывание частиц |
+
+### Аудиореактивность
+
+- Анализ частотного спектра в реальном времени (bass, mid, treble, energy)
+- Частицы реагируют на аудиовход
+- Режим визуализации Equalizer
+
+### Физический движок XPBD (Rust/WASM)
+
+- Солвер Extended Position Based Dynamics с подшагами и итерациями Якоби
+- 5 типов ограничений: distance, contact, density (PBF), shape matching, bending
+- N-body гравитация Barnes-Hut (O(N log N), октодерево)
+- Электромагнитные силы (Кулон + Лоренц)
+- PBF плотность + XSPH вязкость + vorticity confinement
+- Пространственная хеш-сетка для O(N) поиска соседей
+- Адаптивный контроллер качества (бюджетное масштабирование подшагов/итераций)
+- Морфинг форм как XPBD-ограничения позиции с переменной податливостью
+- 154 теста, ноль предупреждений
+- Опциональная параллелизация через rayon
+
+### Интерфейс
+
+- Панель управления: формы, цвета, морфинг, курсор, частицы, аудио
+- Двуязычный интерфейс (EN/RU через i18n)
+- Адаптивный дизайн для мобильных устройств
+- Камера: правая кнопка мыши + перетаскивание (вращение), колесо прокрутки (масштаб)
+
+## Быстрый старт
+
+### Требования
+
+- **Node.js** -- для npm и dev-сервера
+- **Rust toolchain + wasm-pack** -- для сборки физического движка в WASM
+- **Современный браузер** -- WebGL2 для стабильной версии, Chrome 113+ для WebGPU
+
+### Установка и запуск
+
+```bash
+# Клонирование репозитория
+git clone https://github.com/4RH1T3CT0R7/GPU-particles-web.git
+cd GPU-particles-web
+
+# Установка зависимостей
+npm install
+
+# Полная сборка (WASM + TypeScript) и запуск dev-сервера
+npm run dev
+```
+
+Dev-сервер запускается на `http://localhost:8080` с заголовками COOP/COEP (необходимы для SharedArrayBuffer и WASM).
+
+- **WebGL2:** `http://localhost:8080/index.html`
+- **WebGPU:** `http://localhost:8080/index-webgpu.html`
+
+### npm-скрипты
+
+| Команда | Описание |
+|---------|----------|
+| `npm run build` | Полная сборка: WASM + TypeScript |
+| `npm run build:wasm` | Сборка Rust в WASM (release) |
+| `npm run build:wasm:debug` | Сборка WASM (debug) |
+| `npm run build:ts` | Бандлинг TypeScript через esbuild |
+| `npm run build:watch` | Пересборка TS при изменениях |
+| `npm run dev` | Сборка + dev-сервер на localhost:8080 |
+| `npm run typecheck` | Проверка типов TypeScript |
+| `npm run test:rust` | Запуск тестов Rust (154 теста) |
+| `npm run bench:rust` | Запуск бенчмарков Rust |
+
+## Структура проекта
 
 ```
 GPU-particles-web/
-├── index.html              # WebGL2 version (stable)
-├── index.js                # WebGL2 application entry point
-├── index-webgpu.html       # WebGPU version (ray tracing)
-├── index-webgpu.js         # WebGPU application entry point
-├── debug.html              # WebGL2 debug page
-├── debug-webgpu.html       # WebGPU debug page 🆕
-├── package.json            # Project metadata
-├── README.md               # This file
-├── WEBGPU_SETUP.md         # WebGPU setup and documentation
-├── LICENSE.md              # MIT License
-├── CLAUDE.MD               # AI assistant development guide
-└── src/
-    ├── audio/              # Audio analysis
-    │   └── analyzer.js
-    ├── camera/             # Camera controls
-    │   └── controls.js
-    ├── config/             # Configuration
-    │   └── constants.js
-    ├── core/               # Core WebGL utilities
-    │   ├── utils.js
-    │   └── webgl.js
-    ├── gpu/                # WebGPU infrastructure ⚡ NEW
-    │   ├── device.js       # WebGPU device initialization
-    │   └── pipelines.js    # Compute & render pipelines
-    ├── rendering/          # Rendering pipeline
-    │   └── pipeline.js
-    ├── shaders/            # GLSL shaders (WebGL2)
-    │   ├── blit.js
-    │   ├── common.js
-    │   ├── init.js
-    │   ├── particle.js
-    │   ├── pbr.js          # PBR lighting ⚡ NEW
-    │   ├── shapes.js
-    │   └── simulation.js
-    ├── shaders-wgsl/       # WGSL shaders (WebGPU) ⚡ NEW
-    │   ├── blit.wgsl       # Tone mapping output
-    │   ├── bvh-build.wgsl  # Full LBVH construction
-    │   ├── bvh-simple.wgsl # Simplified BVH builder
-    │   ├── common.wgsl     # Math utilities
-    │   ├── particle-sim.wgsl # Particle physics
-    │   ├── pbr.wgsl        # PBR BRDF functions
-    │   ├── ray-trace.wgsl  # Ray tracing kernel
-    │   └── temporal-accumulation.wgsl # Denoising
-    ├── simulation/         # Particle state
-    │   └── state.js
-    └── ui/                 # User interface
-        ├── i18n.js
-        └── mobile.js
+├── index.html                  # WebGL2 версия (стабильная)
+├── index.ts                    # WebGL2 точка входа (TypeScript)
+├── index-webgpu.html           # WebGPU версия (трассировка лучей)
+├── index-webgpu.ts             # WebGPU точка входа (TypeScript)
+├── debug.html                  # WebGL2 диагностика
+├── debug-webgpu.html           # WebGPU диагностика
+├── serve.mjs                   # Dev-сервер (Node.js, COOP/COEP)
+├── package.json                # npm-конфигурация и скрипты
+├── tsconfig.json               # Конфигурация TypeScript
+├── README.md
+├── ROADMAP.md
+├── WEBGPU_SETUP.md
+├── START_LOCAL.md
+├── LIGHTING_REPORT.md
+├── LICENSE.md
+├── dist/                       # Собранный JS
+│   ├── index.js
+│   └── index-webgpu.js
+├── wasm/pkg/                   # Скомпилированный WASM
+├── physics/                    # Физический движок Rust XPBD
+│   ├── Cargo.toml              # Корень workspace
+│   └── crates/
+│       ├── xpbd-core/          # Чистый Rust (без WASM-зависимостей)
+│       │   ├── src/
+│       │   │   ├── lib.rs
+│       │   │   ├── solver.rs         # Цикл солвера XPBD
+│       │   │   ├── particle.rs       # ParticleSet, Phase enum
+│       │   │   ├── config.rs         # PhysicsConfig
+│       │   │   ├── grid.rs           # Пространственная хеш-сетка
+│       │   │   ├── math.rs           # Математические утилиты
+│       │   │   ├── quality.rs        # Адаптивное качество
+│       │   │   ├── materials.rs      # Пресеты материалов
+│       │   │   ├── constraints/      # distance, contact, density, shape_matching, bending
+│       │   │   ├── forces/           # gravity, electromagnetic, pointer, audio, flow
+│       │   │   ├── shapes/           # primitives, fractal, morph, dispatcher
+│       │   │   └── fluids/           # viscosity, vorticity
+│       │   └── tests/                # 154 теста
+│       └── xpbd-wasm/          # WASM-привязки (wasm-bindgen)
+│           └── src/lib.rs      # PhysicsWorld API
+└── src/                        # Исходники TypeScript
+    ├── types.ts                # Общие определения типов
+    ├── app/lights.ts           # Конфигурация динамического освещения
+    ├── audio/analyzer.ts       # Анализ аудиочастот
+    ├── camera/controls.ts      # 3D-камера (орбита, масштаб)
+    ├── config/
+    │   ├── constants.ts        # Константы, палитры, формы
+    │   ├── physics.ts          # Параметры физики
+    │   └── rendering.ts        # PBR, bloom, экспозиция
+    ├── core/
+    │   ├── utils.ts            # WebGL-хелперы (VAO, FBO, текстуры)
+    │   └── webgl.ts            # Инициализация WebGL2-контекста
+    ├── gpu/
+    │   ├── device.ts           # Инициализация WebGPU adapter/device
+    │   ├── pipelines.ts        # Оркестрация пайплайнов
+    │   └── pipelines/          # blit, bvh, raytracing, simulation, temporal
+    ├── physics/wasm-loader.ts  # Интеграция WASM-физики
+    ├── rendering/pipeline.ts   # Render targets, bloom, HDR
+    ├── shaders/                # GLSL-шейдеры (WebGL2)
+    │   ├── common.ts, particle.ts, pbr.ts, bloom.ts, blit.ts
+    │   ├── simulation.ts, init.ts
+    │   └── shapes.ts, shapes-primitives.ts, shapes-fractal.ts, shapes-dispatcher.ts
+    ├── simulation/state.ts     # GPU-буферы частиц
+    ├── ui/
+    │   ├── controls.ts         # Главная настройка UI
+    │   ├── controls/           # shapes, colors, cursor, particles, audio
+    │   ├── i18n.ts             # Интернационализация (EN/RU)
+    │   └── mobile.ts           # Мобильное меню
+    └── wgsl/                   # WGSL-шейдеры (WebGPU)
+        ├── shaders.ts
+        └── snippets.ts
 ```
 
-### Module Organization
+## Архитектура
 
-The project follows a **modular architecture** with clear separation of concerns:
+### Технологический стек
 
-- **`src/core/`** - WebGL2 context management and core utilities
-- **`src/shaders/`** - All GLSL shader programs organized by function
-- **`src/simulation/`** - GPU-based particle physics and state management
-- **`src/rendering/`** - Rendering pipeline and visual output
-- **`src/camera/`** - 3D camera controls and transformations
-- **`src/ui/`** - User interface components and interactions
-- **`src/audio/`** - Audio analysis for reactive visualizations
-- **`src/config/`** - Application configuration and constants
+| Слой | Технологии |
+|------|-----------|
+| Приложение | TypeScript 5.9, esbuild |
+| Рендеринг (стабильный) | WebGL2, GLSL ES 3.0 |
+| Рендеринг (экспериментальный) | WebGPU, WGSL |
+| Физика | Rust, glam 0.29, bytemuck, rayon |
+| WASM-мост | wasm-pack, wasm-bindgen |
+| Dev-инфраструктура | Node.js, serve.mjs (порт 8080) |
 
-## 🎯 Use Cases
+### Конвейер рендеринга WebGL2
 
-- **Digital Art Installations** - Interactive museum exhibits
-- **Web Backgrounds** - Engaging landing page animations
-- **Music Visualizations** - Reactive audio-visual experiences
-- **Educational Tools** - Teaching particle physics and graphics programming
-- **Creative Coding** - Generative art and procedural animations
+```
+Инициализация текстур (RGBA32F)
+        |
+        v
+  [Ping-Pong буферы]
+        |
+        v
+  Вычисление физики (GPGPU через MRT)
+        |
+        v
+  PBR-освещение (Cook-Torrance BRDF)
+        |
+        v
+  Bloom постобработка
+        |
+        v
+  HDR -> ACES тональное отображение
+        |
+        v
+  Вывод на экран
+```
 
-## 🤝 Contributing
+### Конвейер рендеринга WebGPU
 
-Contributions are welcome! Here's how you can help:
+```
+Симуляция частиц (Compute Shader)
+        |
+        v
+  Построение BVH (Compute Shader)
+        |
+        v
+  Трассировка лучей + GI (Compute Shader)
+        |
+        v
+  Временная аккумуляция (Compute Shader)
+        |
+        v
+  Blit + тональное отображение (Render Pass)
+```
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+### Физический движок XPBD
 
-### Ideas for Contribution
+Физический движок разделен на два крейта:
 
-- Add new particle shapes (Möbius strip, Klein bottle, trefoil knot, Lorenz attractor, etc.)
-- Implement audio reactivity (particles respond to music)
-- Add new cursor interaction modes (gravity wells, black holes, wind fields)
-- Optimize performance for mobile devices
-- Create preset configurations (save/load particle states)
-- Add screenshot/recording functionality (canvas capture)
-- Implement particle trails with motion blur
-- Add VR/AR support for immersive experiences
+- **xpbd-core** -- чистая Rust-реализация без WASM-зависимостей. Содержит солвер, ограничения, силы, формы и пространственное хеширование. Может использоваться независимо.
+- **xpbd-wasm** -- тонкий слой привязок через wasm-bindgen, экспортирующий `PhysicsWorld` API для JavaScript.
 
-## 📝 License
+Цикл солвера на каждом кадре:
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+1. Внешние силы (гравитация, электромагнетизм, указатель, аудио, поток)
+2. Предсказание позиций
+3. Подшаги с итерациями Якоби:
+   - Ограничения расстояния
+   - Контактные ограничения
+   - Ограничения плотности (PBF)
+   - Shape matching
+   - Ограничения изгиба
+4. Обновление скоростей
+5. XSPH вязкость + vorticity confinement
+6. Обновление пространственной хеш-сетки
 
-## 🙏 Acknowledgments
+## Производительность
 
-- Inspired by particle system techniques from demoscene and creative coding communities
-- WebGL2 rendering patterns from GPU programming best practices
-- Color palettes influenced by modern gradient design trends
+| Параметр | WebGL2 | WebGPU |
+|----------|--------|--------|
+| Целевой FPS | 60 | 60 |
+| Количество частиц | 65 000+ | 16 000 -- 65 000 |
+| Рекомендуемый GPU | Любой с WebGL2 | RTX 3080+ |
+| Разрешение | Любое | 1080p для стабильных 60 FPS |
+| Физика | GPU (GPGPU) + WASM | GPU (Compute) + WASM |
 
-## 📧 Contact
+## Совместимость браузеров
 
-**4RH1T3CT0R7** - [@4RH1T3CT0R7](https://github.com/4RH1T3CT0R7)
+### WebGL2 (стабильная версия)
 
-Project Link: [https://github.com/4RH1T3CT0R7/GPU-particles-web](https://github.com/4RH1T3CT0R7/GPU-particles-web)
+| Браузер | Минимальная версия | Поддержка |
+|---------|--------------------|-----------|
+| Chrome | 56+ | Полная |
+| Firefox | 51+ | Полная |
+| Safari | 15+ | Полная |
+| Edge | 79+ | Полная |
 
----
+### WebGPU (экспериментальная версия)
 
-<div align="center">
+| Браузер | Минимальная версия | Поддержка |
+|---------|--------------------|-----------|
+| Chrome | 113+ | Полная |
+| Firefox | -- | В разработке |
+| Safari Technology Preview | -- | Частичная |
 
-**Made with ❤️ and WebGL2**
+## Отладка и диагностика
 
-*If you found this project interesting, please consider giving it a ⭐!*
+Проект включает специализированные страницы диагностики для каждого рендер-бекенда.
 
-</div>
+### Страницы отладки
+
+| Страница | Локально | На GitHub Pages |
+|----------|----------|-----------------|
+| WebGL2 | `http://localhost:8080/debug.html` | [Открыть](https://4RH1T3CT0R7.github.io/GPU-particles-web/debug.html) |
+| WebGPU | `http://localhost:8080/debug-webgpu.html` | [Открыть](https://4RH1T3CT0R7.github.io/GPU-particles-web/debug-webgpu.html) |
+
+### Возможности диагностики
+
+**WebGL2:**
+- Проверка доступности WebGL2-контекста
+- Верификация расширений (EXT_color_buffer_float)
+- Тестирование компиляции шейдеров
+- Захват ошибок в реальном времени со стек-трейсами
+
+**WebGPU:**
+- Обнаружение adapter и device
+- Инспекция возможностей и лимитов GPU
+- Верификация загрузки шейдерных файлов
+- Компиляция WGSL с детальными сообщениями об ошибках
+- Перехват консольного вывода в UI-оверлее
+
+### Типичные проблемы
+
+| Проблема | Решение |
+|----------|---------|
+| WebGPU недоступен | Используйте Chrome 113+, проверьте `chrome://flags/#enable-unsafe-webgpu` |
+| Ошибки 404 при загрузке шейдеров | Убедитесь, что сервер запущен из корня проекта |
+| Ошибки компиляции WGSL | Проверьте диагностическую страницу для получения номеров строк |
+| Низкий FPS в WebGPU | Требуется GPU с аппаратной трассировкой лучей |
+| WASM не загружается | Пересоберите: `npm run build:wasm` |
+
+## Тестирование
+
+### Тесты физического движка
+
+```bash
+# Запуск всех 154 тестов
+npm run test:rust
+
+# Или напрямую через cargo
+cd physics
+cargo test
+```
+
+Тесты покрывают: солвер XPBD, все типы ограничений, пространственное хеширование, N-body гравитацию, электромагнитные силы, генерацию форм, морфинг, адаптивное качество, конфигурацию и материалы.
+
+### Проверка типов TypeScript
+
+```bash
+npm run typecheck
+```
+
+### Бенчмарки
+
+```bash
+npm run bench:rust
+```
+
+## Управление
+
+### Мышь
+
+| Действие | Результат |
+|----------|-----------|
+| Левая кнопка + перетаскивание | Применение эффекта курсора |
+| Правая кнопка + перетаскивание | Вращение камеры |
+| Колесо прокрутки | Масштабирование |
+
+### Панель управления
+
+- **Формы** -- выбор целевой формы, переключение режимов рендеринга, автоматическая смена форм
+- **Цвета** -- количество цветов в градиенте (2-6), случайная смена палитры
+- **Морфинг** -- скорость перехода (4-30 секунд), сила притяжения к форме
+- **Курсор** -- выбор режима взаимодействия, сила и радиус, пульс при нажатии
+- **Частицы** -- количество частиц, множитель скорости, сброс и разброс
+- **Аудио** -- включение аудиореактивности, выбор источника
+
+## Лицензия
+
+Проект распространяется под лицензией MIT. Подробности в файле [LICENSE.md](LICENSE.md).
+
+## Автор
+
+**4RH1T3CT0R7** -- [GitHub](https://github.com/4RH1T3CT0R7)
+
+Репозиторий: [https://github.com/4RH1T3CT0R7/GPU-particles-web](https://github.com/4RH1T3CT0R7/GPU-particles-web)

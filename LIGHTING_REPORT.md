@@ -9,7 +9,7 @@
    - Fresnel-Schlick аппроксимация
    - GGX/Trowbridge-Reitz normal distribution function
    - Smith's Schlick-GGX geometry function
-   - Файл: `src/shaders/pbr.js`
+   - Файл: `src/shaders/pbr.ts`
 
 2. **Система материалов**
    - Параметры: roughness (шероховатость), metallic (металличность), albedo (базовый цвет)
@@ -26,7 +26,7 @@
    - Reinhard tone mapping (альтернатива)
    - Uncharted 2 filmic tone mapping
    - Контроль экспозиции (exposure)
-   - Файл: `src/shaders/blit.js`
+   - Файл: `src/shaders/blit.ts`
 
 5. **Улучшенный Bloom**
    - Threshold-based extraction (выделение ярких областей)
@@ -49,7 +49,7 @@
 ### 🔄 Частично реализовано
 
 1. **Volumetric Lighting (God Rays)**
-   - Создан базовый шейдер (`src/shaders/volumetric.js`)
+   - Создан базовый шейдер (`src/shaders/volumetric.ts`)
    - Raymarching основа
    - 3D noise для вариации плотности
    - ⚠️ Не интегрирован в pipeline (из-за перехода на WebGPU)
@@ -338,9 +338,9 @@ Post-Processing Pass
 ```
 src/
 ├── gpu/
-│   ├── device.js              # WebGPU device initialization
-│   ├── pipeline.js            # Render & Compute pipelines
-│   └── buffers.js             # Buffer management
+│   ├── device.ts              # WebGPU device initialization
+│   ├── pipeline.ts            # Render & Compute pipelines
+│   └── buffers.ts             # Buffer management
 ├── shaders-wgsl/
 │   ├── common.wgsl            # Общие функции
 │   ├── particle-sim.wgsl      # Particle simulation compute
@@ -356,13 +356,13 @@ src/
 │   ├── post.wgsl              # Post-processing
 │   └── final.wgsl             # Final composite
 ├── raytracing/
-│   ├── bvh.js                 # BVH управление
-│   ├── reservoir.js           # ReSTIR sampling
-│   └── denoiser.js            # Denoising логика
+│   ├── bvh.ts                 # BVH управление
+│   ├── reservoir.ts           # ReSTIR sampling
+│   └── denoiser.ts            # Denoising логика
 └── rendering/
-    ├── gbuffer.js             # G-Buffer management
-    ├── lights.js              # Light management
-    └── composer.js            # Frame composition
+    ├── gbuffer.ts             # G-Buffer management
+    ├── lights.ts              # Light management
+    └── composer.ts            # Frame composition
 ```
 
 ---
@@ -418,9 +418,9 @@ src/
 ### WebGPU версия - ГОТОВА К ТЕСТИРОВАНИЮ! 🚀
 
 **Реализовано:**
-- ✅ `src/gpu/device.js` - Полная инициализация WebGPU
-- ✅ `src/gpu/pipelines.js` - Pipeline manager для всех compute и render операций
-- ✅ `index-webgpu.js` - Главный файл с интеграцией ray tracing
+- ✅ `src/gpu/device.ts` - Полная инициализация WebGPU
+- ✅ `src/gpu/pipelines.ts` - Pipeline manager для всех compute и render операций
+- ✅ `index-webgpu.ts` - Главный файл с интеграцией ray tracing
 - ✅ `index-webgpu.html` - Отдельная страница для WebGPU версии
 - ✅ Автоматический fallback на WebGL2 если WebGPU недоступен
 
@@ -528,3 +528,9 @@ src/
 *Версия: 4.0*
 *Статус: ✅ PATH TRACING + GI WORKS! Temporal accumulation active!*
 *Phase 2 обновление: 2025-12-29 22:30 UTC*
+
+---
+
+## Текущий статус (февраль 2026)
+
+Phase 2 (WebGPU Ray Tracing) завершена. Phase 3 (XPBD физический движок на Rust/WASM) также завершена -- реализован полный constraint solver с 154 тестами.

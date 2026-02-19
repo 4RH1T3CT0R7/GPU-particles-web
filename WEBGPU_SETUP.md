@@ -1,183 +1,203 @@
-# WebGPU Ray Tracing Version - Setup Guide
+# WebGPU Ray Tracing -- Руководство по настройке
 
-## 🚀 Quick Start
+## Быстрый старт
 
-### Requirements
+### Требования
 
-**WebGPU Support:**
-- Chrome Canary 113+ or Chrome Dev channel
-- Enable WebGPU flag: `chrome://flags/#enable-unsafe-webgpu`
-- Alternatively: Use Chrome 113+ stable (WebGPU enabled by default in some regions)
+**Поддержка WebGPU:**
+- Chrome Canary 113+ или Chrome Dev channel
+- Включите флаг WebGPU: `chrome://flags/#enable-unsafe-webgpu`
+- Альтернативно: Chrome 113+ стабильная версия (WebGPU включен по умолчанию в некоторых регионах)
 
-**System:**
-- Modern GPU (NVIDIA 10-series+, AMD RX 5000+, Intel Arc)
-- 4GB+ VRAM recommended
-- Windows 10/11, macOS, or Linux
+**Система:**
+- Современная видеокарта (NVIDIA серии 10+, AMD RX 5000+, Intel Arc)
+- Рекомендуется 4 ГБ+ видеопамяти
+- Windows 10/11, macOS или Linux
 
-### Installation
+### Установка
 
-1. **Clone the repository:**
+1. **Клонируйте репозиторий:**
 ```bash
 git clone https://github.com/4RH1T3CT0R7/GPU-particles-web.git
 cd GPU-particles-web
 ```
 
-2. **Checkout the ray tracing branch:**
+2. **Установите зависимости:**
 ```bash
-git checkout claude/improve-lighting-raytracing-8ooFX
+npm install
 ```
 
-3. **Start a local web server:**
+3. **Соберите проект:**
 ```bash
-# Python 3
-python3 -m http.server 8080
-
-# Or Node.js
-npx http-server -p 8080
-
-# Or PHP
-php -S localhost:8080
+npm run build
 ```
 
-4. **Open in browser:**
+Эта команда собирает WASM-модуль физического движка XPBD и бандлит TypeScript-код через esbuild.
+
+4. **Запустите сервер разработки:**
+```bash
+npm run dev
+```
+
+5. **Откройте в браузере:**
 ```
 http://localhost:8080/index-webgpu.html
 ```
 
 ---
 
-## 📦 Two Versions Available
+## Две доступные версии
 
-### WebGL2 Version (Stable)
+### Версия WebGL2 (Стабильная)
 **URL:** `http://localhost:8080/index.html`
 
-**Features:**
-- ✅ PBR lighting (Cook-Torrance BRDF)
-- ✅ Multiple dynamic lights (4 sources)
-- ✅ HDR rendering + ACES tone mapping
-- ✅ Enhanced bloom
-- ✅ Works on all modern browsers
+**Возможности:**
+- PBR-освещение (Cook-Torrance BRDF)
+- Несколько динамических источников света (4 источника)
+- HDR-рендеринг + тональная компрессия ACES
+- Улучшенный блум
+- Работает во всех современных браузерах
 
-**Use when:**
-- WebGPU not available
-- Need maximum compatibility
-- Mobile devices
+**Используйте, когда:**
+- WebGPU недоступен
+- Нужна максимальная совместимость
+- Мобильные устройства
 
-### WebGPU Version (Experimental - Ray Tracing)
+### Версия WebGPU (Экспериментальная -- трассировка лучей)
 **URL:** `http://localhost:8080/index-webgpu.html`
 
-**Features:**
-- ✅ **Real-time ray tracing**
-- ✅ **Ray traced shadows**
-- ✅ **Path tracing with 1-bounce GI - ACTIVE!**
-- ✅ **Temporal accumulation denoising - ACTIVE!**
-- ✅ **Per-particle materials (varied) - ACTIVE!**
-- ✅ **Importance sampling (GGX specular)**
-- ✅ **Emissive particles**
-- ✅ BVH acceleration structure (simplified, dynamic)
-- ✅ Compute-based particle simulation
-- ✅ PBR shading (Cook-Torrance BRDF)
-- ✅ Up to 8 dynamic lights
-- ✅ HDR + ACES tone mapping
-- 🔄 Multi-bounce (2-3 bounces) - code ready
-- 🔄 Advanced SVGF denoising - in development
+**Возможности:**
+- **Трассировка лучей в реальном времени**
+- **Тени на основе трассировки лучей**
+- **Path tracing с GI с 1 отскоком -- АКТИВНО**
+- **Темпоральная аккумуляция для шумоподавления -- АКТИВНО**
+- **Материалы для каждой частицы (с вариациями) -- АКТИВНО**
+- **Importance sampling (GGX specular)**
+- **Излучающие частицы**
+- BVH-ускоряющая структура (упрощенная, динамическая)
+- Симуляция частиц на вычислительных шейдерах
+- PBR-затенение (Cook-Torrance BRDF)
+- До 8 динамических источников света
+- HDR + тональная компрессия ACES
+- Интеграция с WASM-физическим движком XPBD
 
-**Use when:**
-- WebGPU available
-- Want cutting-edge graphics
-- Testing ray tracing features
+**Используйте, когда:**
+- WebGPU доступен
+- Хотите передовую графику
+- Тестируете возможности трассировки лучей
 
 ---
 
-## 🔧 Troubleshooting
+## Интеграция физического движка WASM
 
-### WebGPU Not Available
+Проект включает физический движок XPBD, написанный на Rust и скомпилированный в WebAssembly. Движок обеспечивает:
+
+- Солвер XPBD с подшагами и итерациями Якоби
+- 5 типов ограничений (distance, contact, density, shape matching, bending)
+- N-тельная гравитация Барнса-Хата O(N log N)
+- Электромагнитные силы (Кулон + Лоренц)
+- PBF-гидродинамика с XSPH-вязкостью
+- 13 математических форм + фрактальный генератор
+- Пространственная хеш-сетка для запросов соседей за O(N)
+
+Для пересборки только WASM-модуля:
+```bash
+cd physics/crates/xpbd-wasm
+wasm-pack build --target web
+```
+
+---
+
+## Устранение неполадок
+
+### WebGPU недоступен
 
 **Chrome:**
-1. Navigate to `chrome://gpu`
-2. Check if "WebGPU" shows "Hardware accelerated"
-3. If not, try enabling: `chrome://flags/#enable-unsafe-webgpu`
-4. Restart browser
+1. Перейдите на `chrome://gpu`
+2. Проверьте, что "WebGPU" показывает "Hardware accelerated"
+3. Если нет, попробуйте включить: `chrome://flags/#enable-unsafe-webgpu`
+4. Перезапустите браузер
 
 **Firefox:**
-- WebGPU support coming soon (use Chrome for now)
+- Поддержка WebGPU появится в ближайшее время (пока используйте Chrome)
 
 **Safari:**
-- WebGPU partially supported in Safari Technology Preview
+- WebGPU частично поддерживается в Safari Technology Preview
 
-### Automatic Fallback
+### Автоматический откат
 
-If WebGPU is not available, the app automatically:
-1. Detects WebGPU availability
-2. Shows fallback message
-3. Loads WebGL2 version instead
+Если WebGPU недоступен, приложение автоматически:
+1. Обнаруживает доступность WebGPU
+2. Показывает сообщение об откате
+3. Загружает версию WebGL2 вместо этого
 
-No manual intervention needed!
+Ручное вмешательство не требуется.
 
-### Black Screen
+### Черный экран
 
-**Possible causes:**
-1. **Shader compilation error:**
-   - Open DevTools Console (F12)
-   - Look for WebGPU errors
-   - Report issues with error message
+**Возможные причины:**
+1. **Ошибка компиляции шейдера:**
+   - Откройте консоль DevTools (F12)
+   - Найдите ошибки WebGPU
+   - Сообщите о проблеме с текстом ошибки
 
-2. **BVH buffer not initialized:**
-   - This is expected in current version
-   - Simplified BVH used for now
-   - Full BVH construction coming soon
+2. **Буфер BVH не инициализирован:**
+   - Это ожидаемо в текущей версии
+   - Используется упрощенный BVH
+   - Полное построение BVH запланировано
 
-3. **GPU busy/crashed:**
-   - Close other GPU-heavy tabs
-   - Reduce particle count (edit `index-webgpu.js`, line 61)
-   - Lower resolution
+3. **GPU занят/сбой:**
+   - Закройте другие вкладки с высокой нагрузкой на GPU
+   - Уменьшите количество частиц (измените `index-webgpu.js`, строка 61)
+   - Снизьте разрешение
 
-### Performance Issues
+### Проблемы с производительностью
 
-**If FPS < 30:**
+**Если FPS < 30:**
 
-1. **Reduce particle count:**
+1. **Уменьшите количество частиц:**
 ```javascript
-// In index-webgpu.js, line 61
+// В index-webgpu.js, строка 61
 const config = {
-  particleCount: 16384, // Instead of 65536
+  particleCount: 16384, // Вместо 65536
   ...
 }
 ```
 
-2. **Lower resolution:**
+2. **Снизьте разрешение:**
 ```javascript
-// In index-webgpu.js, line 62-63
+// В index-webgpu.js, строка 62-63
 const config = {
   ...
-  width: Math.floor(canvas.clientWidth * 0.5), // 50% resolution
+  width: Math.floor(canvas.clientWidth * 0.5), // 50% разрешения
   height: Math.floor(canvas.clientHeight * 0.5),
   ...
 }
 ```
 
-3. **Disable shadows temporarily:**
+3. **Временно отключите тени:**
 ```wgsl
-// In src/shaders-wgsl/ray-trace.wgsl, line 298
-// Comment out shadow ray testing:
+// В src/shaders-wgsl/ray-trace.wgsl, строка 298
+// Закомментируйте тестирование теневых лучей:
 // let inShadow = traceShadowRay(shadowRay, lightDist);
-let inShadow = false; // Force disable shadows
+let inShadow = false; // Принудительно отключить тени
 ```
 
 ---
 
-## 🎮 Controls (Planned)
+## Управление
 
-Currently minimal controls. Full UI coming soon:
-- Right-click drag: Rotate camera
-- Mouse wheel: Zoom in/out
-- Left-click drag: Particle interaction (in WebGL2 version)
+Текущие элементы управления:
+- Перетаскивание правой кнопкой мыши: вращение камеры
+- Колесо мыши: приближение/отдаление
+- Перетаскивание левой кнопкой мыши: взаимодействие с частицами
+- 7 режимов взаимодействия с указателем (притяжение, отталкивание, вихрь Л/П, импульс, магнитный поток, квазар)
 
 ---
 
-## 📊 Performance Benchmarks
+## Бенчмарки производительности
 
-**Expected FPS (WebGPU):**
+**Ожидаемый FPS (WebGPU):**
 
 | GPU | 1080p | 1440p | 4K |
 |-----|-------|-------|-----|
@@ -186,23 +206,23 @@ Currently minimal controls. Full UI coming soon:
 | RTX 2060 | 60 | 45 | 20 |
 | AMD RX 6800 | 80+ | 60+ | 35+ |
 
-*65K particles, ray traced shadows enabled*
+*65K частиц, тени трассировки лучей включены*
 
-**Expected FPS (WebGL2):**
+**Ожидаемый FPS (WebGL2):**
 
-More stable, 60 FPS on most modern GPUs.
+Более стабильный, 60 FPS на большинстве современных GPU.
 
 ---
 
-## 🧪 Advanced Testing
+## Расширенное тестирование
 
-### Enable Multi-Bounce Reflections
+### Включение многоотскоковых отражений
 
-1. Edit `src/shaders-wgsl/ray-trace.wgsl`
-2. Find line 280 (in main function)
-3. Uncomment the GI bounce code:
+1. Откройте `src/shaders-wgsl/ray-trace.wgsl`
+2. Найдите строку 280 (в главной функции)
+3. Раскомментируйте код отскока GI:
 ```wgsl
-// Simple 1-bounce GI (optional, expensive)
+// Простой GI с 1 отскоком (опционально, ресурсоемко)
 let seed = vec3<f32>(f32(pixelCoord.x), f32(pixelCoord.y), params.time);
 let bounceDir = randomHemisphere(hit.normal, seed);
 var bounceRay: Ray;
@@ -210,157 +230,171 @@ bounceRay.origin = hit.position + hit.normal * 0.001;
 bounceRay.direction = bounceDir;
 let bounceHit = traceBVH(bounceRay);
 if (bounceHit.hit) {
-    color += albedo * 0.1; // Simplified indirect lighting
+    color += albedo * 0.1; // Упрощенное непрямое освещение
 }
 ```
-4. Refresh page
+4. Обновите страницу
 
-### Adjust Exposure/Gamma
+### Настройка экспозиции/гаммы
 
-Edit `src/gpu/pipelines.js`, line 323:
+Измените `src/gpu/pipelines.js`, строка 323:
 ```javascript
 const uniformsData = new Float32Array([
-  0.5,  // exposure (default: 0.2)
-  2.4   // gamma (default: 2.2)
+  0.5,  // экспозиция (по умолчанию: 0.2)
+  2.4   // гамма (по умолчанию: 2.2)
 ]);
 ```
 
-### Modify Light Count
+### Изменение количества источников света
 
-Edit `index-webgpu.js`, lines 73-77:
+Измените `index-webgpu.js`, строки 73-77:
 ```javascript
 const lights = [
   { pos: [2, 3, 2], color: [1.0, 0.9, 0.8], intensity: 3.0, radius: 20.0 },
-  // Add more lights (up to 8 total)
+  // Добавьте больше источников (до 8 всего)
 ];
 ```
 
 ---
 
-## 🐛 Known Issues
+## Известные проблемы
 
-1. **BVH Construction:**
-   - ✅ FIXED: BVH now builds dynamically every frame
-   - Current: Simplified flat structure (fast but not optimal)
-   - Full Morton code LBVH coming in Phase 3
-   - Ray tracing works and is accelerated
+1. **Построение BVH:**
+   - ИСПРАВЛЕНО: BVH теперь строится динамически каждый кадр
+   - Текущее состояние: упрощенная плоская структура (быстрая, но не оптимальная)
+   - Полный LBVH на кодах Мортона запланирован в Фазе 4
+   - Трассировка лучей работает и ускорена
 
-2. **Temporal Accumulation:**
-   - ✅ IMPLEMENTED: Temporal AA denoising active
-   - Exponential moving average with configurable alpha
-   - Smooths path tracing noise effectively
-   - History buffer maintained frame-to-frame
+2. **Темпоральная аккумуляция:**
+   - РЕАЛИЗОВАНО: темпоральное AA-шумоподавление активно
+   - Экспоненциальное скользящее среднее с настраиваемой альфой
+   - Эффективно сглаживает шум path tracing
+   - Буфер истории поддерживается между кадрами
 
-3. **Denoising:**
-   - ✅ Basic temporal denoising working
-   - Advanced SVGF not yet implemented
-   - Image quality significantly improved vs. no denoising
-   - Further improvements in Phase 3
+3. **Шумоподавление:**
+   - Базовое темпоральное шумоподавление работает
+   - Продвинутый SVGF еще не реализован
+   - Качество изображения значительно улучшено по сравнению с отсутствием шумоподавления
+   - Дальнейшие улучшения в Фазе 4
 
 4. **Path Tracing:**
-   - ✅ 1-bounce GI active and working
-   - 2-3 bounce code ready but disabled (performance)
-   - Importance sampling reduces noise
-   - Per-pixel sample count = 1 (temporal accumulation compensates)
+   - GI с 1 отскоком активен и работает
+   - Код для 2-3 отскоков готов, но отключен (производительность)
+   - Importance sampling снижает шум
+   - Количество сэмплов на пиксель = 1 (темпоральная аккумуляция компенсирует)
 
-5. **Mobile:**
-   - WebGPU not widely supported on mobile yet
-   - Automatic fallback to WebGL2
+5. **Мобильные устройства:**
+   - WebGPU пока не поддерживается широко на мобильных
+   - Автоматический откат на WebGL2
 
 ---
 
-## 📚 Technical Details
+## Технические подробности
 
-### Ray Tracing Pipeline
+### Конвейер трассировки лучей
 
-1. **Particle Simulation** (Compute)
-   - 65K particles
-   - Forces: gravity, shape attraction, curl noise
-   - Updates position/velocity
+1. **Симуляция частиц** (Compute)
+   - 65K частиц
+   - Силы: гравитация, притяжение к форме, curl noise
+   - Обновление позиций/скоростей
+   - Интеграция с WASM-физикой XPBD (солвер ограничений, N-тельная гравитация, электромагнитные силы)
 
-2. **BVH Construction** (Compute - simplified)
-   - Builds acceleration structure
-   - Morton code spatial hashing
-   - Currently using placeholder
+2. **Построение BVH** (Compute -- упрощенное)
+   - Построение ускоряющей структуры
+   - Пространственное хеширование кодами Мортона
+   - Текущая реализация упрощена
 
-3. **Ray Tracing** (Compute)
-   - Generate rays from camera
-   - BVH traversal (32-level stack)
-   - Ray-sphere intersection
-   - Shadow rays for each light
-   - PBR shading (Cook-Torrance)
+3. **Трассировка лучей** (Compute)
+   - Генерация лучей из камеры
+   - Обход BVH (стек на 32 уровня)
+   - Пересечение луча и сферы
+   - Теневые лучи для каждого источника света
+   - PBR-затенение (Cook-Torrance)
 
-4. **Tone Mapping** (Render)
-   - ACES tone mapping
-   - Gamma correction
-   - Output to canvas
+4. **Тональная компрессия** (Render)
+   - Тональная компрессия ACES
+   - Гамма-коррекция
+   - Вывод на холст
 
-### Shader Files
+### Файлы шейдеров
 
 ```
 src/shaders-wgsl/
-├── common.wgsl          # Math, noise, hash
-├── pbr.wgsl             # PBR BRDF functions
-├── particle-sim.wgsl    # Particle physics
-├── bvh-build.wgsl       # BVH construction
-├── ray-trace.wgsl       # Ray tracing kernel
-└── blit.wgsl            # Tone mapping output
+├── common.wgsl          # Математика, шум, хеш-функции
+├── pbr.wgsl             # Функции PBR BRDF
+├── particle-sim.wgsl    # Физика частиц
+├── bvh-build.wgsl       # Построение BVH
+├── ray-trace.wgsl       # Ядро трассировки лучей
+└── blit.wgsl            # Финальный вывод с тональной компрессией
 ```
 
 ---
 
-## 🔮 Roadmap
+## Дорожная карта
 
-### Phase 1 ✅ COMPLETE
-- [x] WebGPU initialization
-- [x] Compute particle simulation
-- [x] BVH structure (simplified)
-- [x] Ray tracing kernel
-- [x] Ray traced shadows
-- [x] PBR lighting
-- [x] Tone mapping
+### Фаза 1 -- ЗАВЕРШЕНА
+- [x] Инициализация WebGPU
+- [x] Вычислительная симуляция частиц
+- [x] Структура BVH (упрощенная)
+- [x] Ядро трассировки лучей
+- [x] Тени на основе трассировки
+- [x] PBR-освещение
+- [x] Тональная компрессия
 
-### Phase 2 ✅ COMPLETE
-- [x] Simplified BVH construction (dynamic, every frame)
-- [x] Multi-bounce reflections (1-bounce active)
-- [x] Path tracing for GI (working!)
-- [x] Temporal accumulation (denoising active)
-- [x] Per-particle material system
+### Фаза 2 -- ЗАВЕРШЕНА
+- [x] Упрощенное построение BVH (динамическое, каждый кадр)
+- [x] Многоотскоковые отражения (активен 1 отскок)
+- [x] Path tracing для GI (работает)
+- [x] Темпоральная аккумуляция (шумоподавление активно)
+- [x] Система материалов для каждой частицы
 - [x] Importance sampling (GGX)
-- [x] Emissive particles
+- [x] Излучающие частицы
 
-### Phase 3 ⏳ PLANNED
-- [ ] SVGF denoising
-- [ ] Ray traced AO
-- [ ] Volumetric lighting
-- [ ] UI controls
+### Фаза 3 -- ЗАВЕРШЕНА
+- [x] Физический движок XPBD на Rust/WASM
+- [x] 5 типов ограничений (distance, contact, density, shape matching, bending)
+- [x] N-тельная гравитация Барнса-Хата
+- [x] Электромагнитные силы (Кулон + Лоренц)
+- [x] PBF-гидродинамика + XSPH-вязкость + подавление вихрей
+- [x] 13 математических форм + фрактальный генератор
+- [x] 7 режимов взаимодействия с указателем
+- [x] Аудиореактивные силы
+- [x] Адаптивный контроллер качества
+- [x] Миграция на TypeScript + esbuild
+- [x] 154 теста, ноль предупреждений
 
-### Phase 4 ⏳ FUTURE
-- [ ] Adaptive sampling
-- [ ] LOD system
-- [ ] Performance profiler
-- [ ] Quality presets
+### Фаза 4 -- ЗАПЛАНИРОВАНА
+- [ ] Шумоподавление SVGF
+- [ ] Трассированное фоновое затенение (RTAO)
+- [ ] Объемное освещение
+- [ ] Элементы управления UI
 
----
-
-## 🤝 Contributing
-
-This is an experimental branch. Feedback welcome!
-
-**Report issues:**
-- Include browser version
-- GPU model
-- Console errors
-- Screenshots
-
----
-
-## 📄 License
-
-MIT License - See LICENSE.md
+### Фаза 5 -- ЗАПЛАНИРОВАНА
+- [ ] Адаптивная выборка
+- [ ] Система LOD
+- [ ] Профилировщик производительности
+- [ ] Пресеты качества
 
 ---
 
-*Last updated: 2025-12-29*
-*Version: 3.0 - Path Tracing + Temporal AA Active*
-*Phase 2 Complete: Global Illumination, Materials, Denoising*
+## Участие в разработке
+
+Обратная связь приветствуется.
+
+**При сообщении о проблемах указывайте:**
+- Версию браузера
+- Модель GPU
+- Ошибки в консоли
+- Скриншоты
+
+---
+
+## Лицензия
+
+MIT License -- см. LICENSE.md
+
+---
+
+*Последнее обновление: 2026-02-19*
+*Версия: 4.0 -- Path Tracing + Темпоральное AA + Физика XPBD*
+*Фаза 3 завершена: физический движок XPBD, TypeScript, WASM-интеграция*

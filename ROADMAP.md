@@ -1,728 +1,665 @@
-# 🗺️ GPU Particle Shapes - Development Roadmap
+# GPU Particle Shapes -- Дорожная карта разработки
 
-**Last Updated:** 2025-12-30
-**Current Status:** Phase 2 Complete ✅
-
----
-
-## 📊 Project Overview
-
-This document outlines the complete development roadmap for the GPU Particle Shapes project, tracking progress across both WebGL2 and WebGPU implementations.
-
-### Quick Status
-
-| Phase | Status | Description |
-|-------|--------|-------------|
-| Phase 1 | ✅ **Complete** | WebGL2 PBR Foundation |
-| Phase 2 | ✅ **Complete** | WebGPU Ray Tracing + Global Illumination |
-| Phase 3 | 📋 Planned | Advanced Ray Tracing Features |
-| Phase 4 | 📋 Planned | User Interface & Performance |
-| Phase 5 | 📋 Planned | Polish & Advanced Effects |
+**Последнее обновление:** 2026-02-19
+**Текущий статус:** Фаза 3 завершена
 
 ---
 
-## ✅ Phase 1: WebGL2 PBR Foundation
+## Обзор проекта
 
-**Status:** Complete
-**Completion Date:** 2025-12-28
+Этот документ описывает полную дорожную карту разработки проекта GPU Particle Shapes, отслеживая прогресс по реализациям WebGL2, WebGPU и XPBD-физики.
 
-### Objectives
-Establish a solid foundation with WebGL2 and implement physically-based rendering for particles.
+### Краткий статус
 
-### Completed Features
-
-#### Core Rendering
-- ✅ WebGL2 rendering pipeline with MRT (Multiple Render Targets)
-- ✅ Ping-pong texture buffering for particle state
-- ✅ Floating-point textures (RGBA32F) for position & velocity
-- ✅ GPU-based particle physics simulation
-- ✅ 65K+ particles (up to 384×384 texture)
-
-#### PBR Lighting System
-- ✅ Cook-Torrance BRDF implementation
-- ✅ GGX normal distribution function
-- ✅ Fresnel-Schlick approximation
-- ✅ Smith's Schlick-GGX geometry term
-- ✅ Up to 8 dynamic point lights
-- ✅ Per-light intensity and radius control
-- ✅ Material properties (roughness, metallic, albedo)
-
-#### Post-Processing
-- ✅ HDR rendering pipeline
-- ✅ ACES filmic tone mapping
-- ✅ Enhanced bloom with brightness threshold
-- ✅ Vignette effect
-- ✅ Film grain and background gradient
-- ✅ Gamma correction (sRGB)
-
-#### Particle System
-- ✅ 11 mathematical shapes (cube, sphere, torus, helix, etc.)
-- ✅ Smooth shape morphing with automatic transitions
-- ✅ Fractal mode with procedural patterns
-- ✅ Free flight mode
-- ✅ Multiple cursor interaction modes (attract, repel, vortex, etc.)
-- ✅ Audio-reactive equalizer mode
-
-#### User Interface
-- ✅ Comprehensive control panel
-- ✅ Real-time parameter adjustments
-- ✅ Color palette system with 8 presets
-- ✅ Bilingual support (English/Russian)
-- ✅ Mobile-responsive design
-- ✅ Camera controls (orbit, zoom)
-
-### Files Created
-- `src/shaders/pbr.js` - PBR BRDF functions
-- `src/shaders/blit.js` - HDR compositing with tone mapping
-- Enhanced particle rendering in `src/shaders/particle.js`
-- Multiple lighting sources configuration
+| Фаза | Статус | Описание |
+|------|--------|----------|
+| Фаза 1 | **Завершена** | Фундамент WebGL2 PBR |
+| Фаза 2 | **Завершена** | WebGPU Ray Tracing + глобальное освещение |
+| Фаза 3 | **Завершена** | Физический движок XPBD |
+| Фаза 4 | Запланирована | Расширенные возможности трассировки лучей |
+| Фаза 5 | Запланирована | Пользовательский интерфейс и производительность |
+| Фаза 6 | Запланирована | Финальная доработка и эффекты |
 
 ---
 
-## ✅ Phase 2: WebGPU Ray Tracing + Global Illumination
+## Фаза 1: Фундамент WebGL2 PBR
 
-**Status:** Complete
-**Completion Date:** 2025-12-29
+**Статус:** Завершена
+**Дата завершения:** 2025-12-28
 
-### Objectives
-Implement real-time ray tracing with path-traced global illumination using WebGPU compute shaders.
+### Цели
+Создать прочную основу на WebGL2 и реализовать физически корректный рендеринг частиц.
 
-### Completed Features
+### Реализованные возможности
 
-#### WebGPU Infrastructure
-- ✅ WebGPU device initialization with fallback to WebGL2
-- ✅ Compute shader pipeline architecture
-- ✅ Buffer and texture management utilities
-- ✅ Shader compilation error handling
-- ✅ Device lost recovery
+#### Основной рендеринг
+- WebGL2 конвейер рендеринга с MRT (Multiple Render Targets)
+- Двойная буферизация текстур (ping-pong) для состояния частиц
+- Текстуры с плавающей точкой (RGBA32F) для позиций и скоростей
+- Симуляция физики частиц на GPU
+- 65K+ частиц (текстура до 384x384)
 
-#### Ray Tracing Core
-- ✅ Ray-sphere intersection tests
-- ✅ BVH acceleration structure (simplified flat hierarchy)
-- ✅ Dynamic BVH construction (rebuilt every frame)
-- ✅ Iterative BVH traversal
-- ✅ Ray traced shadows
-- ✅ Primary ray generation from camera
+#### Система PBR-освещения
+- Реализация Cook-Torrance BRDF
+- Функция нормального распределения GGX
+- Аппроксимация Френеля-Шлика (Fresnel-Schlick)
+- Геометрический член Смита-Шлика-GGX
+- До 8 динамических точечных источников света
+- Управление интенсивностью и радиусом для каждого источника
+- Свойства материалов (шероховатость, металличность, альбедо)
 
-#### Path Tracing & Global Illumination
-- ✅ **1-bounce global illumination** - particles illuminate each other
-- ✅ **Importance sampling** - GGX distribution for specular reflections
-- ✅ **Mixed diffuse/specular bounce directions**
-- ✅ **Monte Carlo integration** for indirect lighting
-- ✅ **Cosine-weighted hemisphere sampling** for diffuse bounces
+#### Постобработка
+- Конвейер рендеринга в формате HDR
+- Тональная компрессия ACES filmic
+- Улучшенный блум с порогом яркости
+- Эффект виньетирования
+- Зернистость пленки и фоновый градиент
+- Гамма-коррекция (sRGB)
 
-#### Materials System
-- ✅ **Per-particle materials** with varied properties
-- ✅ **Albedo variation** - different base colors per particle
-- ✅ **Roughness variation** - from glossy to rough surfaces
-- ✅ **Metallic variation** - mix of dielectric and metallic particles
-- ✅ **Emissive particles** - random light-emitting particles that contribute to GI
-- ✅ Material-based BRDF evaluation
+#### Система частиц
+- 11 математических форм (куб, сфера, тор, спираль и др.)
+- Плавный морфинг форм с автоматическими переходами
+- Фрактальный режим с процедурными паттернами
+- Режим свободного полета
+- Множество режимов взаимодействия с курсором (притяжение, отталкивание, вихрь и др.)
+- Режим аудиореактивного эквалайзера
 
-#### Denoising & Quality
-- ✅ **Temporal accumulation** - exponential moving average across frames
-- ✅ **Camera-motion detection** - reset accumulation on movement
-- ✅ **Configurable blend factor** - control denoising strength
-- ✅ Smooth, noise-free output
+#### Пользовательский интерфейс
+- Полная панель управления
+- Настройка параметров в реальном времени
+- Система цветовых палитр с 8 пресетами
+- Двуязычная поддержка (английский/русский)
+- Адаптивный дизайн для мобильных устройств
+- Управление камерой (орбита, зум)
 
-#### Lighting & Shading
-- ✅ Up to 8 dynamic point lights
-- ✅ PBR shading with Cook-Torrance BRDF
-- ✅ HDR rendering (RGBA16F textures)
-- ✅ ACES tone mapping in compute shader
-- ✅ Ambient lighting term
-- ✅ Environment/sky color for ray misses
-
-#### Render Pipeline
-- ✅ **5-stage compute pipeline:**
-  1. Particle simulation (physics)
-  2. BVH construction (acceleration)
-  3. Ray tracing with GI (lighting)
-  4. Temporal accumulation (denoising)
-  5. Blit to canvas (output)
-
-### Files Created
-
-#### WebGPU Infrastructure
-- `src/gpu/device.js` (219 lines) - WebGPU device & utilities
-- `src/gpu/pipelines.js` (499 lines) - All compute & render pipelines
-- `index-webgpu.html` (153 lines) - WebGPU version HTML
-- `index-webgpu.js` (443 lines) - WebGPU application entry
-
-#### WGSL Shaders
-- `src/shaders-wgsl/particle-sim.wgsl` (218 lines) - Particle physics
-- `src/shaders-wgsl/bvh-build.wgsl` (235 lines) - Full LBVH builder (not yet used)
-- `src/shaders-wgsl/bvh-simple.wgsl` (187 lines) - Simplified BVH (active)
-- `src/shaders-wgsl/ray-trace.wgsl` (485 lines) - Path tracing kernel
-- `src/shaders-wgsl/temporal-accumulation.wgsl` (83 lines) - Denoising
-- `src/shaders-wgsl/pbr.wgsl` (180 lines) - BRDF functions
-- `src/shaders-wgsl/common.wgsl` (159 lines) - Math utilities
-- `src/shaders-wgsl/blit.wgsl` (73 lines) - Final output
-
-#### Documentation
-- `WEBGPU_SETUP.md` (366 lines) - Complete setup guide
-- `LIGHTING_REPORT.md` - Progress tracking (updated)
-- `README.md` - Updated with WebGPU features
-- `CLAUDE.MD` - Development guide updated
-
-### Performance
-- 60 FPS @ 1080p on RTX 3080+ with full ray tracing
-- Scales from 16K to 65K particles
-- Dynamic BVH rebuilt every frame
-- Temporal accumulation smooths noise effectively
-
-### Bug Fixes (Current Session)
-- ✅ Fixed critical shader bug in `src/shaders/blit.js` - restored missing HDR color sampling
-- ✅ Fixed WebGL2 particle rendering (was showing black screen)
-- ✅ Verified shape button creation in UI
+### Созданные файлы
+- `src/shaders/pbr.js` -- функции PBR BRDF
+- `src/shaders/blit.js` -- HDR-композитинг с тональной компрессией
+- Улучшенный рендеринг частиц в `src/shaders/particle.js`
+- Конфигурация множественных источников освещения
 
 ---
 
-## 📋 Phase 3: Advanced Ray Tracing Features
+## Фаза 2: WebGPU Ray Tracing + глобальное освещение
 
-**Status:** Planned
-**Estimated Scope:** Large
+**Статус:** Завершена
+**Дата завершения:** 2025-12-29
 
-### Objectives
-Enhance ray tracing quality and performance with advanced techniques.
+### Цели
+Реализовать трассировку лучей в реальном времени с глобальным освещением на основе path tracing, используя вычислительные шейдеры WebGPU.
 
-### Planned Features
+### Реализованные возможности
 
-#### BVH Improvements
-- [ ] **Full LBVH implementation** with Morton codes
-  - GPU radix sort for Morton codes
-  - Parallel BVH construction
-  - Proper tree hierarchy
-- [ ] **BVH refitting** instead of full rebuild
-  - Track particle movement
-  - Update only changed nodes
-  - 10-20x faster than rebuild
-- [ ] **SAH-based BVH** (Surface Area Heuristic)
-  - Better ray traversal performance
-  - Optimized split planes
+#### Инфраструктура WebGPU
+- Инициализация устройства WebGPU с откатом на WebGL2
+- Архитектура конвейера вычислительных шейдеров
+- Утилиты управления буферами и текстурами
+- Обработка ошибок компиляции шейдеров
+- Восстановление при потере устройства
 
-#### Multi-Bounce Path Tracing
-- [ ] **2-3 bounce global illumination**
-  - More realistic indirect lighting
-  - Color bleeding between particles
-  - Caustics from metallic particles
-- [ ] **Russian Roulette termination**
-  - Unbiased path termination
-  - Performance optimization
-- [ ] **Next Event Estimation (NEE)**
-  - Direct light sampling at each bounce
-  - Reduced noise for bright lights
+#### Ядро трассировки лучей
+- Тесты пересечения луча и сферы
+- Ускоряющая структура BVH (упрощенная плоская иерархия)
+- Динамическое построение BVH (перестройка каждый кадр)
+- Итеративный обход BVH
+- Тени на основе трассировки лучей
+- Генерация первичных лучей из камеры
 
-#### Advanced Denoising
-- [ ] **SVGF (Spatiotemporal Variance-Guided Filtering)**
-  - Edge-aware bilateral filter
-  - Variance estimation
-  - Temporal accumulation with variance
-  - Multi-pass filtering
-- [ ] **A-SVGF** (Adaptive SVGF)
-  - Adaptive sample count
-  - Quality-driven sampling
-- [ ] **Reprojection with motion vectors**
-  - Better temporal stability
-  - Particle velocity-based reprojection
+#### Path Tracing и глобальное освещение
+- **Глобальное освещение с 1 отскоком** -- частицы подсвечивают друг друга
+- **Importance sampling** -- распределение GGX для зеркальных отражений
+- **Смешанные направления диффузных/зеркальных отскоков**
+- **Интегрирование Монте-Карло** для непрямого освещения
+- **Косинусно-взвешенная выборка полусферы** для диффузных отскоков
 
-#### Ray Tracing Enhancements
-- [ ] **Ray traced ambient occlusion (RTAO)**
-  - Short-range AO rays
-  - Contact hardening
-  - Configurable sample count
-- [ ] **Adaptive sampling**
-  - More samples in high-variance regions
-  - Fewer samples in converged areas
-  - Variance-driven sample distribution
-- [ ] **Importance-sampled environment lighting**
-  - HDR environment maps
-  - MIS (Multiple Importance Sampling)
-  - Sky/IBL contribution
+#### Система материалов
+- **Материалы для каждой частицы** с варьируемыми свойствами
+- **Вариация альбедо** -- различные базовые цвета для каждой частицы
+- **Вариация шероховатости** -- от глянцевых до шероховатых поверхностей
+- **Вариация металличности** -- смесь диэлектрических и металлических частиц
+- **Излучающие частицы** -- случайные светоизлучающие частицы, вносящие вклад в GI
+- Вычисление BRDF на основе материала
 
-### Technical Challenges
-- GPU memory management for larger BVH
-- Compute shader occupancy optimization
-- Balance between quality and performance
-- Real-time constraints (16.6ms per frame)
+#### Шумоподавление и качество
+- **Темпоральная аккумуляция** -- экспоненциальное скользящее среднее между кадрами
+- **Обнаружение движения камеры** -- сброс аккумуляции при перемещении
+- **Настраиваемый коэффициент смешивания** -- управление интенсивностью шумоподавления
+- Гладкий вывод без шума
 
-### Estimated Impact
-- **Quality:** 40-60% improvement in visual fidelity
-- **Performance:** 30-50% faster with optimized BVH
-- **Noise:** 70-80% reduction with SVGF
+#### Освещение и затенение
+- До 8 динамических точечных источников света
+- PBR-затенение с Cook-Torrance BRDF
+- HDR-рендеринг (текстуры RGBA16F)
+- Тональная компрессия ACES в вычислительном шейдере
+- Компонент фонового освещения
+- Цвет окружения/неба для промахов лучей
 
----
+#### Конвейер рендеринга
+- **5-этапный вычислительный конвейер:**
+  1. Симуляция частиц (физика)
+  2. Построение BVH (ускорение)
+  3. Трассировка лучей с GI (освещение)
+  4. Темпоральная аккумуляция (шумоподавление)
+  5. Вывод на холст (финальный проход)
 
-## 📋 Phase 4: TypeScript Migration & Code Quality
+### Созданные файлы
 
-**Status:** Planned
-**Estimated Scope:** Large
+#### Инфраструктура WebGPU
+- `src/gpu/device.js` (219 строк) -- устройство WebGPU и утилиты
+- `src/gpu/pipelines.js` (499 строк) -- все вычислительные и рендер-конвейеры
+- `index-webgpu.html` (153 строки) -- HTML для WebGPU-версии
+- `index-webgpu.js` (443 строки) -- точка входа WebGPU-приложения
 
-### Objectives
-Migrate codebase to TypeScript for better type safety, developer experience, and maintainability.
+#### WGSL-шейдеры
+- `src/shaders-wgsl/particle-sim.wgsl` (218 строк) -- физика частиц
+- `src/shaders-wgsl/bvh-build.wgsl` (235 строк) -- полный LBVH-построитель (пока не используется)
+- `src/shaders-wgsl/bvh-simple.wgsl` (187 строк) -- упрощенный BVH (активный)
+- `src/shaders-wgsl/ray-trace.wgsl` (485 строк) -- ядро path tracing
+- `src/shaders-wgsl/temporal-accumulation.wgsl` (83 строки) -- шумоподавление
+- `src/shaders-wgsl/pbr.wgsl` (180 строк) -- функции BRDF
+- `src/shaders-wgsl/common.wgsl` (159 строк) -- математические утилиты
+- `src/shaders-wgsl/blit.wgsl` (73 строки) -- финальный вывод
 
-### Planned Features
+#### Документация
+- `WEBGPU_SETUP.md` (366 строк) -- руководство по настройке
+- `LIGHTING_REPORT.md` -- отслеживание прогресса (обновлено)
+- `README.md` -- обновлен с возможностями WebGPU
+- `CLAUDE.MD` -- руководство разработки обновлено
 
-####  TypeScript Migration Strategy
-- [ ] **Phase 4.1: Infrastructure Setup**
-  - [ ] Install TypeScript and required dev dependencies (`typescript`, `@types/webgl2`, `vite` or `esbuild`)
-  - [ ] Configure `tsconfig.json` with strict mode
-  - [ ] Setup build pipeline (Vite recommended for fast HMR)
-  - [ ] Configure source maps for debugging
-  - [ ] Add ESLint with TypeScript support
+### Производительность
+- 60 FPS при 1080p на RTX 3080+ с полной трассировкой лучей
+- Масштабирование от 16K до 65K частиц
+- Динамический BVH перестраивается каждый кадр
+- Темпоральная аккумуляция эффективно сглаживает шум
 
-- [ ] **Phase 4.2: Type Definitions**
-  - [ ] Create type definitions for all interfaces:
-    - `types/webgl.d.ts` - WebGL2 context, programs, buffers
-    - `types/webgpu.d.ts` - WebGPU device, pipelines, bind groups
-    - `types/particles.d.ts` - Particle system state
-    - `types/camera.d.ts` - Camera controls
-    - `types/lights.d.ts` - Lighting system
-    - `types/audio.d.ts` - Audio analyzer
-    - `types/ui.d.ts` - UI controls
-  - [ ] Define shader uniform types
-  - [ ] Create generic utility types
-
-- [ ] **Phase 4.3: Incremental Migration (Bottom-up)**
-  - [ ] **Step 1: Constants & Config** (~2-3 files)
-    - `src/config/constants.ts` - Convert to TS first
-    - Export typed constants
-    - Define enums for modes, shapes, etc.
-
-  - [ ] **Step 2: Utility Modules** (~5-7 files)
-    - `src/core/utils.ts` - WebGL utilities
-    - `src/core/math.ts` - Math helpers
-    - Type WebGL functions with generics
-    - Add JSDoc comments
-
-  - [ ] **Step 3: Shader Modules** (~10 files)
-    - Keep shader code as template strings
-    - Add type validation for shader uniforms
-    - Create typed uniform setters
-
-  - [ ] **Step 4: Core Systems** (~15 files)
-    - `src/simulation/state.ts` - State management
-    - `src/rendering/pipeline.ts` - Render pipeline
-    - `src/camera/controls.ts` - Camera system
-    - `src/audio/analyzer.ts` - Audio processing
-    - Add interfaces for all system states
-
-  - [ ] **Step 5: UI Layer** (~5 files)
-    - `src/ui/controls.ts` - UI controls
-    - `src/ui/i18n.ts` - Internationalization
-    - Type event handlers
-
-  - [ ] **Step 6: Main Entry Points** (~2 files)
-    - `index.ts` - WebGL2 main
-    - `index-webgpu.ts` - WebGPU main
-    - Full type coverage
-
-- [ ] **Phase 4.4: Enhanced Type Safety**
-  - [ ] Branded types for IDs (ProgramID, BufferID, TextureID)
-  - [ ] Union types for modes and states
-  - [ ] Discriminated unions for event types
-  - [ ] Type guards for runtime validation
-  - [ ] Generic pipeline builders
-
-- [ ] **Phase 4.5: Build & Tooling**
-  - [ ] Setup Vite for development with HMR
-  - [ ] Configure production builds with minification
-  - [ ] Add type checking to CI/CD
-  - [ ] Generate API documentation from TSDoc
-  - [ ] Setup pre-commit hooks for type checking
-
-#### Example Type Definitions
-
-```typescript
-// types/webgl.d.ts
-export type ShaderType = 'vertex' | 'fragment';
-export type TextureFormat = 'rgba32f' | 'rgba16f' | 'rgba8';
-
-export interface WebGLContext {
-  gl: WebGL2RenderingContext;
-  canvas: HTMLCanvasElement;
-  limits: WebGLLimits;
-}
-
-export interface Program {
-  id: ProgramID;
-  vs: WebGLShader;
-  fs: WebGLShader;
-  uniforms: Map<string, WebGLUniformLocation>;
-}
-
-// types/particles.d.ts
-export interface ParticleSystemState {
-  texSize: number;
-  N: number; // Total particle count
-  simFBO: [WebGLFramebuffer, WebGLFramebuffer];
-  simTex: {
-    pos: [WebGLTexture, WebGLTexture];
-    vel: [WebGLTexture, WebGLTexture];
-  };
-  simRead: 0 | 1;
-  idxVAO: WebGLVertexArrayObject;
-}
-
-export interface ShapeState {
-  shapeMode: 'shapes' | 'free' | 'fractals' | 'equalizer';
-  shapeA: number;
-  shapeB: number;
-  morph: number;
-  shapeStrength: number;
-  targetShapeStrength: number;
-  autoMorph: boolean;
-  // ... etc
-}
-
-// types/camera.d.ts
-export interface Camera {
-  eye: vec3;
-  target: vec3;
-  up: vec3;
-  angle: { x: number; y: number };
-  distance: number;
-  targetDistance: number;
-  aspect: number;
-  view: mat4;
-  proj: mat4;
-}
-
-// Generic vector types
-export type vec2 = [number, number];
-export type vec3 = [number, number, number];
-export type vec4 = [number, number, number, number];
-export type mat4 = Float32Array; // 16 elements
-```
-
-#### Migration Benefits
-- **Type Safety**: Catch errors at compile time
-- **Intellisense**: Better autocomplete in IDEs
-- **Refactoring**: Safer code changes
-- **Documentation**: Self-documenting code
-- **Maintainability**: Easier onboarding for contributors
-- **Performance**: No runtime overhead (compiles to JS)
-
-#### Migration Risks & Mitigation
-- **Risk**: Breaking existing code
-  - **Mitigation**: Incremental migration, thorough testing
-- **Risk**: Build complexity
-  - **Mitigation**: Use Vite for simple configuration
-- **Risk**: Learning curve
-  - **Mitigation**: Start with `any` types, gradually strengthen
-
-#### Estimated Timeline
-- Phase 4.1-4.2: 1-2 weeks (setup + type definitions)
-- Phase 4.3: 4-6 weeks (incremental migration)
-- Phase 4.4: 1-2 weeks (enhanced types)
-- Phase 4.5: 1 week (build & tooling)
-- **Total**: 7-11 weeks for full migration
+### Исправления ошибок
+- Исправлена критическая ошибка шейдера в `src/shaders/blit.js` -- восстановлена утраченная выборка HDR-цвета
+- Исправлен рендеринг частиц WebGL2 (отображался черный экран)
+- Проверено создание кнопок форм в интерфейсе
 
 ---
 
-## 📋 Phase 5: User Interface & Performance
+## Фаза 3: Физический движок XPBD
 
-**Status:** Planned
-**Estimated Scope:** Medium
+**Статус:** Завершена
+**Дата завершения:** 2026-02-19
 
-### Objectives
-Provide comprehensive UI controls and performance optimization tools (enhanced with TypeScript).
+### Цели
+Реализовать полноценный физический движок на основе алгоритма XPBD (Extended Position-Based Dynamics) на Rust с компиляцией в WebAssembly для высокопроизводительной симуляции частиц в реальном времени.
 
-### Planned Features
+### Реализованные возможности
 
-#### WebGPU UI Controls
-- [ ] **Ray Tracing Settings Panel**
-  - [ ] Enable/disable ray tracing toggle
-  - [ ] BVH type selector (simple/full LBVH)
-  - [ ] Bounce count slider (1-3 bounces)
-  - [ ] Sample per pixel control
-  - [ ] Temporal blend factor
-- [ ] **Material Controls**
-  - [ ] Global roughness multiplier
-  - [ ] Global metallic multiplier
-  - [ ] Emissive particle probability
-  - [ ] Emissive intensity
-- [ ] **Quality Presets**
-  - [ ] Low (no RT, forward rendering)
-  - [ ] Medium (RT shadows only)
-  - [ ] High (1-bounce GI)
-  - [ ] Ultra (2-3 bounce GI, SVGF)
-- [ ] **Debug Visualizations**
-  - [ ] BVH visualization overlay
-  - [ ] Ray count heatmap
-  - [ ] Variance visualization
-  - [ ] Material property view
+#### Рабочее пространство Rust
+- Монорепозиторий Cargo Workspace с двумя крейтами:
+  - `xpbd-core` -- физическая библиотека (ядро симуляции)
+  - `xpbd-wasm` -- WASM-биндинги для JavaScript
+- Система сборки wasm-pack для компиляции в WebAssembly
+- Бандлер esbuild для TypeScript-клиента
+- Миграция клиентского кода с JavaScript на TypeScript
 
-#### Performance Monitoring
-- [ ] **Real-time statistics panel**
-  - [ ] FPS counter with min/max/avg
-  - [ ] Frame time graph
-  - [ ] GPU time breakdown by pass
-  - [ ] Memory usage tracking
-- [ ] **Performance profiling**
-  - [ ] GPU timestamp queries
-  - [ ] Per-pipeline timing
-  - [ ] Bottleneck identification
-- [ ] **Automatic quality scaling**
-  - [ ] Dynamic resolution scaling
-  - [ ] Adaptive particle count
-  - [ ] Quality preset switching based on FPS
+#### Солвер XPBD
+- Полная реализация алгоритма XPBD с подшагами (substeps) и итерациями Якоби
+- Настраиваемое количество подшагов и итераций для баланса точности и производительности
+- 5 типов ограничений (constraints):
+  - **Distance** -- ограничения расстояния между частицами
+  - **Contact** -- контактные ограничения (столкновения)
+  - **Density (PBF)** -- ограничения плотности на основе Position-Based Fluids
+  - **Shape Matching** -- ограничения сохранения формы
+  - **Bending** -- ограничения изгиба
 
-#### Save/Load System
-- [ ] **Configuration presets**
-  - [ ] Save current settings to JSON
-  - [ ] Load preset configurations
-  - [ ] Export/import via file
-  - [ ] URL parameter encoding
-- [ ] **Screenshot/Recording**
-  - [ ] Canvas capture to PNG
-  - [ ] Video recording (WebCodecs API)
-  - [ ] GIF export
-  - [ ] Configurable resolution
+#### N-тельная гравитация Барнса-Хата
+- Аппроксимация гравитационного взаимодействия O(N log N) на основе октодерева (octree)
+- Алгоритм Барнса-Хата (Barnes-Hut) для эффективного вычисления дальнодействующих сил
+- Настраиваемый параметр точности (theta)
 
-### UI Improvements
-- [ ] Collapsible sections in control panel
-- [ ] Tooltips for all parameters
-- [ ] Keyboard shortcuts
-- [ ] Help/documentation overlay
-- [ ] Performance warnings
-- [ ] Mobile touch optimization
+#### Электромагнитные силы
+- Кулоновское взаимодействие (электростатика)
+- Сила Лоренца (движение заряженных частиц в магнитном поле)
 
----
+#### Гидродинамика (PBF)
+- Ограничения плотности на основе Position-Based Fluids
+- XSPH-вязкость для сглаживания поля скоростей
+- Подавление вихрей (vorticity confinement) для сохранения мелкомасштабных деталей потока
 
-## 📋 Phase 6: Polish & Advanced Effects
+#### Генерация форм
+- 13 математических форм с параметрическим описанием
+- Генератор фракталов
+- Морфинг форм реализован как XPBD-ограничения позиций с настраиваемой податливостью (compliance)
 
-**Status:** Planned
-**Estimated Scope:** Large
+#### Режимы взаимодействия с указателем
+- 7 режимов взаимодействия:
+  - Притяжение (attract)
+  - Отталкивание (repel)
+  - Вихрь влево (vortex L)
+  - Вихрь вправо (vortex R)
+  - Импульс (pulse)
+  - Магнитный поток (magnetic flow)
+  - Квазар (quasar)
 
-### Objectives
-Add final polish and advanced visual effects for production quality.
+#### Аудиореактивные силы
+- Анализ частотных диапазонов: басы, средние, высокие (bass/mid/treble)
+- Модуляция физических сил на основе спектра аудиосигнала
 
-### Planned Features
+#### Адаптивный контроллер качества
+- Управление количеством подшагов и итераций на основе бюджета времени кадра
+- Автоматическое масштабирование точности для поддержания целевого FPS
 
-#### Advanced Post-Processing
-- [ ] **Temporal Anti-Aliasing (TAA)**
-  - [ ] Jittered sampling
-  - [ ] Reprojection with velocity
-  - [ ] History rejection
-  - [ ] Sharpening pass
-- [ ] **Motion Blur**
-  - [ ] Per-particle velocity-based blur
-  - [ ] Tile-based blur optimization
-  - [ ] Configurable shutter angle
-- [ ] **Depth of Field (DoF)**
-  - [ ] Bokeh-based DoF
-  - [ ] Circular/hexagonal aperture
-  - [ ] Focus distance control
-  - [ ] Aperture size control
-- [ ] **Color Grading**
-  - [ ] LUT-based color grading
-  - [ ] Exposure/contrast/saturation
-  - [ ] Color temperature
-  - [ ] Split toning
+#### Пространственная хеш-сетка
+- Подсчет-сортировка (counting sort) для размещения частиц в ячейках
+- Запросы соседей за O(N) для эффективного поиска взаимодействий
 
-#### Advanced Lighting
-- [ ] **Volumetric Lighting (God Rays)**
-  - [ ] Raymarched volumetrics
-  - [ ] Light shafts from point lights
-  - [ ] Fog/atmosphere density control
-  - [ ] 3D noise for variation
-- [ ] **Light Probes**
-  - [ ] Spherical harmonics for ambient
-  - [ ] Dynamic probe placement
-  - [ ] Probe blending
-- [ ] **Caustics**
-  - [ ] Photon mapping for caustics
-  - [ ] Light focusing through particles
-  - [ ] Refractive caustics
+#### Система пресетов материалов
+- Предустановленные наборы физических параметров для различных типов поведения частиц
 
-#### New Particle Features
-- [ ] **Particle Trails**
-  - [ ] Motion blur-style trails
-  - [ ] Ribbon particles
-  - [ ] Configurable trail length
-  - [ ] Trail fade-out
-- [ ] **Particle Collisions**
-  - [ ] Spatial hashing for collision detection
-  - [ ] Elastic/inelastic collision response
-  - [ ] Collision audio feedback
-- [ ] **Force Fields**
-  - [ ] Gravity wells
-  - [ ] Wind fields
-  - [ ] Turbulence noise
-  - [ ] Magnetic fields
+#### WASM API (PhysicsWorld)
+- Структура GpuParticle размером 32 байта для компактной передачи данных
+- Zero-copy доступ к буферам из JavaScript через SharedArrayBuffer
+- Минимальные накладные расходы на границе Rust/JS
 
-#### New Shapes
-- [ ] **Mathematical Surfaces**
-  - [ ] Möbius strip
-  - [ ] Klein bottle
-  - [ ] Trefoil knot
-  - [ ] Lorenz attractor
-  - [ ] Mandelbrot set
-- [ ] **Organic Shapes**
-  - [ ] DNA helix
-  - [ ] Shell/spiral
-  - [ ] Tree/branch structures
-  - [ ] Procedural flowers
+#### Качество и тестирование
+- 154 теста, полное покрытие физического ядра
+- Ноль предупреждений компилятора
+- Опциональная параллелизация через rayon (за feature-флагом `parallel`)
 
-#### Audio Reactivity Enhancements
-- [ ] **Advanced audio analysis**
-  - [ ] Beat detection
-  - [ ] Onset detection
-  - [ ] Spectral centroid
-  - [ ] RMS energy
-- [ ] **Audio-driven parameters**
-  - [ ] Particle color from spectrum
-  - [ ] Shape morphing to beat
-  - [ ] Light intensity to bass
-  - [ ] Camera shake to percussion
-
-#### VR/AR Support
-- [ ] **WebXR integration**
-  - [ ] Stereo rendering
-  - [ ] 6DoF tracking
-  - [ ] Hand controllers
-  - [ ] Room-scale support
-- [ ] **AR features**
-  - [ ] World tracking
-  - [ ] Plane detection
-  - [ ] Hit testing
-  - [ ] Light estimation
-
-### Quality of Life
-- [ ] Comprehensive tutorial system
-- [ ] Interactive examples/demos
-- [ ] Video tutorials
-- [ ] Community showcase gallery
-- [ ] Plugin/extension system
-- [ ] Scripting API for custom behaviors
+### Технологический стек
+- **Rust** -- физическое ядро и WASM-биндинги
+- **TypeScript** -- клиентская часть (миграция с JS)
+- **wasm-pack** -- сборка WASM-модуля
+- **esbuild** -- бандлинг TypeScript
 
 ---
 
-## 🎯 Priority Matrix
+## Фаза 4: Расширенные возможности трассировки лучей
 
-### High Priority (Phase 3-4)
-1. Full LBVH implementation (major performance boost)
-2. SVGF denoising (major quality improvement)
-3. TypeScript migration (code quality & maintainability)
-4. WebGPU UI controls (usability)
-5. Performance monitoring (optimization)
+**Статус:** Запланирована
+**Ориентировочный объем:** Большой
 
-### Medium Priority (Phase 4-5)
-1. Multi-bounce GI (visual quality)
-2. TAA implementation
-3. Quality presets
-4. Save/load system
-5. Volumetric lighting
+### Цели
+Повысить качество и производительность трассировки лучей с помощью продвинутых техник.
 
-### Low Priority (Phase 6)
-1. New shapes
-2. VR/AR support
-3. Advanced audio features
-4. Caustics
-5. Plugin system
-6. Video recording
+### Запланированные возможности
 
----
+#### Улучшения BVH
+- **Полная реализация LBVH** с кодами Мортона
+  - Поразрядная сортировка кодов Мортона на GPU
+  - Параллельное построение BVH
+  - Полноценная иерархия дерева
+- **Обновление BVH** вместо полной перестройки
+  - Отслеживание перемещения частиц
+  - Обновление только измененных узлов
+  - В 10-20 раз быстрее полной перестройки
+- **BVH на основе SAH** (Surface Area Heuristic)
+  - Улучшенная производительность обхода лучей
+  - Оптимизированные плоскости разделения
 
-## 📈 Performance Targets
+#### Многоотскоковый Path Tracing
+- **Глобальное освещение с 2-3 отскоками**
+  - Более реалистичное непрямое освещение
+  - Перетекание цвета между частицами
+  - Каустики от металлических частиц
+- **Русская рулетка для завершения путей**
+  - Несмещенное завершение путей
+  - Оптимизация производительности
+- **Оценка следующего события (NEE)**
+  - Прямая выборка света на каждом отскоке
+  - Снижение шума для ярких источников
 
-| Configuration | Resolution | Particle Count | Target FPS | GPU Tier |
-|---------------|-----------|----------------|-----------|----------|
-| Low | 720p | 16K | 60 | GTX 1060 |
-| Medium | 1080p | 32K | 60 | RTX 2060 |
-| High | 1080p | 65K | 60 | RTX 3070 |
-| Ultra | 1440p | 65K | 60 | RTX 3080+ |
-| Extreme | 4K | 65K | 30-60 | RTX 4090 |
+#### Продвинутое шумоподавление
+- **SVGF (пространственно-временная фильтрация с учетом дисперсии)**
+  - Билатеральный фильтр с учетом границ
+  - Оценка дисперсии
+  - Темпоральная аккумуляция с дисперсией
+  - Многопроходная фильтрация
+- **A-SVGF** (адаптивный SVGF)
+  - Адаптивное количество сэмплов
+  - Выборка на основе качества
+- **Репроекция с векторами движения**
+  - Улучшенная временная стабильность
+  - Репроекция на основе скоростей частиц
 
----
+#### Расширения трассировки лучей
+- **Трассированное фоновое затенение (RTAO)**
+  - Короткие лучи AO
+  - Контактное уплотнение
+  - Настраиваемое количество сэмплов
+- **Адаптивная выборка**
+  - Больше сэмплов в регионах с высокой дисперсией
+  - Меньше сэмплов в сходящихся областях
+  - Распределение сэмплов на основе дисперсии
+- **Освещение окружения с importance sampling**
+  - HDR-карты окружения
+  - MIS (множественное importance sampling)
+  - Вклад неба/IBL
 
-## 🚀 Release Milestones
+### Технические сложности
+- Управление памятью GPU для крупных BVH
+- Оптимизация занятости вычислительных шейдеров
+- Баланс между качеством и производительностью
+- Ограничения реального времени (16.6 мс на кадр)
 
-### v1.0 - WebGL2 Stable (Released)
-- ✅ Full WebGL2 feature set
-- ✅ 11 shapes, fractal mode, audio reactive
-- ✅ PBR lighting, HDR pipeline
-- ✅ Comprehensive UI
-- ✅ Mobile support
-- ✅ Bilingual
-
-### v2.0 - WebGPU Ray Tracing (Released)
-- ✅ Real-time ray tracing
-- ✅ Path-traced global illumination
-- ✅ Temporal denoising
-- ✅ Per-particle materials
-- ✅ Emissive particles
-- ✅ Dynamic BVH
-- ✅ Fallback to WebGL2
-
-### v2.5 - Advanced Ray Tracing (Q1 2025)
-- [ ] Full LBVH
-- [ ] Multi-bounce GI
-- [ ] SVGF denoising
-- [ ] RTAO
-- [ ] WebGPU UI controls
-
-### v3.0 - Production Polish (Q2 2025)
-- [ ] TAA
-- [ ] Quality presets
-- [ ] Performance tools
-- [ ] Save/load
-- [ ] Advanced post-processing
-
-### v3.5 - Extended Features (Q3 2025)
-- [ ] Volumetric lighting
-- [ ] New shapes & modes
-- [ ] Enhanced audio reactivity
-- [ ] Particle collisions
-- [ ] Community features
-
-### v4.0 - Next Generation (Q4 2025)
-- [ ] VR/AR support
-- [ ] Plugin system
-- [ ] Advanced caustics
-- [ ] Scripting API
-- [ ] Production-ready framework
+### Ожидаемый эффект
+- **Качество:** улучшение визуальной точности на 40-60%
+- **Производительность:** ускорение на 30-50% с оптимизированным BVH
+- **Шум:** снижение на 70-80% при использовании SVGF
 
 ---
 
-## 📚 Documentation Status
+## Фаза 5: Пользовательский интерфейс и производительность
 
-| Document | Status | Last Updated |
-|----------|--------|--------------|
-| README.md | ✅ Current | 2025-12-30 |
-| WEBGPU_SETUP.md | ✅ Current | 2025-12-29 |
-| LIGHTING_REPORT.md | ✅ Current | 2025-12-29 |
-| CLAUDE.MD | ✅ Current | 2025-12-29 |
-| ROADMAP.md | ✅ Current | 2025-12-30 |
-| API_DOCS.md | ❌ Missing | - |
-| CONTRIBUTING.md | ❌ Missing | - |
-| CHANGELOG.md | ❌ Missing | - |
+**Статус:** Запланирована
+**Ориентировочный объем:** Средний
+
+### Цели
+Обеспечить комплексное управление через UI и инструменты оптимизации производительности.
+
+### Запланированные возможности
+
+#### Элементы управления WebGPU
+- **Панель настроек трассировки лучей**
+  - Переключатель включения/выключения трассировки
+  - Выбор типа BVH (простой/полный LBVH)
+  - Ползунок количества отскоков (1-3)
+  - Управление количеством сэмплов на пиксель
+  - Коэффициент темпорального смешивания
+- **Управление материалами**
+  - Глобальный множитель шероховатости
+  - Глобальный множитель металличности
+  - Вероятность излучающих частиц
+  - Интенсивность излучения
+- **Пресеты качества**
+  - Низкое (без RT, прямой рендеринг)
+  - Среднее (только RT-тени)
+  - Высокое (GI с 1 отскоком)
+  - Ультра (GI с 2-3 отскоками, SVGF)
+- **Отладочные визуализации**
+  - Наложение визуализации BVH
+  - Тепловая карта количества лучей
+  - Визуализация дисперсии
+  - Отображение свойств материалов
+
+#### Мониторинг производительности
+- **Панель статистики в реальном времени**
+  - Счетчик FPS с минимумом/максимумом/средним
+  - График времени кадра
+  - Разбивка времени GPU по проходам
+  - Отслеживание использования памяти
+- **Профилирование производительности**
+  - Запросы временных меток GPU
+  - Хронометраж каждого конвейера
+  - Определение узких мест
+- **Автоматическое масштабирование качества**
+  - Динамическое масштабирование разрешения
+  - Адаптивное количество частиц
+  - Переключение пресетов качества на основе FPS
+
+#### Система сохранения/загрузки
+- **Пресеты конфигурации**
+  - Сохранение текущих настроек в JSON
+  - Загрузка предустановленных конфигураций
+  - Экспорт/импорт через файл
+  - Кодирование параметров в URL
+- **Скриншоты/запись**
+  - Захват холста в PNG
+  - Запись видео (WebCodecs API)
+  - Экспорт в GIF
+  - Настраиваемое разрешение
+
+### Улучшения интерфейса
+- Сворачиваемые секции в панели управления
+- Подсказки для всех параметров
+- Горячие клавиши
+- Наложение справки/документации
+- Предупреждения о производительности
+- Оптимизация для сенсорных устройств
 
 ---
 
-## 🤝 Contributing
+## Фаза 6: Финальная доработка и продвинутые эффекты
 
-We welcome contributions! Here are the priority areas:
+**Статус:** Запланирована
+**Ориентировочный объем:** Большой
 
-1. **Phase 3 Implementation** - BVH, multi-bounce GI, SVGF
-2. **Performance Optimization** - Profiling, optimization
-3. **New Shapes** - Mathematical surfaces, organic forms
-4. **Documentation** - Tutorials, examples, API docs
-5. **Testing** - Cross-browser, cross-platform testing
+### Цели
+Добавить финальную полировку и продвинутые визуальные эффекты для качества продакшн-уровня.
+
+### Запланированные возможности
+
+#### Продвинутая постобработка
+- **Временное сглаживание (TAA)**
+  - Дрожащая выборка (jittered sampling)
+  - Репроекция со скоростью
+  - Отклонение истории
+  - Проход повышения резкости
+- **Размытие движения (Motion Blur)**
+  - Размытие на основе скорости каждой частицы
+  - Тайловая оптимизация размытия
+  - Настраиваемый угол затвора
+- **Глубина резкости (DoF)**
+  - DoF на основе боке
+  - Круговая/шестиугольная апертура
+  - Управление расстоянием фокусировки
+  - Управление размером диафрагмы
+- **Цветокоррекция**
+  - Цветокоррекция на основе LUT
+  - Экспозиция/контрастность/насыщенность
+  - Цветовая температура
+  - Раздельное тонирование
+
+#### Продвинутое освещение
+- **Объемное освещение (лучи бога)**
+  - Объемные эффекты через ray marching
+  - Световые лучи от точечных источников
+  - Управление плотностью тумана/атмосферы
+  - 3D-шум для вариативности
+- **Световые зонды**
+  - Сферические гармоники для фонового освещения
+  - Динамическое размещение зондов
+  - Смешивание зондов
+- **Каустики**
+  - Фотонные карты для каустиков
+  - Фокусировка света через частицы
+  - Преломляющие каустики
+
+#### Новые возможности частиц
+- **Следы частиц**
+  - Следы в стиле motion blur
+  - Ленточные частицы
+  - Настраиваемая длина следа
+  - Затухание следа
+- **Столкновения частиц**
+  - Пространственное хеширование для обнаружения столкновений
+  - Упругий/неупругий отклик на столкновение
+  - Звуковая обратная связь при столкновении
+- **Силовые поля**
+  - Гравитационные колодцы
+  - Поля ветра
+  - Турбулентный шум
+  - Магнитные поля
+
+#### Новые формы
+- **Математические поверхности**
+  - Лента Мебиуса
+  - Бутылка Клейна
+  - Трилистниковый узел
+  - Аттрактор Лоренца
+  - Множество Мандельброта
+- **Органические формы**
+  - Двойная спираль ДНК
+  - Раковина/спираль
+  - Деревья/ветвящиеся структуры
+  - Процедурные цветы
+
+#### Расширения аудиореактивности
+- **Продвинутый анализ аудио**
+  - Обнаружение бита
+  - Обнаружение onset
+  - Спектральный центроид
+  - RMS-энергия
+- **Параметры, управляемые аудио**
+  - Цвет частиц из спектра
+  - Морфинг формы под ритм
+  - Интенсивность света от басов
+  - Тряска камеры от перкуссии
+
+#### Поддержка VR/AR
+- **Интеграция WebXR**
+  - Стереорендеринг
+  - 6DoF-трекинг
+  - Ручные контроллеры
+  - Поддержка масштаба комнаты
+- **Возможности AR**
+  - Отслеживание мира
+  - Обнаружение плоскостей
+  - Тестирование попаданий
+  - Оценка освещения
+
+### Улучшения удобства
+- Комплексная система обучения
+- Интерактивные примеры/демонстрации
+- Видеоуроки
+- Галерея работ сообщества
+- Система плагинов/расширений
+- API скриптинга для пользовательского поведения
 
 ---
 
-## 📝 Notes
+## Матрица приоритетов
 
-- Phase 1 & 2 represent ~4000+ lines of new code
-- WebGPU version requires Chrome 113+ with flag enabled
-- WebGL2 version is production-ready and widely compatible
-- All features maintain 60 FPS target on modern hardware
-- Fallback gracefully from WebGPU to WebGL2
+### Высокий приоритет (Фазы 4-5)
+1. Полная реализация LBVH (значительное ускорение)
+2. Шумоподавление SVGF (значительное улучшение качества)
+3. Элементы управления WebGPU UI (удобство использования)
+4. Мониторинг производительности (оптимизация)
+
+### Средний приоритет (Фазы 5-6)
+1. Многоотскоковое GI (визуальное качество)
+2. Реализация TAA
+3. Пресеты качества
+4. Система сохранения/загрузки
+5. Объемное освещение
+
+### Низкий приоритет (Фаза 6)
+1. Новые формы
+2. Поддержка VR/AR
+3. Продвинутые аудиофункции
+4. Каустики
+5. Система плагинов
+6. Запись видео
 
 ---
 
-**Last Review:** 2025-12-30
-**Next Review:** When Phase 3 begins
-**Maintained by:** 4RH1T3CT0R7
+## Целевые показатели производительности
+
+| Конфигурация | Разрешение | Кол-во частиц | Целевой FPS | Уровень GPU |
+|--------------|-----------|----------------|-------------|-------------|
+| Низкое | 720p | 16K | 60 | GTX 1060 |
+| Среднее | 1080p | 32K | 60 | RTX 2060 |
+| Высокое | 1080p | 65K | 60 | RTX 3070 |
+| Ультра | 1440p | 65K | 60 | RTX 3080+ |
+| Экстремальное | 4K | 65K | 30-60 | RTX 4090 |
+
+---
+
+## Этапы выпуска
+
+### v1.0 -- WebGL2 Stable (Выпущена)
+- Полный набор возможностей WebGL2
+- 11 форм, фрактальный режим, аудиореактивность
+- PBR-освещение, HDR-конвейер
+- Полный пользовательский интерфейс
+- Поддержка мобильных устройств
+- Двуязычная поддержка
+
+### v2.0 -- WebGPU Ray Tracing (Выпущена)
+- Трассировка лучей в реальном времени
+- Глобальное освещение на основе path tracing
+- Темпоральное шумоподавление
+- Материалы для каждой частицы
+- Излучающие частицы
+- Динамический BVH
+- Откат на WebGL2
+
+### v3.0 -- XPBD Physics Engine (Выпущена)
+- Физический движок XPBD на Rust/WASM
+- 5 типов ограничений
+- N-тельная гравитация Барнса-Хата
+- Электромагнитные силы
+- PBF-гидродинамика
+- 13 форм + фрактальный генератор
+- 7 режимов взаимодействия с указателем
+- Аудиореактивные силы
+- Адаптивный контроллер качества
+- 154 теста, ноль предупреждений
+- Миграция на TypeScript + esbuild
+
+### v3.5 -- Расширенная трассировка лучей (планируется)
+- Полный LBVH
+- Многоотскоковое GI
+- Шумоподавление SVGF
+- RTAO
+- Элементы управления WebGPU UI
+
+### v4.0 -- Продакшн-качество (планируется)
+- TAA
+- Пресеты качества
+- Инструменты производительности
+- Сохранение/загрузка
+- Продвинутая постобработка
+
+### v4.5 -- Расширенные возможности (планируется)
+- Объемное освещение
+- Новые формы и режимы
+- Расширенная аудиореактивность
+- Столкновения частиц
+- Функции сообщества
+
+### v5.0 -- Следующее поколение (планируется)
+- Поддержка VR/AR
+- Система плагинов
+- Продвинутые каустики
+- API скриптинга
+- Полноценный фреймворк для продакшна
+
+---
+
+## Статус документации
+
+| Документ | Статус | Последнее обновление |
+|----------|--------|----------------------|
+| README.md | Актуален | 2025-12-30 |
+| WEBGPU_SETUP.md | Актуален | 2026-02-19 |
+| LIGHTING_REPORT.md | Актуален | 2025-12-29 |
+| CLAUDE.MD | Актуален | 2025-12-29 |
+| ROADMAP.md | Актуален | 2026-02-19 |
+| API_DOCS.md | Отсутствует | - |
+| CONTRIBUTING.md | Отсутствует | - |
+| CHANGELOG.md | Отсутствует | - |
+
+---
+
+## Участие в разработке
+
+Мы приветствуем вклад в проект. Приоритетные направления:
+
+1. **Реализация Фазы 4** -- BVH, многоотскоковое GI, SVGF
+2. **Оптимизация производительности** -- профилирование, оптимизация
+3. **Новые формы** -- математические поверхности, органические формы
+4. **Документация** -- обучающие материалы, примеры, документация API
+5. **Тестирование** -- кроссбраузерное, кроссплатформенное тестирование
+
+---
+
+## Примечания
+
+- Фазы 1, 2 и 3 представляют собой суммарно значительный объем нового кода
+- WebGPU-версия требует Chrome 113+ с включенным флагом
+- WebGL2-версия готова к продакшну и широко совместима
+- XPBD-физика компилируется в WASM для нативной производительности в браузере
+- Все функции поддерживают целевой показатель 60 FPS на современном оборудовании
+- Корректный откат с WebGPU на WebGL2
+
+---
+
+**Последняя ревизия:** 2026-02-19
+**Следующая ревизия:** При начале Фазы 4
+**Поддерживается:** 4RH1T3CT0R7
