@@ -29,6 +29,17 @@ export async function initPhysicsEngine(particleCount: number): Promise<PhysicsE
 }
 
 /**
+ * Recreate PhysicsWorld with a new particle count.
+ * Frees the old world and creates a new one in-place.
+ */
+export function resizePhysicsEngine(engine: PhysicsEngine, newCount: number): void {
+    if (engine.world.particle_count() === newCount) return;
+    engine.world.free();
+    engine.world = new PhysicsWorld(newCount);
+    console.log(`PhysicsWorld recreated: ${newCount} particles, buffer: ${engine.world.get_gpu_buffer_byte_length()} bytes`);
+}
+
+/**
  * Step physics simulation. Returns time taken in ms.
  */
 export function stepPhysics(engine: PhysicsEngine, dt: number, time: number): number {

@@ -5,3 +5,7 @@ node_modules
 dist
 wasm/pkg/
 physics/target/
+*.png
+.playwright-mcp/
+cozy-zooming-pelican.md
+docs/plans/

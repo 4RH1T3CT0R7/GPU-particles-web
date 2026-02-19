@@ -47,11 +47,18 @@ void main(){
   float vig = smoothstep(1.3, 0.4, length(p));
   col *= vig;
 
-  // Background gradient (added before gamma so it gets correct sRGB encoding)
-  vec3 gradient = mix(vec3(0.02, 0.03, 0.07), vec3(0.05, 0.07, 0.12), uv.y);
-  float radial = 1.0 - length(uv - 0.5) * 1.2;
-  gradient += max(0.0, radial) * vec3(0.03, 0.02, 0.05);
-  col += gradient * 0.6;
+  // Background gradient — near-black with faint blue tint
+  vec3 bgBot = vec3(0.001, 0.001, 0.004);
+  vec3 bgTop = vec3(0.002, 0.004, 0.010);
+  vec3 gradient = mix(bgBot, bgTop, uv.y);
+  // Very subtle colored radial accents
+  float r1 = 1.0 - smoothstep(0.0, 0.30, length(uv - vec2(0.18, 0.80)));
+  float r2 = 1.0 - smoothstep(0.0, 0.32, length(uv - vec2(0.82, 0.76)));
+  float r3 = 1.0 - smoothstep(0.0, 0.32, length(uv - vec2(0.50, 0.30)));
+  gradient += r1 * vec3(0.003, 0.008, 0.008);
+  gradient += r2 * vec3(0.007, 0.004, 0.007);
+  gradient += r3 * vec3(0.002, 0.004, 0.007);
+  col += gradient;
 
   // Gamma
   col = pow(col, vec3(1.0 / 2.2));

@@ -146,7 +146,9 @@ pub fn shape_ribbon(t: f32, s: f32) -> Vec3 {
 pub fn shape_icosahedron(t: f32, s: f32) -> Vec3 {
     let angle = t * TAU;
     let rings = (s * 5.0).floor();
-    let r = 0.6 * (rings * 0.628).sin();
+    // Offset rings by 0.5 so no ring sits at a pole (avoids r=0 collapse)
+    let lat = std::f32::consts::PI * (rings + 0.5) / 5.0;
+    let r = 0.6 * lat.sin();
     Vec3::new(r * angle.cos(), (s - 0.5) * 1.4, r * angle.sin())
 }
 

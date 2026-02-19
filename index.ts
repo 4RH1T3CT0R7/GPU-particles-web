@@ -12,7 +12,7 @@ import { PBR_ROUGHNESS, PBR_METALLIC, BLOOM_STRENGTH, BLOOM_THRESHOLD, EXPOSURE 
 import { initWebGL } from './src/core/webgl.ts';
 import { link, createQuadVAO, drawQuad, bindTex } from './src/core/utils.ts';
 import { simVS } from './src/shaders/common.ts';
-import { initPhysicsEngine, stepPhysics, getWebGLBuffers, type PhysicsEngine } from './src/physics/wasm-loader.ts';
+import { initPhysicsEngine, resizePhysicsEngine, stepPhysics, getWebGLBuffers, type PhysicsEngine } from './src/physics/wasm-loader.ts';
 import { particleVS, particleFS } from './src/shaders/particle.ts';
 import { blitFS } from './src/shaders/blit.ts';
 import { bloomFS } from './src/shaders/bloom.ts';
@@ -108,7 +108,7 @@ import { lights, animateLights } from './src/app/lights.ts';
   // Initialize simulation
   simState.initSimulation(256);
 
-  const physicsEngine = await initPhysicsEngine(simState.N);
+  let physicsEngine = await initPhysicsEngine(simState.N);
 
   // Initialize first color palette
   colorManager.rebuildColorStops(colorPalettes[0]);
@@ -149,6 +149,8 @@ import { lights, animateLights } from './src/app/lights.ts';
 
   // Initialize particles via WASM physics engine
   function reinitializeParticles(_pattern = 0.0) {
+    // Recreate PhysicsWorld if particle count changed
+    resizePhysicsEngine(physicsEngine, simState.N);
     physicsEngine.world.reinitialize(Math.floor(Math.random() * 0xFFFFFFFF));
     // Upload WASM output to both sets of position/velocity textures
     const { pos, vel } = getWebGLBuffers(physicsEngine);

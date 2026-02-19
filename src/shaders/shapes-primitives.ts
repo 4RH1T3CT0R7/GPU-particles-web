@@ -167,11 +167,11 @@ export const shapesPrimitivesGLSL: string = `
   }
 
   vec3 shape_icosahedron(float t, float s){
-    // Икосаэдр (примерно)
     float angle = t * 6.28318530718;
     float rings = floor(s * 5.0);
-    float ringT = fract(s * 5.0);
-    float r = 0.6 * sin(rings * 0.628);
+    // Offset rings by 0.5 so no ring sits at a pole (avoids r=0 collapse)
+    float lat = 3.14159265359 * (rings + 0.5) / 5.0;
+    float r = 0.6 * sin(lat);
     return vec3(
       r * cos(angle),
       (s - 0.5) * 1.4,
