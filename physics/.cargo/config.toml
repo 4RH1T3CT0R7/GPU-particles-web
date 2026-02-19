@@ -1,0 +1,4 @@
+# Enable WASM SIMD for wasm32 targets.
+# This allows glam to use v128 SIMD instructions for Vec3/Mat3 operations.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]

@@ -1,5 +1,8 @@
 use glam::Vec3;
 
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
 /// Barnes-Hut octree node for O(N log N) gravitational force computation.
 ///
 /// Leaf nodes store a single particle. Internal nodes store the aggregate
@@ -230,9 +233,24 @@ pub fn apply_nbody_gravity(
 
     let softening_sq = softening * softening;
 
-    for i in 0..count {
-        let acc = traverse_octree(&octree, positions[i], i as u32, theta, softening_sq, g);
-        velocities[i] += acc * dt;
+    #[cfg(feature = "parallel")]
+    {
+        // Compute accelerations in parallel, then apply
+        let accels: Vec<Vec3> = (0..count)
+            .into_par_iter()
+            .map(|i| traverse_octree(&octree, positions[i], i as u32, theta, softening_sq, g))
+            .collect();
+        for i in 0..count {
+            velocities[i] += accels[i] * dt;
+        }
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    {
+        for i in 0..count {
+            let acc = traverse_octree(&octree, positions[i], i as u32, theta, softening_sq, g);
+            velocities[i] += acc * dt;
+        }
     }
 }
 

@@ -3,6 +3,11 @@ name = "xpbd-core"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+parallel = ["rayon"]
+
 [dependencies]
 glam = { workspace = true }
 bytemuck = { workspace = true }
+rayon = { version = "1.10", optional = true }

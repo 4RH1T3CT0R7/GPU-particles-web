@@ -1,5 +1,8 @@
 use glam::Vec3;
 
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
 /// Apply electromagnetic forces (Coulomb + Lorentz) to all particles.
 ///
 /// Coulomb force: F = k * q_i * q_j / r^2 * r_hat
@@ -25,18 +28,25 @@ pub fn apply_electromagnetic_forces(
 ) {
     let softening_sq = softening * softening;
     let max_range_sq = max_range * max_range;
+    let has_magnetic = magnetic_field.length_squared() > 1e-10;
 
-    for i in 0..count {
+    // Snapshot velocities for Lorentz force (avoids borrow conflict)
+    let vel_snapshot: Vec<Vec3> = if has_magnetic {
+        velocities[..count].to_vec()
+    } else {
+        Vec::new()
+    };
+
+    // Compute per-particle acceleration (parallelizable)
+    let compute_acc = |i: usize| -> Vec3 {
         let q_i = charges[i];
         if q_i.abs() < 1e-10 {
-            continue;
+            return Vec3::ZERO;
         }
 
         let pos_i = positions[i];
         let mut acc = Vec3::ZERO;
 
-        // Coulomb interaction (O(N^2) — acceptable for moderate counts,
-        // could be optimized with spatial grid for larger systems)
         for j in 0..count {
             if i == j {
                 continue;
@@ -56,22 +66,32 @@ pub fn apply_electromagnetic_forces(
             let dist_sq_soft = dist_sq + softening_sq;
             let dist = dist_sq_soft.sqrt();
 
-            // F = k * q_i * q_j / r^2 * r_hat
-            // Like charges (same sign) → positive force → repulsion (diff points away)
-            // Unlike charges → negative force → attraction
-            // Note: we want repulsion when signs match, so negate compared to gravity
             let force_mag = coulomb_k * q_i * q_j / (dist_sq_soft * dist);
-            // Force is repulsive for same sign, so subtract (push away)
             acc -= diff * force_mag;
         }
 
         // Lorentz force: F = q * (v x B)
-        if magnetic_field.length_squared() > 1e-10 {
-            let lorentz = q_i * velocities[i].cross(magnetic_field);
+        if has_magnetic {
+            let lorentz = q_i * vel_snapshot[i].cross(magnetic_field);
             acc += lorentz;
         }
 
-        velocities[i] += acc * dt;
+        acc
+    };
+
+    #[cfg(feature = "parallel")]
+    {
+        let accels: Vec<Vec3> = (0..count).into_par_iter().map(compute_acc).collect();
+        for i in 0..count {
+            velocities[i] += accels[i] * dt;
+        }
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    {
+        for i in 0..count {
+            velocities[i] += compute_acc(i) * dt;
+        }
     }
 }
 
