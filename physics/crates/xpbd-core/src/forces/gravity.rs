@@ -329,4 +329,30 @@ mod tests {
             approx_mag
         );
     }
+
+    #[test]
+    fn test_zero_particles_no_crash() {
+        let positions: Vec<Vec3> = vec![];
+        let mut velocities: Vec<Vec3> = vec![];
+        apply_nbody_gravity(&positions, &mut velocities, 0, 1.0, 0.01, 0.7, 1.0);
+        // Should not crash
+    }
+
+    #[test]
+    fn test_single_particle_no_self_gravity() {
+        let positions = vec![Vec3::new(1.0, 2.0, 3.0)];
+        let mut velocities = vec![Vec3::ZERO];
+        apply_nbody_gravity(&positions, &mut velocities, 1, 1.0, 0.01, 0.7, 1.0);
+        assert_eq!(velocities[0], Vec3::ZERO, "Single particle should have zero gravity");
+    }
+
+    #[test]
+    fn test_coincident_particles_no_crash() {
+        // Two particles at exact same position — tests max depth guard
+        let positions = vec![Vec3::ZERO, Vec3::ZERO];
+        let mut velocities = vec![Vec3::ZERO; 2];
+        apply_nbody_gravity(&positions, &mut velocities, 2, 1.0, 0.01, 0.7, 1.0);
+        // Should not crash or produce NaN
+        assert!(!velocities[0].x.is_nan(), "Coincident particles should not produce NaN");
+    }
 }

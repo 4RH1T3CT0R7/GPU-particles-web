@@ -84,3 +84,68 @@ fn test_grid_rebuild() {
         "should find particle 1 at origin after rebuild"
     );
 }
+
+#[test]
+fn test_grid_negative_positions() {
+    let mut grid = SpatialHashGrid::new(1.0, 1024, 100);
+
+    let positions = vec![
+        Vec3::new(-1.0, -1.0, -1.0),
+        Vec3::new(-0.9, -1.0, -1.0),
+        Vec3::new(5.0, 5.0, 5.0),
+    ];
+
+    grid.build(&positions, 3);
+
+    let mut neighbors = Vec::new();
+    grid.query_neighbors(Vec3::new(-1.0, -1.0, -1.0), |idx| neighbors.push(idx));
+
+    assert!(
+        neighbors.contains(&0),
+        "should find particle 0 at negative position"
+    );
+    assert!(
+        neighbors.contains(&1),
+        "should find nearby particle 1 at negative position"
+    );
+    assert!(
+        !neighbors.contains(&2),
+        "should NOT find distant particle 2"
+    );
+}
+
+#[test]
+fn test_grid_large_positions() {
+    let mut grid = SpatialHashGrid::new(1.0, 1024, 100);
+
+    let positions = vec![Vec3::new(1000.0, 1000.0, 1000.0)];
+
+    grid.build(&positions, 1);
+
+    let mut neighbors = Vec::new();
+    grid.query_neighbors(Vec3::new(1000.0, 1000.0, 1000.0), |idx| {
+        neighbors.push(idx);
+    });
+
+    assert!(
+        neighbors.contains(&0),
+        "should find particle 0 at large position"
+    );
+}
+
+#[test]
+fn test_grid_single_particle() {
+    let mut grid = SpatialHashGrid::new(1.0, 1024, 100);
+
+    let positions = vec![Vec3::new(0.0, 0.0, 0.0)];
+
+    grid.build(&positions, 1);
+
+    let mut neighbors = Vec::new();
+    grid.query_neighbors(Vec3::ZERO, |idx| neighbors.push(idx));
+
+    assert!(
+        neighbors.contains(&0),
+        "should find single particle at origin"
+    );
+}

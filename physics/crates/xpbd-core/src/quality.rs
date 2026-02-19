@@ -196,4 +196,80 @@ mod tests {
         assert!(aq.substeps() >= 1);
         assert!(aq.iterations() >= 1);
     }
+
+    #[test]
+    fn test_acceptable_range_no_quality_change() {
+        // When EMA is between 60% and 100% of budget, quality should NOT change
+        let mut aq = AdaptiveQuality::new(4, 3);
+        aq.enabled = true;
+        aq.budget_ms = 8.0;
+        aq.ema_ms = 0.0;
+
+        // Send values in acceptable range (4.8 < x < 8.0)
+        // After some warmup, 6.0 should land in acceptable range
+        for _ in 0..50 {
+            aq.update(6.0);
+        }
+
+        // Quality should remain at max since we never exceeded budget
+        assert_eq!(aq.substeps(), 4, "substeps should stay at max in acceptable range");
+        assert_eq!(aq.iterations(), 3, "iterations should stay at max in acceptable range");
+    }
+
+    #[test]
+    fn test_reduction_order_iterations_first() {
+        let mut aq = AdaptiveQuality::new(4, 3);
+        aq.enabled = true;
+        aq.budget_ms = 8.0;
+        aq.ema_ms = 10.0; // start above budget
+
+        // First reduction: iterations 3 -> 2
+        aq.update(12.0);
+        assert_eq!(aq.iterations(), 2, "First reduction should lower iterations");
+        assert_eq!(aq.substeps(), 4, "Substeps should still be at max");
+
+        // Second reduction: iterations 2 -> 1
+        aq.update(12.0);
+        assert_eq!(aq.iterations(), 1);
+        assert_eq!(aq.substeps(), 4);
+
+        // Third reduction: substeps 4 -> 3, iterations restored to max (3)
+        aq.update(12.0);
+        assert_eq!(aq.substeps(), 3, "Substeps should drop after iterations bottomed out");
+        assert_eq!(aq.iterations(), 3, "Iterations should be restored to max after substep drop");
+    }
+
+    #[test]
+    fn test_restoration_requires_30_frames() {
+        let mut aq = AdaptiveQuality::new(4, 3);
+        aq.enabled = true;
+        aq.budget_ms = 8.0;
+        aq.current_substeps = 2;
+        aq.current_iterations = 1;
+        aq.ema_ms = 2.0; // well under budget
+
+        // Send 30 under-budget frames — should NOT restore yet
+        for _ in 0..30 {
+            aq.update(2.0);
+        }
+        assert_eq!(aq.iterations(), 1, "Should not restore at exactly 30 frames");
+
+        // Frame 31 should trigger restoration
+        aq.update(2.0);
+        assert_eq!(aq.iterations(), 2, "Frame 31 should restore iterations");
+    }
+
+    #[test]
+    fn test_disabled_update_no_effect() {
+        let mut aq = AdaptiveQuality::new(4, 3);
+        // enabled = false by default
+
+        for _ in 0..100 {
+            aq.update(100.0); // extreme overbudget
+        }
+
+        // Should still report max quality
+        assert_eq!(aq.substeps(), 4);
+        assert_eq!(aq.iterations(), 3);
+    }
 }

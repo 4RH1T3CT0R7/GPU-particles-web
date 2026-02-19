@@ -172,4 +172,66 @@ mod tests {
         // Particle 0 has zero charge, should not be affected
         assert_eq!(velocities[0], Vec3::ZERO, "Zero-charge particle should not move");
     }
+
+    #[test]
+    fn test_max_range_filtering() {
+        // Particles at distance 5.0 with max_range=3.0 should not interact
+        let positions = vec![Vec3::ZERO, Vec3::new(5.0, 0.0, 0.0)];
+        let mut velocities = vec![Vec3::ZERO; 2];
+        let charges = vec![1.0, 1.0];
+        apply_electromagnetic_forces(
+            &positions, &mut velocities, &charges, 2,
+            1.0, Vec3::ZERO, 0.01, 3.0, 1.0,
+        );
+        assert_eq!(velocities[0], Vec3::ZERO, "Beyond max_range should have zero force");
+        assert_eq!(velocities[1], Vec3::ZERO);
+    }
+
+    #[test]
+    fn test_three_particles_all_interact() {
+        let positions = vec![
+            Vec3::new(-1.0, 0.0, 0.0),
+            Vec3::ZERO,
+            Vec3::new(1.0, 0.0, 0.0),
+        ];
+        let mut velocities = vec![Vec3::ZERO; 3];
+        let charges = vec![1.0, 1.0, 1.0]; // all positive
+        apply_electromagnetic_forces(
+            &positions, &mut velocities, &charges, 3,
+            1.0, Vec3::ZERO, 0.01, 10.0, 1.0,
+        );
+        // Middle particle should have ~zero net force (symmetric)
+        assert!(velocities[1].x.abs() < 0.01,
+            "Middle particle should have near-zero net force: {}", velocities[1].x);
+        // Outer particles should be pushed outward
+        assert!(velocities[0].x < 0.0, "Left particle should move left");
+        assert!(velocities[2].x > 0.0, "Right particle should move right");
+    }
+
+    #[test]
+    fn test_zero_particles_no_crash() {
+        let positions: Vec<Vec3> = vec![];
+        let mut velocities: Vec<Vec3> = vec![];
+        let charges: Vec<f32> = vec![];
+        apply_electromagnetic_forces(
+            &positions, &mut velocities, &charges, 0,
+            1.0, Vec3::ZERO, 0.01, 10.0, 1.0,
+        );
+        // Should not crash
+    }
+
+    #[test]
+    fn test_single_particle_lorentz_only() {
+        // 1 particle with charge and velocity in magnetic field
+        let positions = vec![Vec3::ZERO];
+        let mut velocities = vec![Vec3::new(1.0, 0.0, 0.0)];
+        let charges = vec![1.0];
+        apply_electromagnetic_forces(
+            &positions, &mut velocities, &charges, 1,
+            1.0, Vec3::new(0.0, 0.0, 1.0), 0.01, 10.0, 1.0,
+        );
+        // Should only get Lorentz force (no Coulomb partner)
+        // v x B = (1,0,0) x (0,0,1) = (0,-1,0)
+        assert!(velocities[0].y < 0.0, "Should feel Lorentz force in -Y");
+    }
 }

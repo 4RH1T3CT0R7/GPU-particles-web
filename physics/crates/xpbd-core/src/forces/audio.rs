@@ -117,4 +117,23 @@ mod tests {
     fn test_audio_boost_factor_full_energy() {
         assert!((audio_boost_factor(1.0) - 2.2).abs() < f32::EPSILON);
     }
+
+    #[test]
+    fn test_audio_force_mid_produces_swirl() {
+        let pos = Vec3::new(1.0, 0.0, 0.0);
+        let desired = Vec3::ZERO;
+        let (acc, _vel) = compute_audio_force(pos, desired, 0.5, 0.3, 0.0, 0.0, 1.0, 0.0, 0.5);
+        // Mid should produce rotation/swirl forces
+        assert!(acc.length() > 0.5, "mid-only should produce substantial force: {}", acc.length());
+    }
+
+    #[test]
+    fn test_audio_force_treble_vertical() {
+        let pos = Vec3::new(1.0, 0.0, 0.0);
+        let desired = Vec3::ZERO;
+        let (acc, _vel) = compute_audio_force(pos, desired, 0.5, 0.3, 0.0, 0.0, 0.0, 1.0, 0.5);
+        // Treble should add positive Y force (line: acc.y += audio_treble * 3.8),
+        // partially offset by sparkle cos term; net Y should still be well above 1.0
+        assert!(acc.y > 1.5, "treble should push upward: acc.y={}", acc.y);
+    }
 }

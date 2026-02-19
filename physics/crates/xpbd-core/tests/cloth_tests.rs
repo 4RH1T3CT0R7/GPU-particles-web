@@ -297,3 +297,31 @@ fn test_cloth_drapes_under_gravity() {
         final_y
     );
 }
+
+#[test]
+fn test_bending_degenerate_edge() {
+    use xpbd_core::constraints::bending::{BendingConstraint, solve_bending_constraints};
+
+    // Vertices i and j at same position — degenerate shared edge
+    let mut particles = ParticleSet::new(4);
+    particles.predicted[0] = Vec3::ZERO;       // i
+    particles.predicted[1] = Vec3::ZERO;       // j (same as i!)
+    particles.predicted[2] = Vec3::new(0.0, 1.0, 0.0); // k
+    particles.predicted[3] = Vec3::new(0.0, -1.0, 0.0); // l
+    for i in 0..4 {
+        particles.inv_mass[i] = 1.0;
+        particles.corrections[i] = Vec3::ZERO;
+        particles.correction_counts[i] = 0;
+    }
+
+    let mut constraints = vec![BendingConstraint::new(0, 1, 2, 3, 0.0, 0.0)];
+    solve_bending_constraints(&mut constraints, &mut particles, 1.0 / 60.0);
+
+    // Should not produce NaN or crash (edge_len < 1e-8 guard)
+    for i in 0..4 {
+        assert!(!particles.corrections[i].x.is_nan(),
+            "Degenerate edge should not produce NaN at {}", i);
+        assert_eq!(particles.corrections[i], Vec3::ZERO,
+            "Degenerate edge should produce no corrections at {}", i);
+    }
+}
